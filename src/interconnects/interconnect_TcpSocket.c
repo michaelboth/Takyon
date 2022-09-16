@@ -49,8 +49,8 @@
 //     "TcpSocket -client -remoteIP=<ip_addr>|<hostname> -port=<port_number>"
 //     "TcpSocket -server -localIP=<ip_addr>|<hostname>|Any -port=<port_number> [-reuse]"
 //   Ephemeral port number (assigned by system)
-//     "TcpSocket -client -remoteIP=<ip_addr>|<hostname> -pathID=<non_negative_integer>"
-//     "TcpSocket -server -localIP=<ip_addr>|<hostname>|Any -pathID=<non_negative_integer>"
+//     "TcpSocket -client -remoteIP=<ip_addr>|<hostname> -ephemeralID=<non_negative_integer>"
+//     "TcpSocket -server -localIP=<ip_addr>|<hostname>|Any -ephemeralID=<non_negative_integer>"
 //
 //   Argument descriptions:
 //     -port=<port_number> = [1024 .. 65535]
@@ -107,6 +107,15 @@ bool tcpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReque
     TAKYON_RECORD_ERROR(path->error_message, "interconnect argument -pathID=<non_negative_integer> is invalid: %s\n", error_message);
     return false;
   }
+  // -ephemeralID=<non_negative_integer>
+  uint32_t ephemeral_id = 0;
+  bool ephemeral_id_found = false;
+  ok = argGetUInt(path->attrs.interconnect, "-ephemeralID=", &ephemeral_id, &ephemeral_id_found, error_message, MAX_ERROR_MESSAGE_CHARS);
+  if (!ok) {
+    TAKYON_RECORD_ERROR(path->error_message, "interconnect argument -ephemeralID=<non_negative_integer> is invalid: %s\n", error_message);
+    return false;
+  }
+
   // -port=<port_number>
   uint32_t port_number = 0;
   bool port_number_found = false;
@@ -134,7 +143,7 @@ bool tcpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReque
       return false;
     }
   } else {
-    num_modes = (path_id_found ? 1 : 0) + (port_number_found ? 1 : 0);
+    num_modes = (ephemeral_id_found ? 1 : 0) + (port_number_found ? 1 : 0);
     if (num_modes != 1) {
       TAKYON_RECORD_ERROR(path->error_message, "Need to specify exactly one of -pathID=<non_negative_integer> or -port=<port_number>\n");
       return false;
@@ -162,12 +171,12 @@ bool tcpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReque
   }
   comm->data = private_path;
   private_path->connection_failed = false;
-  private_path->using_ephemeral_port_manager = path_id_found;
+  private_path->using_ephemeral_port_manager = ephemeral_id_found;
   private_path->socket_fd = -1;
   private_path->socket_is_in_polling_mode = false;
 
   // See if the ephemeral port manager needs to get started
-  if (path_id_found) {
+  if (ephemeral_id_found) {
     ephemeralPortManagerInit(path->attrs.verbosity);
   }
 
@@ -187,8 +196,9 @@ bool tcpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReque
       }
     }
   } else if (is_client) {
-    if (path_id_found) {
-      if (!socketCreateEphemeralTcpClient(remote_ip_addr, interconnect_name, path_id, &private_path->socket_fd, timeout_nano_seconds, path->attrs.verbosity, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    // Client
+    if (ephemeral_id_found) {
+      if (!socketCreateEphemeralTcpClient(remote_ip_addr, interconnect_name, ephemeral_id, &private_path->socket_fd, timeout_nano_seconds, path->attrs.verbosity, error_message, MAX_ERROR_MESSAGE_CHARS)) {
         TAKYON_RECORD_ERROR(path->error_message, "Failed to create TCP client socket: %s\n", error_message);
         goto cleanup;
       }
@@ -199,8 +209,9 @@ bool tcpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReque
       }
     }
   } else {
-    if (path_id_found) {
-      if (!socketCreateEphemeralTcpServer(local_ip_addr, interconnect_name, path_id, &private_path->socket_fd, timeout_nano_seconds, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    // Server
+    if (ephemeral_id_found) {
+      if (!socketCreateEphemeralTcpServer(local_ip_addr, interconnect_name, ephemeral_id, &private_path->socket_fd, timeout_nano_seconds, error_message, MAX_ERROR_MESSAGE_CHARS)) {
         TAKYON_RECORD_ERROR(path->error_message, "Failed to create TCP server socket: %s\n", error_message);
         goto cleanup;
       }

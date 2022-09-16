@@ -18,8 +18,8 @@ Mac and Linux
       A> ./hello_mp A "TcpSocket -client -remoteIP=127.0.0.1 -port=23456" 10
       B> ./hello_mp B "TcpSocket -server -localIP=127.0.0.1 -port=23456 -reuse" 10
     TcpSocket (different CPUs, OS implicitly determines port number)
-      A> ./hello_mp A "TcpSocket -client -remoteIP=127.0.0.1 -pathID=1" 10
-      B> ./hello_mp B "TcpSocket -server -localIP=127.0.0.1 -pathID=1" 10
+      A> ./hello_mp A "TcpSocket -client -remoteIP=127.0.0.1 -ephemeralID=1" 10
+      B> ./hello_mp B "TcpSocket -server -localIP=127.0.0.1 -ephemeralID=1" 10
     UdpSocket (unicast)
       A> ./hello_mp A "UdpSocketSend -unicast -remoteIP=127.0.0.1 -port=23456" 10
       B> ./hello_mp B "UdpSocketRecv -unicast -localIP=127.0.0.1 -port=23456 -reuse" 10

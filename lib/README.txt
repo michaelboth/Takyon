@@ -4,7 +4,11 @@ instead of directly compiling the Takyon source code into your application.
 Linux and Mac
   Build:
     > cd takyon/lib
-    > make [DEBUG=Yes] [InterThread=Yes] [InterProcess=Yes] [TcpSocket=Yes] [UdpSocket=Yes]
+    Specification
+      > make [DEBUG=Yes] [InterThread=Yes] [InterProcess=Yes] [TcpSocket=Yes] [UdpSocket=Yes] [CUDA=Yes]
+    Example
+      > make DEBUG=Yes InterThread=Yes InterProcess=Yes TcpSocket=Yes UdpSocket=Yes CUDA=Yes
+
   When linking the library into your app, add the following to the link line:
     -L../../lib -ltakyon -pthread
 
@@ -21,7 +25,11 @@ Windows
       > nmake VC VC-debug VC-static VC-static-debug install DESTROOT=.\install
   Build:
     > cd takyon\lib
-    > nmake -f windows.Makefile [DEBUG=Yes] [InterThread=Yes] [TcpSocket=Yes] [UdpSocket=Yes]
+    Specification
+      > nmake -f windows.Makefile [DEBUG=Yes] [InterThread=Yes] [InterProcess=Yes] [TcpSocket=Yes] [UdpSocket=Yes] [CUDA=Yes]
+    Example
+      > nmake -f windows.Makefile DEBUG=Yes InterThread=Yes InterProcess=Yes TcpSocket=Yes UdpSocket=Yes CUDA=Yes
+
   When linking the library into your app add the following to the link line:
     With thread support:
       ../../lib/takyon.lib -nodefaultlib:MSVCRTD.LIB c:/pthreads4w/install/lib/libpthreadVC3.lib -nodefaultlib:LIBCMT.LIB
