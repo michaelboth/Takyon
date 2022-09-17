@@ -384,7 +384,7 @@ bool tcpSocketIsRecved(TakyonPath *path, TakyonRecvRequest *request, double time
     return false;
   }
   uint64_t total_bytes_sent = header[1];
-  uint32_t piggy_back_message = header[2];
+  uint32_t piggy_back_message = (uint32_t)(header[2] & 0xffffffff);
 
   // Recv the data
   if (total_bytes_sent > 0) {

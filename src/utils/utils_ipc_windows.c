@@ -28,8 +28,12 @@
 //     See the License for the specific language governing permissions and
 //     limitations under the License.
 
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
 #include "utils_ipc.h"
 #include "takyon.h" // Just need TAKYON_MAX_BUFFER_NAME_CHARS
+#include <stdio.h>
+#include <stdlib.h>
 
 #define MEMORY_MAP_PREFIX "_" /* This follows the Windows way: no prefix characters really needed */
 

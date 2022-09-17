@@ -51,7 +51,6 @@ ifeq ($(InterProcess),Yes)
     NEED_utils_ipc := Yes
     NEED_utils_thread_cond_timed_wait := Yes
     NEED_utils_socket := Yes
-#+    NEED_utils_ephemeral_port_manager := Yes
     C_OBJS       += interconnect_InterProcess.o
     HEADER_FILES += interconnect_InterProcess.h
 endif

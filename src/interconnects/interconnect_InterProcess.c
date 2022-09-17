@@ -492,7 +492,11 @@ bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRe
   remote_buffer_info_list = NULL;
 
   // Allocate mmap for tracking posted recvs
+  RemotePathInfo local_path_info;
+  memset(&local_path_info, 0, sizeof(RemotePathInfo));
+  /*+
   RemotePathInfo local_path_info = {};
+  */
   if (path->attrs.max_pending_recv_requests > 0) {
     local_path_info.max_pending_recv_requests = path->attrs.max_pending_recv_requests;
     local_path_info.max_sub_buffers_per_recv_request = path->attrs.max_sub_buffers_per_recv_request;

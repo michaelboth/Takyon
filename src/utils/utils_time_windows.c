@@ -31,6 +31,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #include <sys/timeb.h>
+#include <stdint.h>
 
 void clockSleep(int64_t microseconds) {
   if (microseconds >= 0) {

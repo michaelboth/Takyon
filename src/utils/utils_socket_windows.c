@@ -28,8 +28,16 @@
 //     See the License for the specific language governing permissions and
 //     limitations under the License.
 
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
 #include <winsock2.h> // Needed for Socket
 #include <ws2tcpip.h> // Need for inet_pton()
+#include "utils_socket.h"
+#include "utils_time.h"
+#include "pthread.h"
+#include "takyon.h" // For TAKYON_MAX_INTERCONNECT_CHARS
+#include <stdio.h>
+#include <stdlib.h>
 
 #define MAX_IP_ADDR_CHARS 40 // Good for IPv4 or IPv6
 #define MAX_TEMP_FILENAME_CHARS (TAKYON_MAX_INTERCONNECT_CHARS+MAX_PATH+1)
@@ -37,7 +45,7 @@
 
 static pthread_once_t L_once_control = PTHREAD_ONCE_INIT;
 
-static bool hostnameToIpaddr(int address_family, const char *hostname, char *resolved_ip_addr, int max_chars, char *error_message) {
+static bool hostnameToIpaddr(int address_family, const char *hostname, char *resolved_ip_addr, int max_chars, char *error_message, int max_error_message_chars) {
   struct addrinfo hints;
   memset(&hints, 0, sizeof hints); // Zeroing the structure sets most of the flags to open ended
 //#define TEST_NAME_RESOLUTION
@@ -55,7 +63,7 @@ static bool hostnameToIpaddr(int address_family, const char *hostname, char *res
 #ifdef TEST_NAME_RESOLUTION
     printf("FAILED to find ip addr info for hostname '%s': %s\n", hostname, gai_strerror(status));
 #else
-    TAKYON_RECORD_ERROR(error_message, "Could not convert hostname '%s' to an IP address: %s\n", hostname, gai_strerror(status));
+    snprintf(error_message, max_error_message_chars, "Could not convert hostname '%s' to an IP address: %s", hostname, gai_strerror(status));
 #endif
     return false;
   }
@@ -81,7 +89,7 @@ static bool hostnameToIpaddr(int address_family, const char *hostname, char *res
 #ifdef TEST_NAME_RESOLUTION
       printf("  %d: %s FAILED TO GET IP ADDR: errno=%d\n", index, p->ai_family == AF_INET6 ? "IPv6" : "IPv4", errno);
 #else
-      TAKYON_RECORD_ERROR(error_message, "Could not convert hostname '%s' to an IP address: errno=%d\n", hostname, errno);
+      snprintf(error_message, max_error_message_chars, "Could not convert hostname '%s' to an IP address: errno=%d", hostname, errno);
 #endif
     } else {
 #ifdef TEST_NAME_RESOLUTION
@@ -117,46 +125,46 @@ static void windows_socket_init_once(void) {
   }
 }
 
-static int windows_socket_manager_init(char *error_message) {
+static int windows_socket_manager_init(char *error_message, int max_error_message_chars) {
   // Call this to make sure Windows inits sockets: This can be called multiple times, but it's garanteed to atomically run the only the first time called.
   if (pthread_once(&L_once_control, windows_socket_init_once) != 0) {
-    TAKYON_RECORD_ERROR(error_message, "Failed to start Windows sockets\n");
+    snprintf(error_message, max_error_message_chars, "Failed to start Windows sockets");
     return false;
   }
 #ifdef TEST_NAME_RESOLUTION
   char resolved_ip_addr[MAX_IP_ADDR_CHARS];
-  hostnameToIpaddr(AF_INET, "10.3.45.234", resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message);
-  hostnameToIpaddr(AF_INET, "127.0.0.1", resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message);
-  hostnameToIpaddr(AF_INET, "localhost", resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message);
-  hostnameToIpaddr(AF_INET, "fakehost", resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message);
-  hostnameToIpaddr(AF_INET, "www.google.com", resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message);
-  hostnameToIpaddr(AF_INET, "www.nba.com", resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message);
-  hostnameToIpaddr(AF_INET, "www.comcast.net", resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message);
+  hostnameToIpaddr(AF_INET, "10.3.45.234", resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message, max_error_message_chars);
+  hostnameToIpaddr(AF_INET, "127.0.0.1", resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message, max_error_message_chars);
+  hostnameToIpaddr(AF_INET, "localhost", resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message, max_error_message_chars);
+  hostnameToIpaddr(AF_INET, "fakehost", resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message, max_error_message_chars);
+  hostnameToIpaddr(AF_INET, "www.google.com", resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message, max_error_message_chars);
+  hostnameToIpaddr(AF_INET, "www.nba.com", resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message, max_error_message_chars);
+  hostnameToIpaddr(AF_INET, "www.comcast.net", resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message, max_error_message_chars);
 #endif
   return true;
 }
 
-static bool setSocketTimeout(TakyonSocket socket_fd, int timeout_name, int64_t timeout_ns, char *error_message) {
+static bool setSocketTimeout(TakyonSocket socket_fd, int timeout_name, int64_t timeout_ns, char *error_message, int max_error_message_chars) {
   DWORD timeout_ms;
   if (timeout_ns < 0) {
     timeout_ms = INT_MAX;
-  } else if (timeout_ns == TAKYON_NO_WAIT) {
+  } else if (timeout_ns == 0) {
     timeout_ms = 0;
   } else {
     timeout_ms = (DWORD)(timeout_ns / 1000000);
   }
   if (setsockopt(socket_fd, SOL_SOCKET, timeout_name, (char *)&timeout_ms, sizeof(timeout_ms)) != 0) {
-    TAKYON_RECORD_ERROR(error_message, "Failed to set the timeout = %lld. sock_error=%d\n", timeout_ns, WSAGetLastError());
+    snprintf(error_message, max_error_message_chars, "Failed to set the timeout = %lld. sock_error=%d", timeout_ns, WSAGetLastError());
     return false;
   }
   return true;
 }
 
-static bool socket_send_event_driven(TakyonSocket socket_fd, void *addr, size_t total_bytes_to_write, int64_t timeout_ns, bool *timed_out_ret, char *error_message) {
+static bool socket_send_event_driven(TakyonSocket socket_fd, void *addr, size_t total_bytes_to_write, int64_t timeout_ns, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
   if (timed_out_ret != NULL) *timed_out_ret = false;
 
   // Set the timeout on the socket
-  if (!setSocketTimeout(socket_fd, SO_SNDTIMEO, timeout_ns, error_message)) return false;
+  if (!setSocketTimeout(socket_fd, SO_SNDTIMEO, timeout_ns, error_message, max_error_message_chars)) return false;
   bool got_some_data = false;
 
   // Write the data
@@ -180,19 +188,19 @@ static bool socket_send_event_driven(TakyonSocket socket_fd, void *addr, size_t 
             return true;
           } else {
             // Can't report the timed
-            TAKYON_RECORD_ERROR(error_message, "Timed out starting the transfer\n");
+            snprintf(error_message, max_error_message_chars, "Timed out starting the transfer");
             return false;
           }
         } else {
           // This is bad... the connection might have gone down while in the middle of sending
-          TAKYON_RECORD_ERROR(error_message, "Timed out in the middle of a send transfer: total_bytes_sent=%ju\n", total_bytes_sent);
+          snprintf(error_message, max_error_message_chars, "Timed out in the middle of a send transfer: total_bytes_sent=%ju", total_bytes_sent);
           return false;
         }
       } else if (sock_error == WSAEINTR) {
         // Interrupted by external signal. Just try again
         bytes_written = 0;
       } else {
-        TAKYON_RECORD_ERROR(error_message, "Failed to write to socket: sock_error=%d\n", sock_error);
+        snprintf(error_message, max_error_message_chars, "Failed to write to socket: sock_error=%d", sock_error);
         return false;
       }
     } else {
@@ -205,7 +213,7 @@ static bool socket_send_event_driven(TakyonSocket socket_fd, void *addr, size_t 
   return true;
 }
 
-static bool socket_send_polling(TakyonSocket socket, void *addr, size_t total_bytes_to_write, int64_t timeout_ns, bool *timed_out_ret, char *error_message) {
+static bool socket_send_polling(TakyonSocket socket, void *addr, size_t total_bytes_to_write, int64_t timeout_ns, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
   if (timed_out_ret != NULL) *timed_out_ret = false;
   int64_t start_time = clockTimeNanoseconds();
   bool got_some_data = false;
@@ -233,12 +241,12 @@ static bool socket_send_polling(TakyonSocket socket, void *addr, size_t total_by
                 return true;
               } else {
                 // Can't report the timed
-                TAKYON_RECORD_ERROR(error_message, "Timed out starting the transfer\n");
+                snprintf(error_message, max_error_message_chars, "Timed out starting the transfer");
                 return false;
               }
             } else {
               // This is bad... the connection might have gone down while in the middle of sending
-              TAKYON_RECORD_ERROR(error_message, "Timed out in the middle of a send transfer: total_bytes_sent=%ju\n", total_bytes_sent);
+              snprintf(error_message, max_error_message_chars, "Timed out in the middle of a send transfer: total_bytes_sent=%ju", total_bytes_sent);
               return false;
             }
           }
@@ -248,7 +256,7 @@ static bool socket_send_polling(TakyonSocket socket, void *addr, size_t total_by
         // Interrupted by external signal. Just try again
         bytes_written = 0;
       } else {
-        TAKYON_RECORD_ERROR(error_message, "Failed to write to socket: sock_error=%d\n", sock_error);
+        snprintf(error_message, max_error_message_chars, "Failed to write to socket: sock_error=%d", sock_error);
         return false;
       }
     } else {
@@ -266,19 +274,19 @@ static bool socket_send_polling(TakyonSocket socket, void *addr, size_t total_by
   return true;
 }
 
-bool socketSend(TakyonSocket socket, void *addr, size_t bytes_to_write, bool is_polling, int64_t timeout_ns, bool *timed_out_ret, char *error_message) {
+bool socketSend(TakyonSocket socket, void *addr, size_t bytes_to_write, bool is_polling, int64_t timeout_ns, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
   if (is_polling) {
-    return socket_send_polling(socket, addr, bytes_to_write, timeout_ns, timed_out_ret, error_message);
+    return socket_send_polling(socket, addr, bytes_to_write, timeout_ns, timed_out_ret, error_message, max_error_message_chars);
   } else {
-    return socket_send_event_driven(socket, addr, bytes_to_write, timeout_ns, timed_out_ret, error_message);
+    return socket_send_event_driven(socket, addr, bytes_to_write, timeout_ns, timed_out_ret, error_message, max_error_message_chars);
   }
 }
 
-static bool socket_recv_event_driven(TakyonSocket socket_fd, void *data_ptr, size_t bytes_to_read, int64_t timeout_ns, bool *timed_out_ret, char *error_message) {
+static bool socket_recv_event_driven(TakyonSocket socket_fd, void *data_ptr, size_t bytes_to_read, int64_t timeout_ns, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
   if (timed_out_ret != NULL) *timed_out_ret = false;
 
   // Set the timeout on the socket
-  if (!setSocketTimeout(socket_fd, SO_RCVTIMEO, timeout_ns, error_message)) return false;
+  if (!setSocketTimeout(socket_fd, SO_RCVTIMEO, timeout_ns, error_message, max_error_message_chars)) return false;
   bool got_some_data = false;
 
   char *data = data_ptr;
@@ -289,7 +297,7 @@ static bool socket_recv_event_driven(TakyonSocket socket_fd, void *data_ptr, siz
     int read_bytes = recv(socket_fd, data+total_bytes_read, bytes_to_read2, 0);
     if (read_bytes == 0) {
       // The socket was gracefully close
-      TAKYON_RECORD_ERROR(error_message, "Remote side of socket has been closed\n");
+      snprintf(error_message, max_error_message_chars, "Remote side of socket has been closed");
       return false;
     } else if (read_bytes == SOCKET_ERROR) {
       int sock_error = WSAGetLastError();
@@ -302,19 +310,19 @@ static bool socket_recv_event_driven(TakyonSocket socket_fd, void *data_ptr, siz
             return true;
           } else {
             // Can't report the timed
-            TAKYON_RECORD_ERROR(error_message, "Timed out starting the transfer\n");
+            snprintf(error_message, max_error_message_chars, "Timed out starting the transfer");
             return false;
           }
         } else {
           // This is bad... the connection might have gone down while in the middle of receiving
-          TAKYON_RECORD_ERROR(error_message, "Timed out in the middle of a recv transfer\n");
+          snprintf(error_message, max_error_message_chars, "Timed out in the middle of a recv transfer");
           return false;
         }
       } else if (sock_error == WSAEINTR) {
         // Interrupted by external signal. Just try again
         read_bytes = 0;
       } else {
-        TAKYON_RECORD_ERROR(error_message, "Failed to read from socket: sock_error=%d\n", sock_error);
+        snprintf(error_message, max_error_message_chars, "Failed to read from socket: sock_error=%d", sock_error);
         return false;
       }
     }
@@ -324,7 +332,7 @@ static bool socket_recv_event_driven(TakyonSocket socket_fd, void *data_ptr, siz
   return true;
 }
 
-static bool socket_recv_polling(TakyonSocket socket_fd, void *data_ptr, size_t bytes_to_read, int64_t timeout_ns, bool *timed_out_ret, char *error_message) {
+static bool socket_recv_polling(TakyonSocket socket_fd, void *data_ptr, size_t bytes_to_read, int64_t timeout_ns, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
   if (timed_out_ret != NULL) *timed_out_ret = false;
   int64_t start_time = clockTimeNanoseconds();
   bool got_some_data = false;
@@ -337,7 +345,7 @@ static bool socket_recv_polling(TakyonSocket socket_fd, void *data_ptr, size_t b
     int read_bytes = recv(socket_fd, data+total_bytes_read, bytes_to_read2, 0);
     if (read_bytes == 0) {
       // The socket was gracefully closed
-      TAKYON_RECORD_ERROR(error_message, "Remote side of socket has been closed\n");
+      snprintf(error_message, max_error_message_chars, "Remote side of socket has been closed");
       return false;
     } else if (read_bytes == SOCKET_ERROR) {
       int sock_error = WSAGetLastError();
@@ -353,12 +361,12 @@ static bool socket_recv_polling(TakyonSocket socket_fd, void *data_ptr, size_t b
                 return true;
               } else {
                 // Can't report the time out
-                TAKYON_RECORD_ERROR(error_message, "Timed out starting the transfer\n");
+                snprintf(error_message, max_error_message_chars, "Timed out starting the transfer");
                 return false;
               }
             } else {
               // This is bad... the connection might have gone down while in the middle of receiving
-              TAKYON_RECORD_ERROR(error_message, "Timed out in the middle of a recv transfer\n");
+              snprintf(error_message, max_error_message_chars, "Timed out in the middle of a recv transfer");
               return false;
             }
           }
@@ -368,7 +376,7 @@ static bool socket_recv_polling(TakyonSocket socket_fd, void *data_ptr, size_t b
         // Interrupted by external signal. Just try again
         read_bytes = 0;
       } else {
-        TAKYON_RECORD_ERROR(error_message, "Failed to read from socket: sock_error=%d\n", sock_error);
+        snprintf(error_message, max_error_message_chars, "Failed to read from socket: sock_error=%d", sock_error);
         return false;
       }
     }
@@ -383,15 +391,15 @@ static bool socket_recv_polling(TakyonSocket socket_fd, void *data_ptr, size_t b
   return true;
 }
 
-bool socketRecv(TakyonSocket socket_fd, void *data_ptr, size_t bytes_to_read, bool is_polling, int64_t timeout_ns, bool *timed_out_ret, char *error_message) {
+bool socketRecv(TakyonSocket socket_fd, void *data_ptr, size_t bytes_to_read, bool is_polling, int64_t timeout_ns, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
   if (is_polling) {
-    return socket_recv_polling(socket_fd, data_ptr, bytes_to_read, timeout_ns, timed_out_ret, error_message);
+    return socket_recv_polling(socket_fd, data_ptr, bytes_to_read, timeout_ns, timed_out_ret, error_message, max_error_message_chars);
   } else {
-    return socket_recv_event_driven(socket_fd, data_ptr, bytes_to_read, timeout_ns, timed_out_ret, error_message);
+    return socket_recv_event_driven(socket_fd, data_ptr, bytes_to_read, timeout_ns, timed_out_ret, error_message, max_error_message_chars);
   }
 }
 
-static bool wait_for_socket_read_activity(TakyonSocket socket, int64_t timeout_ns, char *error_message) {
+static bool wait_for_socket_read_activity(TakyonSocket socket, int64_t timeout_ns, char *error_message, int max_error_message_chars) {
   int timeout_in_milliseconds;
   int num_fds_with_activity;
   struct pollfd poll_fd_list[1];
@@ -415,7 +423,7 @@ static bool wait_for_socket_read_activity(TakyonSocket socket, int64_t timeout_n
   num_fds_with_activity = WSAPoll(poll_fd_list, num_fds, timeout_in_milliseconds);
   if (num_fds_with_activity == 0) {
     // Can't report the time out
-    TAKYON_RECORD_ERROR(error_message, "Timed out waiting for socket read activity\n");
+    snprintf(error_message, max_error_message_chars, "Failed to listen for connection. Timed out waiting for socket read activity");
     return false;
   } else if (num_fds_with_activity != 1) {
     // Select has an error
@@ -424,7 +432,7 @@ static bool wait_for_socket_read_activity(TakyonSocket socket, int64_t timeout_n
       // Interrupted by external signal. Just try again
       goto restart_wait;
     }
-    TAKYON_RECORD_ERROR(error_message, "Error while waiting for socket read activity: sock_error=%d\n", sock_error);
+    snprintf(error_message, max_error_message_chars, "Failed to listen for connection. Error while waiting for socket read activity: sock_error=%d", sock_error);
     return false;
   } else {
     // Got activity.
@@ -432,12 +440,12 @@ static bool wait_for_socket_read_activity(TakyonSocket socket, int64_t timeout_n
   }
 }
 
-static bool get_port_number_filename(const char *socket_name, char *port_number_filename, int max_chars, char *error_message) {
+static bool get_port_number_filename(const char *socket_name, char *port_number_filename, int max_chars, char *error_message, int max_error_message_chars) {
   char system_folder[MAX_PATH+1];
   snprintf(system_folder, MAX_PATH, "%s", ".\\"); // Use the current working folder
   unsigned int folder_bytes = (unsigned int)strlen(system_folder);
   if ((folder_bytes == 0) || (folder_bytes > MAX_PATH)) {
-    TAKYON_RECORD_ERROR(error_message, "System folder name is bigger than %d chars\n", MAX_PATH);
+    snprintf(error_message, max_error_message_chars, "System folder name is bigger than %d chars", MAX_PATH);
     return false;
   }
   if (system_folder[folder_bytes-1] == '\\') {
@@ -448,27 +456,27 @@ static bool get_port_number_filename(const char *socket_name, char *port_number_
   return true;
 }
 
-static bool socketSetNoDelay(TakyonSocket socket_fd, bool use_it, char *error_message) {
+static bool socketSetNoDelay(TakyonSocket socket_fd, bool use_it, char *error_message, int max_error_message_chars) {
   // This will allow small messages to be sent right away instead of letting the socket wait to buffer up 8k of data.
   BOOL use_no_delay = use_it ? 1 : 0;
   if (setsockopt(socket_fd, IPPROTO_TCP, TCP_NODELAY, (char *)&use_no_delay, sizeof(use_no_delay)) != 0) {
-    TAKYON_RECORD_ERROR(error_message, "Failed to set socket to TCP_NODELAY. sock_error=%d\n", WSAGetLastError());
+    snprintf(error_message, max_error_message_chars, "Failed to set socket to TCP_NODELAY. sock_error=%d", WSAGetLastError());
     return false;
   }
   return true;
 }
 
-bool socketSetKernelRecvBufferingSize(TakyonSocket socket_fd, int bytes, char *error_message) {
+bool socketSetKernelRecvBufferingSize(TakyonSocket socket_fd, int bytes, char *error_message, int max_error_message_chars) {
   // Allow datagrams to be buffered in the OS to avoid dropping packets
   if (setsockopt(socket_fd, SOL_SOCKET, SO_RCVBUF, (char *)&bytes, sizeof(bytes)) != 0) {
-    TAKYON_RECORD_ERROR(error_message, "Failed to set socket to SO_RCVBUF. sock_error=%d\n", WSAGetLastError());
+    snprintf(error_message, max_error_message_chars, "Failed to set socket to SO_RCVBUF. sock_error=%d", WSAGetLastError());
     return false;
   }
   return true;
 }
 
-bool socketCreateLocalClient(const char *socket_name, TakyonSocket *socket_fd_ret, int64_t timeout_ns, char *error_message) {
-  if (!windows_socket_manager_init(error_message)) {
+bool socketCreateLocalClient(const char *socket_name, TakyonSocket *socket_fd_ret, int64_t timeout_ns, char *error_message, int max_error_message_chars) {
+  if (!windows_socket_manager_init(error_message, max_error_message_chars)) {
     return false;
   }
 
@@ -484,14 +492,14 @@ bool socketCreateLocalClient(const char *socket_name, TakyonSocket *socket_fd_re
     // Get the published port number
     {
       char port_number_filename[MAX_TEMP_FILENAME_CHARS];
-      if (!get_port_number_filename(socket_name, port_number_filename, MAX_TEMP_FILENAME_CHARS, error_message)) {
-        TAKYON_RECORD_ERROR(error_message, "Could not get temp filename\n");
+      if (!get_port_number_filename(socket_name, port_number_filename, MAX_TEMP_FILENAME_CHARS, error_message, max_error_message_chars)) {
+        // Error message already set
         return false;
       }
       FILE *fp = fopen(port_number_filename, "r");
       if (fp == NULL) {
         if (errno != ENOENT) {
-          TAKYON_RECORD_ERROR(error_message, "Failed to open file '%s' to get published port number. errno=%d\n", port_number_filename, errno);
+          snprintf(error_message, max_error_message_chars, "Failed to open file '%s' to get published port number. errno=%d", port_number_filename, errno);
           return false;
         }
         // Remote side not ready yet, Port number is still 0, so a retry will occur
@@ -509,7 +517,7 @@ bool socketCreateLocalClient(const char *socket_name, TakyonSocket *socket_fd_re
     if (port_number > 0) {
       socket_fd = socket(AF_INET, SOCK_STREAM, 0);
       if (socket_fd == INVALID_SOCKET) {
-        TAKYON_RECORD_ERROR(error_message, "Could not create local TCP socket. sock_error=%d\n", WSAGetLastError());
+        snprintf(error_message, max_error_message_chars, "Could not create local TCP socket. sock_error=%d", WSAGetLastError());
         return false;
       }
 
@@ -520,11 +528,11 @@ bool socketCreateLocalClient(const char *socket_name, TakyonSocket *socket_fd_re
       server_addr.sin_port = htons(port_number);
       int status = inet_pton(AF_INET, ip_addr, &server_addr.sin_addr);
       if (status == 0) {
-        TAKYON_RECORD_ERROR(error_message, "Could not get the IP address from the hostname '%s'. Invalid name.\n", ip_addr);
+        snprintf(error_message, max_error_message_chars, "Could not get the IP address from the hostname '%s'. Invalid name.", ip_addr);
         closesocket(socket_fd);
         return false;
       } else if (status == -1) {
-        TAKYON_RECORD_ERROR(error_message, "Could not get the IP address from the hostname '%s'. sock_error=%d\n", ip_addr, WSAGetLastError());
+        snprintf(error_message, max_error_message_chars, "Could not get the IP address from the hostname '%s'. sock_error=%d", ip_addr, WSAGetLastError());
         closesocket(socket_fd);
         return false;
       }
@@ -536,7 +544,7 @@ bool socketCreateLocalClient(const char *socket_name, TakyonSocket *socket_fd_re
       int sock_error = WSAGetLastError();
       /*+ check for EBADF? Test with reduce example: graph_mp.txt */
       if (sock_error != WSAECONNREFUSED) {
-        TAKYON_RECORD_ERROR(error_message, "Could not connect local socket. sock_error=%d\n", sock_error);
+        snprintf(error_message, max_error_message_chars, "Could not connect local socket. sock_error=%d", sock_error);
         closesocket(socket_fd);
         return false;
       }
@@ -548,7 +556,7 @@ bool socketCreateLocalClient(const char *socket_name, TakyonSocket *socket_fd_re
     if (timeout_ns >= 0) {
       if (ellapsed_time_ns >= timeout_ns) {
         // Timed out
-        TAKYON_RECORD_ERROR(error_message, "Timed out waiting for connection on local client socket\n");
+        snprintf(error_message, max_error_message_chars, "Timed out waiting for connection on local client socket");
         return false;
       }
     }
@@ -557,8 +565,8 @@ bool socketCreateLocalClient(const char *socket_name, TakyonSocket *socket_fd_re
   }
 
   // TCP sockets use the Nagle algorithm, so need to turn it off to get good performance.
-  if (!socketSetNoDelay(socket_fd, 1, error_message)) {
-    TAKYON_RECORD_ERROR(error_message, "Failed to set socket attribute\n");
+  if (!socketSetNoDelay(socket_fd, 1, error_message, max_error_message_chars)) {
+    // Error message already set
     closesocket(socket_fd);
     return false;
   }
@@ -568,15 +576,15 @@ bool socketCreateLocalClient(const char *socket_name, TakyonSocket *socket_fd_re
   return true;
 }
 
-bool socketCreateTcpClient(const char *ip_addr, uint16_t port_number, TakyonSocket *socket_fd_ret, int64_t timeout_ns, char *error_message) {
-  if (!windows_socket_manager_init(error_message)) {
+bool socketCreateTcpClient(const char *ip_addr, uint16_t port_number, TakyonSocket *socket_fd_ret, int64_t timeout_ns, char *error_message, int max_error_message_chars) {
+  if (!windows_socket_manager_init(error_message, max_error_message_chars)) {
     return false;
   }
 
   // Resolve the IP address
   char resolved_ip_addr[MAX_IP_ADDR_CHARS];
-  if (!hostnameToIpaddr(AF_INET, ip_addr, resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message)) {
-    TAKYON_RECORD_ERROR(error_message, "Could not resolve IP address '%s'\n", ip_addr);
+  if (!hostnameToIpaddr(AF_INET, ip_addr, resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message, max_error_message_chars)) {
+    // Error message already set
     return false;
   }
 
@@ -587,7 +595,7 @@ bool socketCreateTcpClient(const char *ip_addr, uint16_t port_number, TakyonSock
     // Create a socket file descriptor
     socket_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (socket_fd == INVALID_SOCKET) {
-      TAKYON_RECORD_ERROR(error_message, "Could not create TCP socket. sock_error=%d\n", WSAGetLastError());
+      snprintf(error_message, max_error_message_chars, "Could not create TCP socket. sock_error=%d", WSAGetLastError());
       return false;
     }
 
@@ -598,11 +606,11 @@ bool socketCreateTcpClient(const char *ip_addr, uint16_t port_number, TakyonSock
     server_addr.sin_port = htons(port_number);
     int status = inet_pton(AF_INET, resolved_ip_addr, &server_addr.sin_addr);
     if (status == 0) {
-      TAKYON_RECORD_ERROR(error_message, "Could not get the IP address from the hostname '%s'. Invalid name.\n", ip_addr);
+      snprintf(error_message, max_error_message_chars, "Could not get the IP address from the hostname '%s'. Invalid name.", ip_addr);
       closesocket(socket_fd);
       return false;
     } else if (status == -1) {
-      TAKYON_RECORD_ERROR(error_message, "Could not get the IP address from the hostname '%s'. sock_error=%d\n", ip_addr, WSAGetLastError());
+      snprintf(error_message, max_error_message_chars, "Could not get the IP address from the hostname '%s'. sock_error=%d", ip_addr, WSAGetLastError());
       closesocket(socket_fd);
       return false;
     }
@@ -618,7 +626,7 @@ bool socketCreateTcpClient(const char *ip_addr, uint16_t port_number, TakyonSock
         if (timeout_ns >= 0) {
           if (ellapsed_time_ns >= timeout_ns) {
             // Timed out
-            TAKYON_RECORD_ERROR(error_message, "Timed out waiting for connection\n");
+            snprintf(error_message, max_error_message_chars, "Timed out waiting for connection");
             return false;
           }
         }
@@ -626,7 +634,7 @@ bool socketCreateTcpClient(const char *ip_addr, uint16_t port_number, TakyonSock
         clockSleepYield(MICROSECONDS_BETWEEN_CONNECT_ATTEMPTS);
         // Try connecting again now
       } else {
-        TAKYON_RECORD_ERROR(error_message, "Could not connect socket. sock_error=%d\n", sock_error);
+        snprintf(error_message, max_error_message_chars, "Could not connect socket. sock_error=%d", sock_error);
         return false;
       }
     } else {
@@ -635,8 +643,8 @@ bool socketCreateTcpClient(const char *ip_addr, uint16_t port_number, TakyonSock
   }
 
   // TCP sockets use the Nagle algorithm, so need to turn it off to get good performance.
-  if (!socketSetNoDelay(socket_fd, 1, error_message)) {
-    TAKYON_RECORD_ERROR(error_message, "Failed to set socket attribute\n");
+  if (!socketSetNoDelay(socket_fd, 1, error_message, max_error_message_chars)) {
+    // Error message already set
     closesocket(socket_fd);
     return false;
   }
@@ -647,8 +655,8 @@ bool socketCreateTcpClient(const char *ip_addr, uint16_t port_number, TakyonSock
 }
 
 #ifdef ENABLE_EPHEMERAL_PORT_MANAGER
-bool socketCreateEphemeralTcpClient(const char *ip_addr, const char *interconnect_name, uint32_t path_id, TakyonSocket *socket_fd_ret, int64_t timeout_ns, uint64_t verbosity, char *error_message) {
-  if (!windows_socket_manager_init(error_message)) {
+bool socketCreateEphemeralTcpClient(const char *ip_addr, const char *interconnect_name, uint32_t path_id, TakyonSocket *socket_fd_ret, int64_t timeout_ns, uint64_t verbosity, char *error_message, int max_error_message_chars) {
+  if (!windows_socket_manager_init(error_message, max_error_message_chars)) {
     return false;
   }
 
@@ -656,8 +664,8 @@ bool socketCreateEphemeralTcpClient(const char *ip_addr, const char *interconnec
 
   // Resolve the IP address
   char resolved_ip_addr[MAX_IP_ADDR_CHARS];
-  if (!hostnameToIpaddr(AF_INET, ip_addr, resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message)) {
-    TAKYON_RECORD_ERROR(error_message, "Could not resolve IP address '%s'\n", ip_addr);
+  if (!hostnameToIpaddr(AF_INET, ip_addr, resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message, max_error_message_chars)) {
+    // Error message already set
     return false;
   }
 
@@ -667,12 +675,12 @@ bool socketCreateEphemeralTcpClient(const char *ip_addr, const char *interconnec
   while (1) {
     // Wait for the ephemeral port number to get multicasted (this is in the while loop incase a stale port number is initially grabbed, and allows it to refresh)
     bool timed_out = false;
-    ephemeral_port_number = ephemeralPortManagerGet(interconnect_name, path_id, timeout_ns, &timed_out, verbosity, error_message);
+    ephemeral_port_number = ephemeralPortManagerGet(interconnect_name, path_id, timeout_ns, &timed_out, verbosity, error_message, max_error_message_chars);
     if (ephemeral_port_number == 0) {
       if (timed_out) {
-        TAKYON_RECORD_ERROR(error_message, "TCP client socket timed out waiting for the ephemeral port number\n");
+        snprintf(error_message, max_error_message_chars, "TCP client socket timed out waiting for the ephemeral port number");
       } else {
-        TAKYON_RECORD_ERROR(error_message, "TCP client socket failed to get an ephemeral port number\n");
+        // Error message already set
       }
       return false;
     }
@@ -680,7 +688,7 @@ bool socketCreateEphemeralTcpClient(const char *ip_addr, const char *interconnec
     // Create a socket file descriptor
     socket_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (socket_fd == INVALID_SOCKET) {
-      TAKYON_RECORD_ERROR(error_message, "Could not create TCP socket. sock_error=%d\n", WSAGetLastError());
+      snprintf(error_message, max_error_message_chars, "Could not create TCP socket. sock_error=%d", WSAGetLastError());
       return false;
     }
 
@@ -691,11 +699,11 @@ bool socketCreateEphemeralTcpClient(const char *ip_addr, const char *interconnec
     server_addr.sin_port = htons(ephemeral_port_number);
     int status = inet_pton(AF_INET, resolved_ip_addr, &server_addr.sin_addr);
     if (status == 0) {
-      TAKYON_RECORD_ERROR(error_message, "Could not get the IP address from the hostname '%s'. Invalid name.\n", ip_addr);
+      snprintf(error_message, max_error_message_chars, "Could not get the IP address from the hostname '%s'. Invalid name.", ip_addr);
       closesocket(socket_fd);
       return false;
     } else if (status == -1) {
-      TAKYON_RECORD_ERROR(error_message, "Could not get the IP address from the hostname '%s'. sock_error=%d\n", ip_addr, WSAGetLastError());
+      snprintf(error_message, max_error_message_chars, "Could not get the IP address from the hostname '%s'. sock_error=%d", ip_addr, WSAGetLastError());
       closesocket(socket_fd);
       return false;
     }
@@ -712,7 +720,7 @@ bool socketCreateEphemeralTcpClient(const char *ip_addr, const char *interconnec
         if (timeout_ns >= 0) {
           if (ellapsed_time_ns >= timeout_ns) {
             // Timed out
-            TAKYON_RECORD_ERROR(error_message, "Timed out waiting for connection\n");
+            snprintf(error_message, max_error_message_chars, "Timed out waiting for connection");
             return false;
           }
         }
@@ -720,7 +728,7 @@ bool socketCreateEphemeralTcpClient(const char *ip_addr, const char *interconnec
         clockSleepYield(MICROSECONDS_BETWEEN_CONNECT_ATTEMPTS);
         // Try connecting again now
       } else {
-        TAKYON_RECORD_ERROR(error_message, "Could not connect socket. sock_error=%d\n", sock_error);
+        snprintf(error_message, max_error_message_chars, "Could not connect socket. sock_error=%d", sock_error);
         return false;
       }
     } else {
@@ -734,8 +742,8 @@ bool socketCreateEphemeralTcpClient(const char *ip_addr, const char *interconnec
   ephemeralPortManagerRemove(interconnect_name, path_id, ephemeral_port_number);
 
   // TCP sockets use the Nagle algorithm, so need to turn it off to get good latency (at the expense of added network traffic and under utilized TCP packets).
-  if (!socketSetNoDelay(socket_fd, 1, error_message)) {
-    TAKYON_RECORD_ERROR(error_message, "Failed to set socket attribute\n");
+  if (!socketSetNoDelay(socket_fd, 1, error_message, max_error_message_chars)) {
+    // Error message already set
     closesocket(socket_fd);
     return false;
   }
@@ -746,14 +754,14 @@ bool socketCreateEphemeralTcpClient(const char *ip_addr, const char *interconnec
 }
 #endif
 
-bool socketCreateLocalServer(const char *socket_name, TakyonSocket *socket_fd_ret, int64_t timeout_ns, char *error_message) {
-  if (!windows_socket_manager_init(error_message)) {
+bool socketCreateLocalServer(const char *socket_name, TakyonSocket *socket_fd_ret, int64_t timeout_ns, char *error_message, int max_error_message_chars) {
+  if (!windows_socket_manager_init(error_message, max_error_message_chars)) {
     return false;
   }
 
   TakyonSocket listening_fd = socket(AF_INET, SOCK_STREAM, 0);
   if (listening_fd == INVALID_SOCKET) {
-    TAKYON_RECORD_ERROR(error_message, "Could not create TCP listening socket. sock_error=%d\n", WSAGetLastError());
+    snprintf(error_message, max_error_message_chars, "Could not create TCP listening socket. sock_error=%d", WSAGetLastError());
     return false;
   }
 
@@ -767,11 +775,11 @@ bool socketCreateLocalServer(const char *socket_name, TakyonSocket *socket_fd_re
   // NOTE: htonl(INADDR_ANY) would allow any interface to listen
   int status = inet_pton(AF_INET, ip_addr, &server_addr.sin_addr);
   if (status == 0) {
-    TAKYON_RECORD_ERROR(error_message, "Could not get the IP address from the hostname '%s'. Invalid name.\n", ip_addr);
+    snprintf(error_message, max_error_message_chars, "Could not get the IP address from the hostname '%s'. Invalid name.", ip_addr);
     closesocket(listening_fd);
     return false;
   } else if (status == -1) {
-    TAKYON_RECORD_ERROR(error_message, "Could not get the IP address from the hostname '%s'. sock_error=%d\n", ip_addr, WSAGetLastError());
+    snprintf(error_message, max_error_message_chars, "Could not get the IP address from the hostname '%s'. sock_error=%d", ip_addr, WSAGetLastError());
     closesocket(listening_fd);
     return false;
   }
@@ -782,9 +790,9 @@ bool socketCreateLocalServer(const char *socket_name, TakyonSocket *socket_fd_re
   if (bind(listening_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) == SOCKET_ERROR) {
     int sock_error = WSAGetLastError();
     if (sock_error == WSAEADDRINUSE) {
-      TAKYON_RECORD_ERROR(error_message, "Could not bind TCP socket. The address is already in use or in a time wait state. May need to use the option '-reuse'\n");
+      snprintf(error_message, max_error_message_chars, "Could not bind TCP socket. The address is already in use or in a time wait state. May need to use the option '-reuse'");
     } else {
-      TAKYON_RECORD_ERROR(error_message, "Could not bind TCP socket. sock_error=%d\n", WSAGetLastError());
+      snprintf(error_message, max_error_message_chars, "Could not bind TCP socket. sock_error=%d", WSAGetLastError());
     }
     closesocket(listening_fd);
     return false;
@@ -796,7 +804,7 @@ bool socketCreateLocalServer(const char *socket_name, TakyonSocket *socket_fd_re
     int len = sizeof(socket_info);
     memset(&socket_info, 0, len);
     if (getsockname(listening_fd, (struct sockaddr *)&socket_info, &len) == SOCKET_ERROR) {
-      TAKYON_RECORD_ERROR(error_message, "Could not get the socket name info. sock_error=%d\n", WSAGetLastError());
+      snprintf(error_message, max_error_message_chars, "Could not get the socket name info. sock_error=%d", WSAGetLastError());
       closesocket(listening_fd);
       return false;
     }
@@ -806,14 +814,14 @@ bool socketCreateLocalServer(const char *socket_name, TakyonSocket *socket_fd_re
   // Write the port number to a temporary file
   char port_number_filename[MAX_TEMP_FILENAME_CHARS];
   {
-    if (!get_port_number_filename(socket_name, port_number_filename, MAX_TEMP_FILENAME_CHARS, error_message)) {
-      TAKYON_RECORD_ERROR(error_message, "Could not get temp filename\n");
+    if (!get_port_number_filename(socket_name, port_number_filename, MAX_TEMP_FILENAME_CHARS, error_message, max_error_message_chars)) {
+      // Error message already set
       closesocket(listening_fd);
       return false;
     }
     FILE *fp = fopen(port_number_filename, "w");
     if (fp == NULL) {
-      TAKYON_RECORD_ERROR(error_message, "Failed to open file '%s' to temporarily publish port number. errno=%d\n", port_number_filename, errno);
+      snprintf(error_message, max_error_message_chars, "Failed to open file '%s' to temporarily publish port number. errno=%d", port_number_filename, errno);
       closesocket(listening_fd);
       return false;
     }
@@ -823,7 +831,7 @@ bool socketCreateLocalServer(const char *socket_name, TakyonSocket *socket_fd_re
   
   // Set the number of simultaneous connections that can be made
   if (listen(listening_fd, 1) == SOCKET_ERROR) {
-    TAKYON_RECORD_ERROR(error_message, "Could not listen on TCP socket. sock_error=%d\n", WSAGetLastError());
+    snprintf(error_message, max_error_message_chars, "Could not listen on TCP socket. sock_error=%d", WSAGetLastError());
     remove(port_number_filename);
     closesocket(listening_fd);
     return false;
@@ -831,8 +839,8 @@ bool socketCreateLocalServer(const char *socket_name, TakyonSocket *socket_fd_re
 
   // Wait for a client to ask for a connection
   if (timeout_ns >= 0) {
-    if (!wait_for_socket_read_activity(listening_fd, timeout_ns, error_message)) {
-      TAKYON_RECORD_ERROR(error_message, "Failed to listen for connection\n");
+    if (!wait_for_socket_read_activity(listening_fd, timeout_ns, error_message, max_error_message_chars)) {
+      // Error message already set
       remove(port_number_filename);
       closesocket(listening_fd);
       return false;
@@ -842,15 +850,15 @@ bool socketCreateLocalServer(const char *socket_name, TakyonSocket *socket_fd_re
   // This blocks until a connection is acctual made
   TakyonSocket socket_fd = accept(listening_fd, NULL, NULL);
   if (socket_fd == INVALID_SOCKET) {
-    TAKYON_RECORD_ERROR(error_message, "Could not accept TCP socket. sock_error=%d\n", WSAGetLastError());
+    snprintf(error_message, max_error_message_chars, "Could not accept TCP socket. sock_error=%d", WSAGetLastError());
     remove(port_number_filename);
     closesocket(listening_fd);
     return false;
   }
 
   // TCP sockets use the Nagle algorithm, so need to turn it off to get good performance.
-  if (!socketSetNoDelay(socket_fd, 1, error_message)) {
-    TAKYON_RECORD_ERROR(error_message, "Failed to set socket attribute\n");
+  if (!socketSetNoDelay(socket_fd, 1, error_message, max_error_message_chars)) {
+    // Error message already set
     remove(port_number_filename);
     closesocket(listening_fd);
     closesocket(socket_fd);
@@ -864,14 +872,14 @@ bool socketCreateLocalServer(const char *socket_name, TakyonSocket *socket_fd_re
   return true;
 }
 
-bool socketCreateTcpServer(const char *ip_addr, uint16_t port_number, bool allow_reuse, TakyonSocket *socket_fd_ret, int64_t timeout_ns, char *error_message) {
-  if (!windows_socket_manager_init(error_message)) {
+bool socketCreateTcpServer(const char *ip_addr, uint16_t port_number, bool allow_reuse, TakyonSocket *socket_fd_ret, int64_t timeout_ns, char *error_message, int max_error_message_chars) {
+  if (!windows_socket_manager_init(error_message, max_error_message_chars)) {
     return false;
   }
 
   TakyonSocket listening_fd = socket(AF_INET, SOCK_STREAM, 0);
   if (listening_fd == INVALID_SOCKET) {
-    TAKYON_RECORD_ERROR(error_message, "Could not create TCP listening socket. sock_error=%d\n", WSAGetLastError());
+    snprintf(error_message, max_error_message_chars, "Could not create TCP listening socket. sock_error=%d", WSAGetLastError());
     return false;
   }
 
@@ -886,19 +894,19 @@ bool socketCreateTcpServer(const char *ip_addr, uint16_t port_number, bool allow
   } else {
     // Resolve the IP address
     char resolved_ip_addr[MAX_IP_ADDR_CHARS];
-    if (!hostnameToIpaddr(AF_INET, ip_addr, resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message)) {
-      TAKYON_RECORD_ERROR(error_message, "Could not resolve IP address '%s'\n", ip_addr);
+    if (!hostnameToIpaddr(AF_INET, ip_addr, resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message, max_error_message_chars)) {
+      // Error message already set
       closesocket(listening_fd);
       return false;
     }
     // Listen on a specific IP interface
     int status = inet_pton(AF_INET, resolved_ip_addr, &server_addr.sin_addr);
     if (status == 0) {
-      TAKYON_RECORD_ERROR(error_message, "Could not get the IP address from the hostname '%s'. Invalid name.\n", ip_addr);
+      snprintf(error_message, max_error_message_chars, "Could not get the IP address from the hostname '%s'. Invalid name.", ip_addr);
       closesocket(listening_fd);
       return false;
     } else if (status == -1) {
-      TAKYON_RECORD_ERROR(error_message, "Could not get the IP address from the hostname '%s'. sock_error=%d\n", ip_addr, WSAGetLastError());
+      snprintf(error_message, max_error_message_chars, "Could not get the IP address from the hostname '%s'. sock_error=%d", ip_addr, WSAGetLastError());
       closesocket(listening_fd);
       return false;
     }
@@ -909,7 +917,7 @@ bool socketCreateTcpServer(const char *ip_addr, uint16_t port_number, bool allow
     // This may accur if the application did not exit gracefully on a previous run.
     BOOL allow = 1;
     if (setsockopt(listening_fd, SOL_SOCKET, SO_REUSEADDR, (char *)&allow, sizeof(allow)) != 0) {
-      TAKYON_RECORD_ERROR(error_message, "Failed to set socket to SO_REUSEADDR. sock_error=%d\n", WSAGetLastError());
+      snprintf(error_message, max_error_message_chars, "Failed to set socket to SO_REUSEADDR. sock_error=%d", WSAGetLastError());
       closesocket(listening_fd);
       return false;
     }
@@ -918,9 +926,9 @@ bool socketCreateTcpServer(const char *ip_addr, uint16_t port_number, bool allow
   if (bind(listening_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) == SOCKET_ERROR) {
     int sock_error = WSAGetLastError();
     if (sock_error == WSAEADDRINUSE) {
-      TAKYON_RECORD_ERROR(error_message, "Could not bind TCP socket. The address is already in use or in a time wait state. May need to use the option '-reuse'\n");
+      snprintf(error_message, max_error_message_chars, "Could not bind TCP socket. The address is already in use or in a time wait state. May need to use the option '-reuse'");
     } else {
-      TAKYON_RECORD_ERROR(error_message, "Could not bind TCP socket. sock_error=%d\n", WSAGetLastError());
+      snprintf(error_message, max_error_message_chars, "Could not bind TCP socket. sock_error=%d", WSAGetLastError());
     }
     closesocket(listening_fd);
     return false;
@@ -937,15 +945,15 @@ bool socketCreateTcpServer(const char *ip_addr, uint16_t port_number, bool allow
 
   // Set the number of simultaneous connections that can be made
   if (listen(listening_fd, 1) == SOCKET_ERROR) {
-    TAKYON_RECORD_ERROR(error_message, "Could not listen on TCP socket. sock_error=%d\n", WSAGetLastError());
+    snprintf(error_message, max_error_message_chars, "Could not listen on TCP socket. sock_error=%d", WSAGetLastError());
     closesocket(listening_fd);
     return false;
   }
 
   // Wait for a client to ask for a connection
   if (timeout_ns >= 0) {
-    if (!wait_for_socket_read_activity(listening_fd, timeout_ns, error_message)) {
-      TAKYON_RECORD_ERROR(error_message, "Failed to listen for connection\n");
+    if (!wait_for_socket_read_activity(listening_fd, timeout_ns, error_message, max_error_message_chars)) {
+      // Error message already set
       closesocket(listening_fd);
       return false;
     }
@@ -954,14 +962,14 @@ bool socketCreateTcpServer(const char *ip_addr, uint16_t port_number, bool allow
   // This blocks until a connection is acctual made
   TakyonSocket socket_fd = accept(listening_fd, NULL, NULL);
   if (socket_fd == INVALID_SOCKET) {
-    TAKYON_RECORD_ERROR(error_message, "Could not accept TCP socket. sock_error=%d\n", WSAGetLastError());
+    snprintf(error_message, max_error_message_chars, "Could not accept TCP socket. sock_error=%d", WSAGetLastError());
     closesocket(listening_fd);
     return false;
   }
 
   // TCP sockets use the Nagle algorithm, so need to turn it off to get good performance.
-  if (!socketSetNoDelay(socket_fd, 1, error_message)) {
-    TAKYON_RECORD_ERROR(error_message, "Failed to set socket attribute\n");
+  if (!socketSetNoDelay(socket_fd, 1, error_message, max_error_message_chars)) {
+    // Error message already set
     closesocket(listening_fd);
     closesocket(socket_fd);
     return false;
@@ -974,14 +982,14 @@ bool socketCreateTcpServer(const char *ip_addr, uint16_t port_number, bool allow
 }
 
 #ifdef ENABLE_EPHEMERAL_PORT_MANAGER
-bool socketCreateEphemeralTcpServer(const char *ip_addr, const char *interconnect_name, uint32_t path_id, TakyonSocket *socket_fd_ret, int64_t timeout_ns, uint64_t verbosity, char *error_message) {
-  if (!windows_socket_manager_init(error_message)) {
+bool socketCreateEphemeralTcpServer(const char *ip_addr, const char *interconnect_name, uint32_t path_id, TakyonSocket *socket_fd_ret, int64_t timeout_ns, char *error_message, int max_error_message_chars) {
+  if (!windows_socket_manager_init(error_message, max_error_message_chars)) {
     return false;
   }
 
   TakyonSocket listening_fd = socket(AF_INET, SOCK_STREAM, 0);
   if (listening_fd == INVALID_SOCKET) {
-    TAKYON_RECORD_ERROR(error_message, "Could not create TCP listening socket. sock_error=%d\n", WSAGetLastError());
+    snprintf(error_message, max_error_message_chars, "Could not create TCP listening socket. sock_error=%d", WSAGetLastError());
     return false;
   }
 
@@ -996,19 +1004,19 @@ bool socketCreateEphemeralTcpServer(const char *ip_addr, const char *interconnec
   } else {
     // Resolve the IP address
     char resolved_ip_addr[MAX_IP_ADDR_CHARS];
-    if (!hostnameToIpaddr(AF_INET, ip_addr, resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message)) {
-      TAKYON_RECORD_ERROR(error_message, "Could not resolve IP address '%s'\n", ip_addr);
+    if (!hostnameToIpaddr(AF_INET, ip_addr, resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message, max_error_message_chars)) {
+      // Error message already set
       closesocket(listening_fd);
       return false;
     }
     // Listen on a specific IP interface
     int status = inet_pton(AF_INET, resolved_ip_addr, &server_addr.sin_addr);
     if (status == 0) {
-      TAKYON_RECORD_ERROR(error_message, "Could not get the IP address from the hostname '%s'. Invalid name.\n", ip_addr);
+      snprintf(error_message, max_error_message_chars, "Could not get the IP address from the hostname '%s'. Invalid name.", ip_addr);
       closesocket(listening_fd);
       return false;
     } else if (status == -1) {
-      TAKYON_RECORD_ERROR(error_message, "Could not get the IP address from the hostname '%s'. sock_error=%d\n", ip_addr, WSAGetLastError());
+      snprintf(error_message, max_error_message_chars, "Could not get the IP address from the hostname '%s'. sock_error=%d", ip_addr, WSAGetLastError());
       closesocket(listening_fd);
       return false;
     }
@@ -1019,9 +1027,9 @@ bool socketCreateEphemeralTcpServer(const char *ip_addr, const char *interconnec
   if (bind(listening_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) == SOCKET_ERROR) {
     int sock_error = WSAGetLastError();
     if (sock_error == WSAEADDRINUSE) {
-      TAKYON_RECORD_ERROR(error_message, "Could not bind TCP socket. The address is already in use or in a time wait state. May need to use the option '-reuse'\n");
+      snprintf(error_message, max_error_message_chars, "Could not bind TCP socket. The address is already in use or in a time wait state. May need to use the option '-reuse'");
     } else {
-      TAKYON_RECORD_ERROR(error_message, "Could not bind TCP socket. sock_error=%d\n", WSAGetLastError());
+      snprintf(error_message, max_error_message_chars, "Could not bind TCP socket. sock_error=%d", WSAGetLastError());
     }
     closesocket(listening_fd);
     return false;
@@ -1031,7 +1039,7 @@ bool socketCreateEphemeralTcpServer(const char *ip_addr, const char *interconnec
   struct sockaddr_in sin;
   socklen_t len = sizeof(sin);
   if (getsockname(listening_fd, (struct sockaddr *)&sin, &len) == SOCKET_ERROR) {
-    TAKYON_RECORD_ERROR(error_message, "Failed to get ephemeral port number from listening socket for IP addr (%s). sock_error=%d\n", ip_addr, WSAGetLastError());
+    snprintf(error_message, max_error_message_chars, "Failed to get ephemeral port number from listening socket for IP addr (%s). sock_error=%d", ip_addr, WSAGetLastError());
     closesocket(listening_fd);
     return false;
   }
@@ -1039,18 +1047,18 @@ bool socketCreateEphemeralTcpServer(const char *ip_addr, const char *interconnec
 
   // Set the number of simultaneous connections that can be made
   if (listen(listening_fd, 1) == SOCKET_ERROR) {
-    TAKYON_RECORD_ERROR(error_message, "Could not listen on TCP socket. sock_error=%d\n", WSAGetLastError());
+    snprintf(error_message, max_error_message_chars, "Could not listen on TCP socket. sock_error=%d", WSAGetLastError());
     closesocket(listening_fd);
     return false;
   }
 
   // Multicast this out to all active Takyon endpoints
-  ephemeralPortManagerSet(interconnect_name, path_id, ephemeral_port_number, verbosity);
+  ephemeralPortManagerSet(interconnect_name, path_id, ephemeral_port_number);
 
   // Wait for a client to ask for a connection
   if (timeout_ns >= 0) {
-    if (!wait_for_socket_read_activity(listening_fd, timeout_ns, error_message)) {
-      TAKYON_RECORD_ERROR(error_message, "Failed to listen for connection\n");
+    if (!wait_for_socket_read_activity(listening_fd, timeout_ns, error_message, max_error_message_chars)) {
+      // Error message already set
       ephemeralPortManagerRemoveLocally(interconnect_name, path_id);
       closesocket(listening_fd);
       return false;
@@ -1061,14 +1069,14 @@ bool socketCreateEphemeralTcpServer(const char *ip_addr, const char *interconnec
   TakyonSocket socket_fd = accept(listening_fd, NULL, NULL);
   ephemeralPortManagerRemoveLocally(interconnect_name, path_id);
   if (socket_fd == INVALID_SOCKET) {
-    TAKYON_RECORD_ERROR(error_message, "Could not accept TCP socket. sock_error=%d\n", WSAGetLastError());
+    snprintf(error_message, max_error_message_chars, "Could not accept TCP socket. sock_error=%d", WSAGetLastError());
     closesocket(listening_fd);
     return false;
   }
 
   // TCP sockets use the Nagle algorithm, so need to turn it off to get good performance.
-  if (!socketSetNoDelay(socket_fd, 1, error_message)) {
-    TAKYON_RECORD_ERROR(error_message, "Failed to set socket attribute\n");
+  if (!socketSetNoDelay(socket_fd, 1, error_message, max_error_message_chars)) {
+    // Error message already set
     closesocket(listening_fd);
     closesocket(socket_fd);
     return false;
@@ -1082,14 +1090,14 @@ bool socketCreateEphemeralTcpServer(const char *ip_addr, const char *interconnec
 #endif
 
 #ifdef ENABLE_EPHEMERAL_PORT_MANAGER
-bool pipeCreate(int *read_pipe_fd_ret, int *write_pipe_fd_ret, char *error_message) {
+bool pipeCreate(int *read_pipe_fd_ret, int *write_pipe_fd_ret, char *error_message, int max_error_message_chars) {
   // IMPORTANT: Windows does not have pipes, so may need to poll on connection to see if it's disconnected
   *read_pipe_fd_ret = -1;
   *write_pipe_fd_ret = -1;
   return true;
 }
 
-bool socketWaitForDisconnectActivity(TakyonSocket socket_fd, int read_pipe_fd, bool *got_socket_activity_ret, char *error_message) {
+bool socketWaitForDisconnectActivity(TakyonSocket socket_fd, int read_pipe_fd, bool *got_socket_activity_ret, char *error_message, int max_error_message_chars) {
   // NOTE: This function is used to detect when a socket closes gracefull or not.
   //       A pipe is not use here since on Windows, the thread listening for disconnect will
   //       wake up after the socket if gracefully closed, and then the thread can quit.
@@ -1110,7 +1118,7 @@ bool socketWaitForDisconnectActivity(TakyonSocket socket_fd, int read_pipe_fd, b
   num_fds_with_activity = WSAPoll(poll_fd_list, num_fds, timeout_in_milliseconds);
   if (num_fds_with_activity == 0) {
     // Can't report the time out
-    TAKYON_RECORD_ERROR(error_message, "Timed out waiting for socket activity\n");
+    snprintf(error_message, max_error_message_chars, "Timed out waiting for socket activity");
     return false;
   } else if (num_fds_with_activity < 0) {
     // Select has an error */
@@ -1119,7 +1127,7 @@ bool socketWaitForDisconnectActivity(TakyonSocket socket_fd, int read_pipe_fd, b
       // Interrupted by external signal. Just try again
       goto restart_wait;
     }
-    TAKYON_RECORD_ERROR(error_message, "Error while waiting for socket activity: sock_error=%d\n", sock_error);
+    snprintf(error_message, max_error_message_chars, "Error while waiting for socket activity: sock_error=%d", sock_error);
     return false;
   } else {
     // Got activity.
@@ -1128,7 +1136,7 @@ bool socketWaitForDisconnectActivity(TakyonSocket socket_fd, int read_pipe_fd, b
   }
 }
 
-bool pipeWakeUpSelect(int write_pipe_fd, char *error_message) {
+bool pipeWakeUpSelect(int write_pipe_fd, char *error_message, int max_error_message_chars) {
   // IMPORTANT: Nothing to do since WSAPoll will be set to wake up periodically to check if the thread should shut down */
   return true;
 }
@@ -1138,10 +1146,10 @@ void pipeDestroy(int read_pipe_fd, int write_pipe_fd) {
 }
 #endif
 
-bool socketSetBlocking(TakyonSocket socket_fd, bool is_blocking, char *error_message) {
+bool socketSetBlocking(TakyonSocket socket_fd, bool is_blocking, char *error_message, int max_error_message_chars) {
   unsigned long blocking_mode = is_blocking ? 0 : 1;
   if (ioctlsocket(socket_fd, FIONBIO, &blocking_mode) == SOCKET_ERROR) {
-    TAKYON_RECORD_ERROR(error_message, "Failed to set socket to %s. sock_error=%d\n", is_blocking ? "blocking" : "non-blocking", WSAGetLastError());
+    snprintf(error_message, max_error_message_chars, "Failed to set socket to %s. sock_error=%d", is_blocking ? "blocking" : "non-blocking", WSAGetLastError());
     return false;
   }
   return true;
@@ -1151,12 +1159,12 @@ void socketClose(TakyonSocket socket_fd) {
   closesocket(socket_fd);
 }
 
-static bool datagram_send_polling(TakyonSocket socket_fd, void *sock_in_addr, void *addr, size_t bytes_to_write, int64_t timeout_ns, bool *timed_out_ret, char *error_message) {
+static bool datagram_send_polling(TakyonSocket socket_fd, void *sock_in_addr, void *addr, size_t bytes_to_write, int64_t timeout_ns, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
   if (timed_out_ret != NULL) *timed_out_ret = false;
   int64_t start_time = clockTimeNanoseconds();
 
   if (bytes_to_write > INT_MAX) {
-    TAKYON_RECORD_ERROR(error_message, "Data size is greater than what an 'int' can hold.\n");
+    snprintf(error_message, max_error_message_chars, "Data size is greater than what an 'int' can hold.");
     return false;
   }
 
@@ -1180,26 +1188,26 @@ static bool datagram_send_polling(TakyonSocket socket_fd, void *sock_in_addr, vo
               return true;
             } else {
               // Can't report the time out
-              TAKYON_RECORD_ERROR(error_message, "Timed out starting the transfer\n");
+              snprintf(error_message, max_error_message_chars, "Timed out starting the transfer");
               return false;
             }
           }
         }
         bytes_written = 0;
       } else if (sock_error == WSAEMSGSIZE) {
-        TAKYON_RECORD_ERROR(error_message, "Failed to send datagram message. %lld bytes exceeds the datagram size\n", (long long)bytes_to_write);
+        snprintf(error_message, max_error_message_chars, "Failed to send datagram message. %lld bytes exceeds the datagram size", (long long)bytes_to_write);
         return false;
       } else if (sock_error == WSAEINTR) {
         // Interrupted by external signal. Just try again
         bytes_written = 0;
       } else {
-        TAKYON_RECORD_ERROR(error_message, "Failed to write to socket: error=%d\n", sock_error);
+        snprintf(error_message, max_error_message_chars, "Failed to write to socket: error=%d", sock_error);
         return false;
       }
     } else if (bytes_written == 0) {
       // Keep trying
     } else {
-      TAKYON_RECORD_ERROR(error_message, "Wrote a partial datagram: bytes_sent=%lld, bytes_to_send=%lld\n", bytes_written, bytes_to_write);
+      snprintf(error_message, max_error_message_chars, "Wrote a partial datagram: bytes_sent=%d, bytes_to_send=%lld", bytes_written, bytes_to_write);
       return false;
     }
   }
@@ -1207,16 +1215,16 @@ static bool datagram_send_polling(TakyonSocket socket_fd, void *sock_in_addr, vo
   return true;
 }
 
-static bool datagram_send_event_driven(TakyonSocket socket_fd, void *sock_in_addr, void *addr, size_t bytes_to_write, int64_t timeout_ns, bool *timed_out_ret, char *error_message) {
+static bool datagram_send_event_driven(TakyonSocket socket_fd, void *sock_in_addr, void *addr, size_t bytes_to_write, int64_t timeout_ns, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
   if (timed_out_ret != NULL) *timed_out_ret = false;
 
   if (bytes_to_write > INT_MAX) {
-    TAKYON_RECORD_ERROR(error_message, "Data size is greater than what an 'int' can hold.\n");
+    snprintf(error_message, max_error_message_chars, "Data size is greater than what an 'int' can hold.");
     return false;
   }
 
   // Set the timeout on the socket
-  if (!setSocketTimeout(socket_fd, SO_SNDTIMEO, timeout_ns, error_message)) return false;
+  if (!setSocketTimeout(socket_fd, SO_SNDTIMEO, timeout_ns, error_message, max_error_message_chars)) return false;
 
   while (1) {
     // Write the data
@@ -1231,7 +1239,7 @@ static bool datagram_send_event_driven(TakyonSocket socket_fd, void *sock_in_add
     if (bytes_written == SOCKET_ERROR) {
       int sock_error = WSAGetLastError();
       if (sock_error == WSAEMSGSIZE) {
-        TAKYON_RECORD_ERROR(error_message, "Failed to send datagram message. %lld bytes exceeds the allowable datagram size\n", (long long)bytes_to_write);
+        snprintf(error_message, max_error_message_chars, "Failed to send datagram message. %lld bytes exceeds the allowable datagram size", (long long)bytes_to_write);
         return false;
       } else if (sock_error == WSAEWOULDBLOCK) { /*+ may need to also check WSAENETUNREACH which seems to be temporary, but probably still need to report as error */
         // Timed out
@@ -1240,19 +1248,19 @@ static bool datagram_send_event_driven(TakyonSocket socket_fd, void *sock_in_add
           return true;
         } else {
           // Can't report the timed
-          TAKYON_RECORD_ERROR(error_message, "Timed out starting the transfer\n");
+          snprintf(error_message, max_error_message_chars, "Timed out starting the transfer");
           return false;
         }
       } else if (sock_error == WSAEINTR) {
         // Interrupted by external signal. Just try again
       } else {
-        TAKYON_RECORD_ERROR(error_message, "Failed to write to socket: error=%d\n", sock_error);
+        snprintf(error_message, max_error_message_chars, "Failed to write to socket: error=%d", sock_error);
         return false;
       }
     } else if (bytes_written == 0) {
       // Keep trying
     } else {
-      TAKYON_RECORD_ERROR(error_message, "Wrote a partial datagram: bytes_sent=%lld, bytes_to_send=%lld\n", bytes_written, bytes_to_write);
+      snprintf(error_message, max_error_message_chars, "Wrote a partial datagram: bytes_sent=%d, bytes_to_send=%lld", bytes_written, bytes_to_write);
       return false;
     }
   }
@@ -1260,16 +1268,16 @@ static bool datagram_send_event_driven(TakyonSocket socket_fd, void *sock_in_add
   return true;
 }
 
-static bool datagram_recv_event_driven(TakyonSocket socket_fd, void *data_ptr, size_t buffer_bytes, uint64_t *bytes_read_ret, int64_t timeout_ns, bool *timed_out_ret, char *error_message) {
+static bool datagram_recv_event_driven(TakyonSocket socket_fd, void *data_ptr, size_t buffer_bytes, uint64_t *bytes_read_ret, int64_t timeout_ns, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
   if (timed_out_ret != NULL) *timed_out_ret = false;
 
   if (buffer_bytes > INT_MAX) {
-    TAKYON_RECORD_ERROR(error_message, "Buffer bytes is greater than what an 'int' can hold.\n");
+    snprintf(error_message, max_error_message_chars, "Buffer bytes is greater than what an 'int' can hold.");
     return false;
   }
 
   // Set the timeout on the socket
-  if (!setSocketTimeout(socket_fd, SO_RCVTIMEO, timeout_ns, error_message)) return false;
+  if (!setSocketTimeout(socket_fd, SO_RCVTIMEO, timeout_ns, error_message, max_error_message_chars)) return false;
 
   while (1) {
     int flags = 0;
@@ -1281,7 +1289,7 @@ static bool datagram_recv_event_driven(TakyonSocket socket_fd, void *data_ptr, s
     }
     if (bytes_received == 0) {
       // Socket was probably closed by the remote side
-      TAKYON_RECORD_ERROR(error_message, "Remote side of socket has been closed\n");
+      snprintf(error_message, max_error_message_chars, "Remote side of socket has been closed");
       return false;
     }
     if (bytes_received == SOCKET_ERROR) {
@@ -1294,25 +1302,25 @@ static bool datagram_recv_event_driven(TakyonSocket socket_fd, void *data_ptr, s
           return true;
         } else {
           // Can't report the timed
-          TAKYON_RECORD_ERROR(error_message, "Timed out starting the transfer\n");
+          snprintf(error_message, max_error_message_chars, "Timed out starting the transfer");
           return false;
         }
       } else if (sock_error == WSAEINTR) {
         // Interrupted by external signal. Just try again
       } else {
-        TAKYON_RECORD_ERROR(error_message, "Failed to read from socket: error=%d\n", sock_error);
+        snprintf(error_message, max_error_message_chars, "Failed to read from socket: error=%d", sock_error);
         return false;
       }
     }
   }
 }
 
-static bool datagram_recv_polling(TakyonSocket socket_fd, void *data_ptr, size_t buffer_bytes, uint64_t *bytes_read_ret, int64_t timeout_ns, bool *timed_out_ret, char *error_message) {
+static bool datagram_recv_polling(TakyonSocket socket_fd, void *data_ptr, size_t buffer_bytes, uint64_t *bytes_read_ret, int64_t timeout_ns, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
   if (timed_out_ret != NULL) *timed_out_ret = false;
   int64_t start_time = clockTimeNanoseconds();
 
   if (buffer_bytes > INT_MAX) {
-    TAKYON_RECORD_ERROR(error_message, "Buffer bytes is greater than what an 'int' can hold.\n");
+    snprintf(error_message, max_error_message_chars, "Buffer bytes is greater than what an 'int' can hold.");
     return false;
   }
 
@@ -1326,7 +1334,7 @@ static bool datagram_recv_polling(TakyonSocket socket_fd, void *data_ptr, size_t
     }
     if (bytes_received == 0) {
       // Socket was probably closed by the remote side
-      TAKYON_RECORD_ERROR(error_message, "Remote side of socket has been closed\n");
+      snprintf(error_message, max_error_message_chars, "Remote side of socket has been closed");
       return false;
     }
     if (bytes_received == SOCKET_ERROR) {
@@ -1342,7 +1350,7 @@ static bool datagram_recv_polling(TakyonSocket socket_fd, void *data_ptr, size_t
               return true;
             } else {
               // Can't report the time out
-              TAKYON_RECORD_ERROR(error_message, "Timed out starting the transfer\n");
+              snprintf(error_message, max_error_message_chars, "Timed out starting the transfer");
               return false;
             }
           }
@@ -1350,36 +1358,36 @@ static bool datagram_recv_polling(TakyonSocket socket_fd, void *data_ptr, size_t
       } else if (sock_error == WSAEINTR) {
         // Interrupted by external signal. Just try again
       } else {
-        TAKYON_RECORD_ERROR(error_message, "Failed to read from socket: error=%d\n", sock_error);
+        snprintf(error_message, max_error_message_chars, "Failed to read from socket: error=%d", sock_error);
         return false;
       }
     }
   }
 }
 
-bool socketCreateUnicastSender(const char *ip_addr, uint16_t port_number, TakyonSocket *socket_fd_ret, void **sock_in_addr_ret, char *error_message) {
-  if (!windows_socket_manager_init(error_message)) {
+bool socketCreateUnicastSender(const char *ip_addr, uint16_t port_number, TakyonSocket *socket_fd_ret, void **sock_in_addr_ret, char *error_message, int max_error_message_chars) {
+  if (!windows_socket_manager_init(error_message, max_error_message_chars)) {
     return false;
   }
 
   // Resolve the IP address
   char resolved_ip_addr[MAX_IP_ADDR_CHARS];
-  if (!hostnameToIpaddr(AF_INET, ip_addr, resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message)) {
-    TAKYON_RECORD_ERROR(error_message, "Could not resolve IP address '%s'\n", ip_addr);
+  if (!hostnameToIpaddr(AF_INET, ip_addr, resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message, max_error_message_chars)) {
+    // Error message already set
     return false;
   }
 
   // Create a datagram socket on which to send.
   TakyonSocket socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
   if (socket_fd == INVALID_SOCKET) {
-    TAKYON_RECORD_ERROR(error_message, "Failed to create datagram sender socket: error=%d\n", WSAGetLastError());
+    snprintf(error_message, max_error_message_chars, "Failed to create datagram sender socket: error=%d", WSAGetLastError());
     return false;
   }
 
   // Allocate structure to hold socket address information
   struct sockaddr_in *sock_in_addr = malloc(sizeof(struct sockaddr_in));
   if (sock_in_addr == NULL) {
-    TAKYON_RECORD_ERROR(error_message, "Out of memory\n");
+    snprintf(error_message, max_error_message_chars, "Out of memory");
     closesocket(socket_fd);
     return false;
   }
@@ -1392,12 +1400,12 @@ bool socketCreateUnicastSender(const char *ip_addr, uint16_t port_number, Takyon
   sock_in_addr->sin_family = AF_INET;
   int status = inet_pton(AF_INET, resolved_ip_addr, &sock_in_addr->sin_addr);
   if (status == 0) {
-    TAKYON_RECORD_ERROR(error_message, "Could not get the IP address from the hostname '%s'. Invalid name.\n", ip_addr);
+    snprintf(error_message, max_error_message_chars, "Could not get the IP address from the hostname '%s'. Invalid name.", ip_addr);
     closesocket(socket_fd);
     free(sock_in_addr);
     return false;
   } else if (status == -1) {
-    TAKYON_RECORD_ERROR(error_message, "Could not get the IP address from the hostname '%s'. sock_error=%d\n", ip_addr, WSAGetLastError());
+    snprintf(error_message, max_error_message_chars, "Could not get the IP address from the hostname '%s'. sock_error=%d", ip_addr, WSAGetLastError());
     closesocket(socket_fd);
     free(sock_in_addr);
     return false;
@@ -1409,23 +1417,23 @@ bool socketCreateUnicastSender(const char *ip_addr, uint16_t port_number, Takyon
   return true;
 }
 
-bool socketDatagramSend(TakyonSocket socket_fd, void *sock_in_addr, void *addr, size_t bytes_to_write, bool is_polling, int64_t timeout_ns, bool *timed_out_ret, char *error_message) {
+bool socketDatagramSend(TakyonSocket socket_fd, void *sock_in_addr, void *addr, size_t bytes_to_write, bool is_polling, int64_t timeout_ns, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
   if (is_polling) {
-    return datagram_send_polling(socket_fd, sock_in_addr, addr, bytes_to_write, timeout_ns, timed_out_ret, error_message);
+    return datagram_send_polling(socket_fd, sock_in_addr, addr, bytes_to_write, timeout_ns, timed_out_ret, error_message, max_error_message_chars);
   } else {
-    return datagram_send_event_driven(socket_fd, sock_in_addr, addr, bytes_to_write, timeout_ns, timed_out_ret, error_message);
+    return datagram_send_event_driven(socket_fd, sock_in_addr, addr, bytes_to_write, timeout_ns, timed_out_ret, error_message, max_error_message_chars);
   }
 }
 
-bool socketCreateUnicastReceiver(const char *ip_addr, uint16_t port_number, bool allow_reuse, TakyonSocket *socket_fd_ret, char *error_message) {
-  if (!windows_socket_manager_init(error_message)) {
+bool socketCreateUnicastReceiver(const char *ip_addr, uint16_t port_number, bool allow_reuse, TakyonSocket *socket_fd_ret, char *error_message, int max_error_message_chars) {
+  if (!windows_socket_manager_init(error_message, max_error_message_chars)) {
     return false;
   }
 
   // Create a datagram socket on which to receive.
   TakyonSocket socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
   if (socket_fd == INVALID_SOCKET) {
-    TAKYON_RECORD_ERROR(error_message, "Failed to create datagram socket: error=%d\n", WSAGetLastError());
+    snprintf(error_message, max_error_message_chars, "Failed to create datagram socket: error=%d", WSAGetLastError());
     return false;
   }
 
@@ -1444,19 +1452,19 @@ bool socketCreateUnicastReceiver(const char *ip_addr, uint16_t port_number, bool
   } else {
     // Resolve the IP address
     char resolved_ip_addr[MAX_IP_ADDR_CHARS];
-    if (!hostnameToIpaddr(AF_INET, ip_addr, resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message)) {
-      TAKYON_RECORD_ERROR(error_message, "Could not resolve IP address '%s'\n", ip_addr);
+    if (!hostnameToIpaddr(AF_INET, ip_addr, resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message, max_error_message_chars)) {
+      // Error message already set
       closesocket(socket_fd);
       return false;
     }
     // Listen on a specific IP interface
     int status = inet_pton(AF_INET, resolved_ip_addr, &localSock.sin_addr);
     if (status == 0) {
-      TAKYON_RECORD_ERROR(error_message, "Could not get the IP address from the hostname '%s'. Invalid name.\n", ip_addr);
+      snprintf(error_message, max_error_message_chars, "Could not get the IP address from the hostname '%s'. Invalid name.", ip_addr);
       closesocket(socket_fd);
       return false;
     } else if (status == -1) {
-      TAKYON_RECORD_ERROR(error_message, "Could not get the IP address from the hostname '%s'. sock_error=%d\n", ip_addr, WSAGetLastError());
+      snprintf(error_message, max_error_message_chars, "Could not get the IP address from the hostname '%s'. sock_error=%d", ip_addr, WSAGetLastError());
       closesocket(socket_fd);
       return false;
     }
@@ -1467,7 +1475,7 @@ bool socketCreateUnicastReceiver(const char *ip_addr, uint16_t port_number, bool
     // This may accur if the application did not exit gracefully on a previous run.
     BOOL allow = 1;
     if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, (char *)&allow, sizeof(allow)) != 0) {
-      TAKYON_RECORD_ERROR(error_message, "Failed to set datagram socket to SO_REUSEADDR. error=%d\n", WSAGetLastError());
+      snprintf(error_message, max_error_message_chars, "Failed to set datagram socket to SO_REUSEADDR. error=%d", WSAGetLastError());
       closesocket(socket_fd);
       return false;
     }
@@ -1477,9 +1485,9 @@ bool socketCreateUnicastReceiver(const char *ip_addr, uint16_t port_number, bool
   if (bind(socket_fd, (struct sockaddr*)&localSock, sizeof(localSock))) {
     int sock_error = WSAGetLastError();
     if (sock_error == WSAEADDRINUSE) {
-      TAKYON_RECORD_ERROR(error_message, "Could not bind datagram socket. The address is already in use or in a time wait state. May need to use the option '-reuse'\n");
+      snprintf(error_message, max_error_message_chars, "Could not bind datagram socket. The address is already in use or in a time wait state. May need to use the option '-reuse'");
     } else {
-      TAKYON_RECORD_ERROR(error_message, "Failed to bind datagram socket: error=%d\n", sock_error);
+      snprintf(error_message, max_error_message_chars, "Failed to bind datagram socket: error=%d", sock_error);
     }
     closesocket(socket_fd);
     return false;
@@ -1489,31 +1497,31 @@ bool socketCreateUnicastReceiver(const char *ip_addr, uint16_t port_number, bool
   return true;
 }
 
-bool socketDatagramRecv(TakyonSocket socket_fd, void *data_ptr, size_t buffer_bytes, uint64_t *bytes_read_ret, bool is_polling, int64_t timeout_ns, bool *timed_out_ret, char *error_message) {
+bool socketDatagramRecv(TakyonSocket socket_fd, void *data_ptr, size_t buffer_bytes, uint64_t *bytes_read_ret, bool is_polling, int64_t timeout_ns, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
   *bytes_read_ret = 0;
   if (is_polling) {
-    return datagram_recv_polling(socket_fd, data_ptr, buffer_bytes, bytes_read_ret, timeout_ns, timed_out_ret, error_message);
+    return datagram_recv_polling(socket_fd, data_ptr, buffer_bytes, bytes_read_ret, timeout_ns, timed_out_ret, error_message, max_error_message_chars);
   } else {
-    return datagram_recv_event_driven(socket_fd, data_ptr, buffer_bytes, bytes_read_ret, timeout_ns, timed_out_ret, error_message);
+    return datagram_recv_event_driven(socket_fd, data_ptr, buffer_bytes, bytes_read_ret, timeout_ns, timed_out_ret, error_message, max_error_message_chars);
   }
 }
 
-bool socketCreateMulticastSender(const char *ip_addr, const char *multicast_group, uint16_t port_number, bool disable_loopback, int ttl_level, TakyonSocket *socket_fd_ret, void **sock_in_addr_ret, char *error_message) {
-  if (!windows_socket_manager_init(error_message)) {
+bool socketCreateMulticastSender(const char *ip_addr, const char *multicast_group, uint16_t port_number, bool disable_loopback, int ttl_level, TakyonSocket *socket_fd_ret, void **sock_in_addr_ret, char *error_message, int max_error_message_chars) {
+  if (!windows_socket_manager_init(error_message, max_error_message_chars)) {
     return false;
   }
 
   // Resolve the IP address
   char resolved_ip_addr[MAX_IP_ADDR_CHARS];
-  if (!hostnameToIpaddr(AF_INET, ip_addr, resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message)) {
-    TAKYON_RECORD_ERROR(error_message, "Could not resolve IP address '%s'\n", ip_addr);
+  if (!hostnameToIpaddr(AF_INET, ip_addr, resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message, max_error_message_chars)) {
+    // Error message already set
     return false;
   }
 
   // Create a datagram socket on which to send.
   TakyonSocket socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
   if (socket_fd == INVALID_SOCKET) {
-    TAKYON_RECORD_ERROR(error_message, "Failed to create datagram sender socket: error=%d\n", WSAGetLastError());
+    snprintf(error_message, max_error_message_chars, "Failed to create datagram sender socket: error=%d", WSAGetLastError());
     return false;
   }
 
@@ -1522,7 +1530,7 @@ bool socketCreateMulticastSender(const char *ip_addr, const char *multicast_grou
     char loopch = 0;
     int loopch_length = sizeof(loopch);
     if (getsockopt(socket_fd, IPPROTO_IP, IP_MULTICAST_LOOP, (char *)&loopch, &loopch_length) < 0) {
-      TAKYON_RECORD_ERROR(error_message, "Getting IP_MULTICAST_LOOP error when trying to determine loopback value");
+      snprintf(error_message, max_error_message_chars, "Getting IP_MULTICAST_LOOP error when trying to determine loopback value");
       closesocket(socket_fd);
       return false;
     }
@@ -1530,7 +1538,7 @@ bool socketCreateMulticastSender(const char *ip_addr, const char *multicast_grou
     if (loopch != expected_loopch) {
       loopch = expected_loopch;
       if (setsockopt(socket_fd, IPPROTO_IP, IP_MULTICAST_LOOP, &loopch, sizeof(loopch)) < 0) {
-        TAKYON_RECORD_ERROR(error_message, "Getting IP_MULTICAST_LOOP error when trying to %s loopback", expected_loopch ? "enable" : "disable");
+        snprintf(error_message, max_error_message_chars, "Getting IP_MULTICAST_LOOP error when trying to %s loopback", expected_loopch ? "enable" : "disable");
         closesocket(socket_fd);
         return false;
       }
@@ -1543,16 +1551,16 @@ bool socketCreateMulticastSender(const char *ip_addr, const char *multicast_grou
     struct in_addr localInterface;
     int status = inet_pton(AF_INET, resolved_ip_addr, &localInterface.s_addr);
     if (status == 0) {
-      TAKYON_RECORD_ERROR(error_message, "Could not get the IP address from the hostname '%s'. Invalid name.\n", ip_addr);
+      snprintf(error_message, max_error_message_chars, "Could not get the IP address from the hostname '%s'. Invalid name.", ip_addr);
       closesocket(socket_fd);
       return false;
     } else if (status == -1) {
-      TAKYON_RECORD_ERROR(error_message, "Could not get the IP address from the hostname '%s'. sock_error=%d\n", ip_addr, WSAGetLastError());
+      snprintf(error_message, max_error_message_chars, "Could not get the IP address from the hostname '%s'. sock_error=%d", ip_addr, WSAGetLastError());
       closesocket(socket_fd);
       return false;
     }
     if (setsockopt(socket_fd, IPPROTO_IP, IP_MULTICAST_IF, (char *)&localInterface, sizeof(localInterface)) < 0) {
-      TAKYON_RECORD_ERROR(error_message, "Failed to set local interface for multicast");
+      snprintf(error_message, max_error_message_chars, "Failed to set local interface for multicast");
       closesocket(socket_fd);
       return false;
     }
@@ -1569,7 +1577,7 @@ bool socketCreateMulticastSender(const char *ip_addr, const char *multicast_grou
     // 255: Are unrestricted in scope
     int router_depth = ttl_level;
     if (setsockopt(socket_fd, IPPROTO_IP, IP_MULTICAST_TTL, (char *)&router_depth, sizeof(router_depth)) < 0) {
-      TAKYON_RECORD_ERROR(error_message, "Failed to set IP_MULTICAST_TTL for multicast");
+      snprintf(error_message, max_error_message_chars, "Failed to set IP_MULTICAST_TTL for multicast");
       closesocket(socket_fd);
       return false;
     }
@@ -1578,7 +1586,7 @@ bool socketCreateMulticastSender(const char *ip_addr, const char *multicast_grou
   // Allocate the multicast address structure
   struct sockaddr_in *sock_in_addr = malloc(sizeof(struct sockaddr_in));
   if (sock_in_addr == NULL) {
-    TAKYON_RECORD_ERROR(error_message, "Out of memory\n");
+    snprintf(error_message, max_error_message_chars, "Out of memory");
     closesocket(socket_fd);
     return false;
   }
@@ -1591,12 +1599,12 @@ bool socketCreateMulticastSender(const char *ip_addr, const char *multicast_grou
   sock_in_addr->sin_family = AF_INET;
   int status = inet_pton(AF_INET, multicast_group, &sock_in_addr->sin_addr);
   if (status == 0) {
-    TAKYON_RECORD_ERROR(error_message, "Could not get the IP address from the hostname '%s'. Invalid name.\n", ip_addr);
+    snprintf(error_message, max_error_message_chars, "Could not get the IP address from the hostname '%s'. Invalid name.", ip_addr);
     closesocket(socket_fd);
     free(sock_in_addr);
     return false;
   } else if (status == -1) {
-    TAKYON_RECORD_ERROR(error_message, "Could not get the IP address from the hostname '%s'. sock_error=%d\n", ip_addr, WSAGetLastError());
+    snprintf(error_message, max_error_message_chars, "Could not get the IP address from the hostname '%s'. sock_error=%d", ip_addr, WSAGetLastError());
     closesocket(socket_fd);
     free(sock_in_addr);
     return false;
@@ -1608,22 +1616,22 @@ bool socketCreateMulticastSender(const char *ip_addr, const char *multicast_grou
   return true;
 }
 
-bool socketCreateMulticastReceiver(const char *ip_addr, const char *multicast_group, uint16_t port_number, bool allow_reuse, TakyonSocket *socket_fd_ret, char *error_message) {
-  if (!windows_socket_manager_init(error_message)) {
+bool socketCreateMulticastReceiver(const char *ip_addr, const char *multicast_group, uint16_t port_number, bool allow_reuse, TakyonSocket *socket_fd_ret, char *error_message, int max_error_message_chars) {
+  if (!windows_socket_manager_init(error_message, max_error_message_chars)) {
     return false;
   }
 
   // Resolve the IP address
   char resolved_ip_addr[MAX_IP_ADDR_CHARS];
-  if (!hostnameToIpaddr(AF_INET, ip_addr, resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message)) {
-    TAKYON_RECORD_ERROR(error_message, "Could not resolve IP address '%s'\n", ip_addr);
+  if (!hostnameToIpaddr(AF_INET, ip_addr, resolved_ip_addr, MAX_IP_ADDR_CHARS, error_message, max_error_message_chars)) {
+    // Error message already set
     return false;
   }
 
   // Create a datagram socket on which to receive.
   TakyonSocket socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
   if (socket_fd == INVALID_SOCKET) {
-    TAKYON_RECORD_ERROR(error_message, "Failed to create multicast socket: error=%d\n", WSAGetLastError());
+    snprintf(error_message, max_error_message_chars, "Failed to create multicast socket: error=%d", WSAGetLastError());
     return false;
   }
 
@@ -1645,7 +1653,7 @@ bool socketCreateMulticastReceiver(const char *ip_addr, const char *multicast_gr
     // This may accur if the application did not exit gracefully on a previous run.
     BOOL allow = 1;
     if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, (char *)&allow, sizeof(allow)) != 0) {
-      TAKYON_RECORD_ERROR(error_message, "Failed to set multicast socket to SO_REUSEADDR. error=%d\n", WSAGetLastError());
+      snprintf(error_message, max_error_message_chars, "Failed to set multicast socket to SO_REUSEADDR. error=%d", WSAGetLastError());
       closesocket(socket_fd);
       return false;
     }
@@ -1655,9 +1663,9 @@ bool socketCreateMulticastReceiver(const char *ip_addr, const char *multicast_gr
   if (bind(socket_fd, (struct sockaddr*)&localSock, sizeof(localSock))) {
     int sock_error = WSAGetLastError();
     if (sock_error == WSAEADDRINUSE) {
-      TAKYON_RECORD_ERROR(error_message, "Could not bind multicast socket. The address is already in use or in a time wait state. May need to use the option '-reuse'\n");
+      snprintf(error_message, max_error_message_chars, "Could not bind multicast socket. The address is already in use or in a time wait state. May need to use the option '-reuse'");
     } else {
-      TAKYON_RECORD_ERROR(error_message, "Failed to bind multicast socket: error=%d\n", sock_error);
+      snprintf(error_message, max_error_message_chars, "Failed to bind multicast socket: error=%d", sock_error);
     }
     closesocket(socket_fd);
     return false;
@@ -1670,26 +1678,26 @@ bool socketCreateMulticastReceiver(const char *ip_addr, const char *multicast_gr
     struct ip_mreq group;
     int status = inet_pton(AF_INET, multicast_group, &group.imr_multiaddr);
     if (status == 0) {
-      TAKYON_RECORD_ERROR(error_message, "Could not get the IP address from the hostname '%s'. Invalid name.\n", multicast_group);
+      snprintf(error_message, max_error_message_chars, "Could not get the IP address from the hostname '%s'. Invalid name.", multicast_group);
       closesocket(socket_fd);
       return false;
     } else if (status == -1) {
-      TAKYON_RECORD_ERROR(error_message, "Could not get the IP address from the hostname '%s'. sock_error=%d\n", multicast_group, WSAGetLastError());
+      snprintf(error_message, max_error_message_chars, "Could not get the IP address from the hostname '%s'. sock_error=%d", multicast_group, WSAGetLastError());
       closesocket(socket_fd);
       return false;
     }
     status = inet_pton(AF_INET, resolved_ip_addr, &group.imr_interface);
     if (status == 0) {
-      TAKYON_RECORD_ERROR(error_message, "Could not get the IP address from the hostname '%s'. Invalid name.\n", ip_addr);
+      snprintf(error_message, max_error_message_chars, "Could not get the IP address from the hostname '%s'. Invalid name.", ip_addr);
       closesocket(socket_fd);
       return false;
     } else if (status == -1) {
-      TAKYON_RECORD_ERROR(error_message, "Could not get the IP address from the hostname '%s'. sock_error=%d\n", ip_addr, WSAGetLastError());
+      snprintf(error_message, max_error_message_chars, "Could not get the IP address from the hostname '%s'. sock_error=%d", ip_addr, WSAGetLastError());
       closesocket(socket_fd);
       return false;
     }
     if (setsockopt(socket_fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&group, sizeof(group)) < 0) {
-      TAKYON_RECORD_ERROR(error_message, "Failed to add socket to the multicast group: error=%d\n", WSAGetLastError());
+      snprintf(error_message, max_error_message_chars, "Failed to add socket to the multicast group: error=%d", WSAGetLastError());
       closesocket(socket_fd);
       return false;
     }
