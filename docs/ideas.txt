@@ -1,5 +1,6 @@
 To DO
   - Windows CUDA
+  - Windows testing scripts
   - BUG: OSX ephemeral sockets
   - ISSUE: Need more CUDA events with InterProcess
   - Ask OFA if they no longer support Verbs implementations anymore. Do they still support the API spec? How is Intel and Mellanox supported with implementations?
