@@ -2,6 +2,7 @@ To DO
   - Get working on Windows
   - BUG: OSX ephemeral sockets
   - ISSUE: Need more CUDA events with InterProcess
+  - Ask OFA if they no longer support Verbs implementations anymore. Do they still support the API spec? How is Intel and Mellanox supported with implementations?
 
 Examples
   - throughput: show Gb/sec & GB/sec
@@ -31,6 +32,8 @@ To Do
     - Single vs multi-buffer per transfer
     - RDMA vs Sockets
       - But nice to have one API that does both in a reasonable way
+      - Show how sockets is blocking with only send/recv
+      - Show how RDMA is non-blocking with sendstart/send/recvpost/recv
     - Hooks for full fault tollerance
       - timesout to know if communication is taking too long
       - All paths are independent of eachother
@@ -60,6 +63,7 @@ To Do
         - Could still have participants, publishers, and subscribers, but messages are opaque (removes need for intermediate language)
         - Use a simplified QoS
   - README.md:
+    - Takyon 2.x
     - The most flexible and easy HetComm 
     - The basics: primary sockets and RDMA, secondary: also allow thread, mmap
     - Grid of features: thread, mmap, & sockets and RDMA
