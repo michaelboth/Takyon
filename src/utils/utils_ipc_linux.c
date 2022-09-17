@@ -43,6 +43,11 @@
 #include <sys/wait.h>
 #include <sys/syscall.h>
 #include <sys/file.h>
+#if defined(__APPLE__)
+  #define UINT64_FORMAT "%llu"
+#else
+  #define UINT64_FORMAT "%ju"
+#endif
 
 #define MEMORY_MAP_PREFIX   "/"  // Prefix required by Posix
 
@@ -103,7 +108,7 @@ bool mmapAlloc(const char *map_name, uint64_t bytes, void **addr_ret, void **mma
   rc = ftruncate(mapping_fd, bytes);
   if (rc == -1) {
     close(mapping_fd);
-    snprintf(error_message, max_error_message_chars, "could not set shared memory size '%s' to %lu bytes", full_map_name, bytes);
+    snprintf(error_message, max_error_message_chars, "could not set shared memory size '%s' to " UINT64_FORMAT " bytes", full_map_name, bytes);
     return false;
   }
 

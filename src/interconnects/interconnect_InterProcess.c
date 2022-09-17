@@ -40,6 +40,11 @@
 #ifdef ENABLE_CUDA
   #include "cuda_runtime.h"
 #endif
+#if defined(__APPLE__)
+  #define UINT64_FORMAT "%llu"
+#else
+  #define UINT64_FORMAT "%ju"
+#endif
 
 // Supported formats:
 //   "InterProcess -pathID=<non_negative_integer>"
@@ -493,7 +498,7 @@ bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRe
     local_path_info.max_sub_buffers_per_recv_request = path->attrs.max_sub_buffers_per_recv_request;
     uint32_t local_request_element_count = path->attrs.max_pending_recv_requests * path->attrs.max_sub_buffers_per_recv_request;
     uint64_t local_request_list_bytes = local_request_element_count * sizeof(RecvRequestAndCompletion);
-    snprintf(local_path_info.mmap_name, TAKYON_MAX_BUFFER_NAME_CHARS, "TakyonPath_%s_%u_%lu", path->attrs.is_endpointA ? "A" : "B", path_id, local_request_list_bytes); // IMPORTANT: Must be unique to all named mmaps in OS
+    snprintf(local_path_info.mmap_name, TAKYON_MAX_BUFFER_NAME_CHARS, "TakyonPath_%s_%u_" UINT64_FORMAT, path->attrs.is_endpointA ? "A" : "B", path_id, local_request_list_bytes); // IMPORTANT: Must be unique to all named mmaps in OS
     if (!mmapAlloc(local_path_info.mmap_name, local_request_list_bytes, (void **)&private_path->local_recv_request_and_completions, &private_path->local_postings_mmap_handle, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "mmapAlloc() failed: %s\n", error_message);
       goto cleanup;
