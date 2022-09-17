@@ -103,7 +103,7 @@ void hello(const bool is_endpointA, const char *interconnect, const uint32_t ite
 #else
 #ifdef ENABLE_MMAP
     if (strncmp(interconnect, "InterProcess ", 13) == 0) {
-      snprintf(buffer->name, TAKYON_MAX_BUFFER_NAME_CHARS, "%s_hello_buffer_%d_%llu", is_endpointA ? "A" : "B", i, buffer->bytes);
+      snprintf(buffer->name, TAKYON_MAX_BUFFER_NAME_CHARS, "%s_hello_buffer_%d_%lu", is_endpointA ? "A" : "B", i, buffer->bytes);
       char error_message[300];
       bool ok = mmapAlloc(buffer->name, buffer->bytes, &buffer->addr, &buffer->app_data, error_message, 300);
       if (!ok) { printf("mmapAlloc() failed: %s\n", error_message); exit(0); }
