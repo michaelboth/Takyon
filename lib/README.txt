@@ -30,4 +30,5 @@ Windows
       > nmake -f windows.Makefile DEBUG=Yes InterThread=Yes InterProcess=Yes TcpSocket=Yes UdpSocket=Yes CUDA=Yes
 
   When linking the library into your app add the following to the link line:
-    ../../lib/takyon.lib -nodefaultlib:MSVCRTD.LIB c:/pthreads4w/install/lib/libpthreadVC3.lib -nodefaultlib:LIBCMT.LIB
+    OPTIMIZED: ../../lib/takyon.lib c:/pthreads4w/install/lib/libpthreadVC3.lib -nodefaultlib:LIBCMT.LIB
+    DEBUG:     ../../lib/takyon.lib c:/pthreads4w/install/lib/libpthreadVC3d.lib -nodefaultlib:LIBCMT.LIB

@@ -87,8 +87,8 @@ utils_ephemeral_port_manager_C_OBJS = utils_socket_ephemeral_port_manager.obj
 !ENDIF
 
 !IF "$(CUDA)" == "Yes"
-CUDA_C_FLAGS = -DENABLE_CUDA
-#+ -I/usr/local/cuda/include
+CUDA_HOME = "c:\cuda"
+CUDA_C_FLAGS = -DENABLE_CUDA -I"$(CUDA_HOME)\include"
 !ENDIF
 
 #---------------------------------------------
