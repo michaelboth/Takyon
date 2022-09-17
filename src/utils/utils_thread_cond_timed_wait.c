@@ -38,6 +38,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include "utils_thread_cond_timed_wait.h"
+#include "utils_time.h"
 
 static struct timespec getCurrentAbsoluteTime(int64_t timeout_ns) {
   struct timespec future_time;

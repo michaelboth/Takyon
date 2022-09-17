@@ -197,8 +197,10 @@ static bool freeResources(TakyonPath *path, PrivateTakyonPath *private_path, Rem
   // Disconnect
   socketClose(private_path->socket_fd);
 
+  /*+
   // An error ocurred so clean up all allocated resources
   ephemeralPortManagerFinalize();
+  */
 
   free(private_path);
 
@@ -334,8 +336,10 @@ bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRe
     }
   }
 
+  /*+
   // Start the ephemeral port manager
   ephemeralPortManagerInit(path->attrs.verbosity);
+  */
 
   // Create the socket and connect with remote endpoint
   char local_socket_name[TAKYON_MAX_INTERCONNECT_CHARS];
@@ -489,7 +493,7 @@ bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRe
     local_path_info.max_sub_buffers_per_recv_request = path->attrs.max_sub_buffers_per_recv_request;
     uint32_t local_request_element_count = path->attrs.max_pending_recv_requests * path->attrs.max_sub_buffers_per_recv_request;
     uint64_t local_request_list_bytes = local_request_element_count * sizeof(RecvRequestAndCompletion);
-    snprintf(local_path_info.mmap_name, TAKYON_MAX_BUFFER_NAME_CHARS, "TakyonPath_%s_%u_%ju", path->attrs.is_endpointA ? "A" : "B", path_id, local_request_list_bytes); // IMPORTANT: Must be unique to all named mmaps in OS
+    snprintf(local_path_info.mmap_name, TAKYON_MAX_BUFFER_NAME_CHARS, "TakyonPath_%s_%u_%llu", path->attrs.is_endpointA ? "A" : "B", path_id, local_request_list_bytes); // IMPORTANT: Must be unique to all named mmaps in OS
     if (!mmapAlloc(local_path_info.mmap_name, local_request_list_bytes, (void **)&private_path->local_recv_request_and_completions, &private_path->local_postings_mmap_handle, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "mmapAlloc() failed: %s\n", error_message);
       goto cleanup;

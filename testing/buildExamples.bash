@@ -1,6 +1,8 @@
 #!/bin/bash
 
 function cleanFolder {
+    echo ""
+    echo "Cleaning: $1"
     cd $1
     if [ $? -ne 0 ]; then
         echo "Failed to go to $1 folder"
@@ -14,7 +16,8 @@ function cleanFolder {
 }
 
 function build {
-    echo "$1"
+    echo ""
+    echo "Building: `pwd`"
     $1
     if [ $? -ne 0 ]; then
         echo "Failed to compile"
@@ -65,8 +68,7 @@ if [ "$cuda" == "yes" ]; then
 fi
 echo "options = $options"
 
-echo ""
-echo "Building Takyon library..."
+# Takyon library
 cleanFolder ../lib
 command="make $options InterThread=Yes TcpSocket=Yes UdpSocket=Yes"
 if [ "$mmap" == "yes" ]; then
@@ -74,8 +76,7 @@ if [ "$mmap" == "yes" ]; then
 fi
 build "$command"
 
-echo ""
-echo "Building example hello-two_sided..."
+# hello-one_sided
 cleanFolder ../examples/hello-one_sided
 command="make $options"
 if [ "$mmap" == "yes" ]; then
@@ -83,8 +84,7 @@ if [ "$mmap" == "yes" ]; then
 fi
 build "$command"
 
-echo ""
-echo "Building example hello-one_sided..."
+# hello-two_sided
 cleanFolder ../hello-two_sided
 command="make $options"
 if [ "$mmap" == "yes" ]; then

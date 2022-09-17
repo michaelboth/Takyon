@@ -443,6 +443,7 @@ static void ephemeralPortManagerInitOnce(void) {
 
   // Create the multicast receiver socket
   bool allow_reuse = true; // Need to allow other processes in the same OS to use the same port number
+  /*+ this fails on OSX because port number already in use (probably by above socket sender, may need two port numbers?) */
   if (!socketCreateMulticastReceiver(multicast_ip, multicast_group, multicast_port, allow_reuse, &L_multicast_recv_socket, L_error_message, MAX_PRIVATE_ERROR_MESSAGE_CHARS)) {
     fprintf(stderr, "Failed to create multicast receiver for managing ephemeral port numbers: %s\n", L_error_message);
     exit(EXIT_FAILURE);

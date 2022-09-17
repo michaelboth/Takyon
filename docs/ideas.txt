@@ -1,9 +1,10 @@
+To DO
+  - Get working on Windows
+  - BUG: OSX ephemeral sockets
+  - ISSUE: Need more CUDA events with InterProcess
+
 Examples
-  - hello (multi-thread, multi-process, CUDA, multi buffer, PBM)
-  - hello_one_sided
-  - unicast: also includes unreliable_connected?
-  - multicast
-  - performance
+  - throughput: show Gb/sec & GB/sec
 
 Interconnects
   + InterThread  (PBM, SGEs, oneWayWrite, oneWayRead, zeroByteMessage, >4GB, GPU)

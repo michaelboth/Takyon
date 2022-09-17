@@ -15,9 +15,12 @@ LDFLAGS := -std=gnu99 -Wall -Werror
 C_LIBS  := -L../../lib -ltakyon -pthread
 HEADER_FILES := hello.h
 
+OS_TYPE := $(shell uname -s)
 ifeq ($(MMAP),Yes)
     C_FLAGS_MT += -DENABLE_MMAP -I../../src/utils
-    C_LIBS  += -lrt
+    ifeq ($(OS_TYPE),Linux)
+        C_LIBS  += -lrt
+    endif
 endif
 
 ifeq ($(RDMA),Yes)

@@ -545,9 +545,9 @@ bool takyonIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout
   // Verbosity
   if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFER) {
     if (path->features.piggy_back_message_supported) {
-      printf("%-15s (%s:%s) Got message: %ju bytes, piggy_back_message=0x%x\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.interconnect, bytes_received, piggy_back_message);
+      printf("%-15s (%s:%s) Got message: %llu bytes, piggy_back_message=0x%x\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.interconnect, bytes_received, piggy_back_message);
     } else {
-      printf("%-15s (%s:%s) Got message: %ju bytes\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.interconnect, bytes_received);
+      printf("%-15s (%s:%s) Got message: %llu bytes\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.interconnect, bytes_received);
     }
   }
 
