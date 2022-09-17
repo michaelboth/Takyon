@@ -128,9 +128,6 @@ void hello(const bool is_endpointA, const char *interconnect, const uint32_t ite
   // Create the memory buffers used with transfering data
   //   - The first 2 are for the sender, and the 3rd is for the receiver
   TakyonBuffer buffers[NUM_BUFFERS];
-  /*+
-  TakyonBuffer buffers[NUM_BUFFERS] = {};
-  */
   for (uint32_t i=0; i<NUM_BUFFERS; i++) {
     TakyonBuffer *buffer = &buffers[i];
     buffer->bytes = TRANSPORT_BYTES;

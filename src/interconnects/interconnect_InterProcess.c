@@ -202,11 +202,6 @@ static bool freeResources(TakyonPath *path, PrivateTakyonPath *private_path, Rem
   // Disconnect
   socketClose(private_path->socket_fd);
 
-  /*+
-  // An error ocurred so clean up all allocated resources
-  ephemeralPortManagerFinalize();
-  */
-
   free(private_path);
 
   return success;
@@ -340,11 +335,6 @@ bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRe
       }
     }
   }
-
-  /*+
-  // Start the ephemeral port manager
-  ephemeralPortManagerInit(path->attrs.verbosity);
-  */
 
   // Create the socket and connect with remote endpoint
   char local_socket_name[TAKYON_MAX_INTERCONNECT_CHARS];
@@ -494,9 +484,6 @@ bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRe
   // Allocate mmap for tracking posted recvs
   RemotePathInfo local_path_info;
   memset(&local_path_info, 0, sizeof(RemotePathInfo));
-  /*+
-  RemotePathInfo local_path_info = {};
-  */
   if (path->attrs.max_pending_recv_requests > 0) {
     local_path_info.max_pending_recv_requests = path->attrs.max_pending_recv_requests;
     local_path_info.max_sub_buffers_per_recv_request = path->attrs.max_sub_buffers_per_recv_request;
