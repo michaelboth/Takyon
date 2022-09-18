@@ -1,74 +1,27 @@
 To DO
+  - Rename TcpSocket to SocketTcp, and UdpSocket to SocketUdp
   - Windows CUDA
   - Windows testing scripts
   - BUG: OSX ephemeral sockets
   - ISSUE: Need more CUDA events with InterProcess
   - Ask OFA if they no longer support Verbs implementations anymore. Do they still support the API spec? How is Intel and Mellanox supported with implementations?
-
-Examples
-  - throughput: show Gb/sec & GB/sec
-
-Interconnects
-  + InterThread  (PBM, SGEs, oneWayWrite, oneWayRead, zeroByteMessage, >4GB, GPU)
-  - InterProcess (PBM, SGEs, oneWayWrite, oneWayRead, zeroByteMessage, >4GB, GPU)
-  + TcpSocket    (PBM, SGEs, -          , -         , zeroByteMessage,  1GB, -  )
-  + UdpSocket    ( - ,  -  , -          , -         , -              , 64KB, -  )  unicast & multicast
-  - TcpRdma      (PBM, SGEs, oneWayWrite, oneWayRead, zeroByteMessage,  1GB, GPU)
-  - UcRdma       (PBM, SGEs, oneWayWrite, -         , zeroByteMessage,  1GB, GPU)
-  - UdpRdma      (PBM, SGEs, -          , -         , zeroByteMessage,  MTU, GPU)  unicast & multicast
-
-To Do
-  - Logo
-  - Slide deck of features
-    - A fusion of RDMA, sockets, and more.
-      Easily add interfaces to your sensors & IOs devices
-    - Develop distributed application in steps:
-      - Essentially no changes to source code
-        1. Single CPU, Single process, with multiple threads
-        2. Single CPU, multiple processes
-        3. Multiple processors (e.g. RDMA , sockets)
-    - Connected: no dropped or out-of-order data, up to 1 GB
-    - Unconnected: data may be dropped or out of order, typically datagram or MTU bytes, data typical must be destructed and then constructed (exception is RDMA UC)
-    - Two-sided vs One-sided
-    - Single vs multi-buffer per transfer
-    - RDMA vs Sockets
-      - But nice to have one API that does both in a reasonable way
-      - Show how sockets is blocking with only send/recv
-      - Show how RDMA is non-blocking with sendstart/send/recvpost/recv
-    - Hooks for full fault tollerance
-      - timesout to know if communication is taking too long
-      - All paths are independent of eachother
-      - Dynamically create and destroy as needed
-    - Takyon hides the complicated implementation details
-      - RDMA: QP, CQ, CQE, polling, event driven via channels, MR, access variations, etc
-      - Sockets: bind, accept, connect, NO_DELAY, etc
-    - Takyon makes specifiying an interconnect easy: without needing multiple functions
-      - via signle line of text: attrs->interconnect[]
-        - Show all the various interconnect specs
-    - Takyon 2.0 features
-      - (one sided) RDMA-Write, RDMA-Read
-        - optional is-complete notification (completion event)
-      - (two sided) RC, UC, UD unicast/multicast
-        - supports multi SGEs
-        - supports IMM
-        - optional is-sent notification (completion event)
-    - Challenge: what interconnect can't be done with Takyon's API
-      - Strided
-    - Compare with MPI, sockets, verbs
-        - inter-thread, inter-process, inter processor
-        - full fault tollerance hooks (timeouts, failure detection, create/destroy paths on the fly
-    - Future
-      - Strided (maybe)
-      - Publish/Subscribe
-        - A potential replacement for the overly complex DDS. Goal is to cover most real-world DDS examples
-        - Could still have participants, publishers, and subscribers, but messages are opaque (removes need for intermediate language)
-        - Use a simplified QoS
   - README.md:
     - Takyon 2.x
     - The most flexible and easy HetComm 
     - The basics: primary sockets and RDMA, secondary: also allow thread, mmap
     - Grid of features: thread, mmap, & sockets and RDMA
   - GETTING_STARTED.txt
+  - Examples
+    - throughput: show Gb/sec & GB/sec
+
+Interconnects (WebSite)
+  + InterThread  (PBM, SGEs, oneWayWrite, oneWayRead, zeroByteMessage, >4GB, GPU)
+  - InterProcess (PBM, SGEs, oneWayWrite, oneWayRead, zeroByteMessage, >4GB, GPU)
+  + SocketTcp    (PBM, SGEs, -          , -         , zeroByteMessage,  1GB, -  )
+  + SocketUdp    ( - ,  -  , -          , -         , -              , 64KB, -  )  unicast & multicast, send & recv
+  - RdmaRC       (PBM, SGEs, oneWayWrite, oneWayRead, zeroByteMessage,  1GB, GPU)
+  - RdmaUC       (PBM, SGEs, oneWayWrite, -         , zeroByteMessage,  1GB, GPU)
+  - RdmaUD       (PBM, SGEs, -          , -         , zeroByteMessage,  MTU, GPU)  unicast & multicast, send & recv
 
 Promote To
   - Khronos, as a new proposal
@@ -80,3 +33,12 @@ Promote To
   - Curtiss Wright
   - Huawei
   - Abaco
+
+Future:
+  - Collectives: base on Takyon 1.x graph extension
+    - Also create GUI to make graph design easy
+  - Strided (maybe)
+  - Publish/Subscribe
+    - A potential replacement for the overly complex DDS. Goal is to cover most real-world DDS examples
+    - Could still have participants, publishers, and subscribers, but messages are opaque (removes need for intermediate language)
+    - Use a simplified QoS
