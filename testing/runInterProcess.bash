@@ -21,12 +21,12 @@ function runExample {
 
 # Determine if endpoint A or B
 if [ "$#" -lt "1" ]; then
-    echo "USAGE: runInterProcess.bash <A|B> [mmap] [socket]"
+    echo "USAGE: runInterProcess.bash <A|B> [mmap] [socket] [ephemeral]"
     exit 0
 fi
 
 if [[ "$1" != "A" && "$1" != "B" ]]; then
-    echo "USAGE: runInterProcess.bash <A|B> [mmap] [socket]"
+    echo "USAGE: runInterProcess.bash <A|B> [mmap] [socket] [ephemeral]"
     exit 0
 fi
 
@@ -35,6 +35,7 @@ endpoint="$1"
 # Get optional args
 mmap="no"
 socket="no"
+ephemeral="no"
 for arg in "$@"
 do
     if [ "$arg" == "mmap" ]; then
@@ -43,9 +44,13 @@ do
     if [ "$arg" == "socket" ]; then
         socket="yes"
     fi
+    if [ "$arg" == "ephemeral" ]; then
+        ephemeral="yes"
+    fi
 done
 echo "mmap  = $mmap"
 echo "socket  = $socket"
+echo "ephemeral  = $ephemeral"
 
 toFolder ../examples/hello-two_sided
 if [ "$mmap" == "yes" ]; then
@@ -66,12 +71,14 @@ if [ "$socket" == "yes" ]; then
         runExample ./hello_mp $endpoint "SocketTcp -server -localIP=127.0.0.1 -port=23456 -reuse" 10
     fi
 
-    if [ "$endpoint" == "A" ]; then
-        runExample ./hello_mp $endpoint "SocketTcp -client -remoteIP=127.0.0.1 -ephemeralID=1" 0
-        runExample ./hello_mp $endpoint "SocketTcp -client -remoteIP=127.0.0.1 -ephemeralID=1" 10
-    else
-        runExample ./hello_mp $endpoint "SocketTcp -server -localIP=127.0.0.1 -ephemeralID=1" 0
-        runExample ./hello_mp $endpoint "SocketTcp -server -localIP=127.0.0.1 -ephemeralID=1" 10
+    if [ "$ephemeral" == "yes" ]; then
+        if [ "$endpoint" == "A" ]; then
+            runExample ./hello_mp $endpoint "SocketTcp -client -remoteIP=127.0.0.1 -ephemeralID=1" 0
+            runExample ./hello_mp $endpoint "SocketTcp -client -remoteIP=127.0.0.1 -ephemeralID=1" 10
+        else
+            runExample ./hello_mp $endpoint "SocketTcp -server -localIP=127.0.0.1 -ephemeralID=1" 0
+            runExample ./hello_mp $endpoint "SocketTcp -server -localIP=127.0.0.1 -ephemeralID=1" 10
+        fi
     fi
 
     if [ "$endpoint" == "A" ]; then

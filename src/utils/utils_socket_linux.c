@@ -1516,7 +1516,7 @@ bool socketCreateMulticastReceiver(const char *ip_addr, const char *multicast_gr
   // Bind the port number and socket
   if (bind(socket_fd, (struct sockaddr*)&localSock, sizeof(localSock))) {
     if (errno == EADDRINUSE) {
-      snprintf(error_message, max_error_message_chars, "Could not bind multicast socket. The address is already in use or in a time wait state. May need to use the option '-reuse'");
+      snprintf(error_message, max_error_message_chars, "Could not bind multicast socket %s:%d. The address is already in use or in a time wait state. May need to use the option '-reuse'", ip_addr, port_number);
     } else {
       snprintf(error_message, max_error_message_chars, "Failed to bind multicast socket: errno=%d", errno);
     }
