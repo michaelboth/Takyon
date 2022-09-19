@@ -5,23 +5,10 @@ To DO
   - BUG: OSX ephemeral sockets
   - ISSUE: Need more CUDA events with InterProcess
   - Ask OFA if they no longer support Verbs implementations anymore. Do they still support the API spec? How is Intel and Mellanox supported with implementations?
-  - README.md:
-    - Takyon 2.x
-    - The most flexible and easy HetComm 
-    - The basics: primary sockets and RDMA, secondary: also allow thread, mmap
-    - Grid of features: thread, mmap, & sockets and RDMA
+  - Ask Mellanox if Verbs is also on Windows
   - GETTING_STARTED.txt
   - Examples
     - throughput: show Gb/sec & GB/sec
-
-Interconnects (WebSite)
-  + InterThread  (PBM, SGEs, oneWayWrite, oneWayRead, zeroByteMessage, >4GB, GPU)
-  - InterProcess (PBM, SGEs, oneWayWrite, oneWayRead, zeroByteMessage, >4GB, GPU)
-  + SocketTcp    (PBM, SGEs, -          , -         , zeroByteMessage,  1GB, -  )
-  + SocketUdp    ( - ,  -  , -          , -         , -              , 64KB, -  )  unicast & multicast, send & recv
-  - RdmaRC       (PBM, SGEs, oneWayWrite, oneWayRead, zeroByteMessage,  1GB, GPU)
-  - RdmaUC       (PBM, SGEs, oneWayWrite, -         , zeroByteMessage,  1GB, GPU)
-  - RdmaUD       (PBM, SGEs, -          , -         , zeroByteMessage,  MTU, GPU)  unicast & multicast, send & recv
 
 Promote To
   - Khronos, as a new proposal
