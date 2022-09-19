@@ -50,6 +50,7 @@
 //   "InterProcess -pathID=<non_negative_integer>"
 
 #define KLUDGE_USEC_SLEEP_BETWEEN_POLL_ATTEMPTS 100
+#define MAX_CUDA_EVENTS 100  // Verify does not exceed attrs.max_pending_recv_requests
 
 // IMPORTANT: This is not stored, but is used during the init phase to get mmap address
 typedef struct {
@@ -58,7 +59,7 @@ typedef struct {
 #ifdef ENABLE_CUDA
   bool is_cuda;
   cudaIpcMemHandle_t ipc_addr_map;
-  cudaIpcEventHandle_t ipc_event_map;
+  cudaIpcEventHandle_t ipc_event_map[MAX_CUDA_EVENTS];
 #endif
 } RemoteTakyonBufferInfo;
 
@@ -67,17 +68,21 @@ typedef struct {
   TakyonPath *path;
 #ifdef ENABLE_CUDA
   bool is_cuda;
-  cudaEvent_t cuda_event;
+  uint32_t curr_cuda_event_index;
+  bool cuda_event_allocated[MAX_CUDA_EVENTS];
+  cudaEvent_t cuda_event[MAX_CUDA_EVENTS];
 #endif
 } PrivateTakyonBuffer;
 
 typedef struct {
   uint64_t bytes;
-  void *mmap_addr;        // CPU or CUDA
+  void *mmap_addr;   // CPU or CUDA
   void *mmap_handle; // Only for CPU memory
 #ifdef ENABLE_CUDA
   bool is_cuda;
-  cudaEvent_t cuda_event; // Only for CUDA memory
+  uint32_t curr_cuda_event_index;
+  bool send_notification; // Used on the sender side if the memory buffer is used in the transfer
+  cudaEvent_t cuda_event[MAX_CUDA_EVENTS];
 #endif
 } RemoteTakyonBuffer;
 
@@ -188,9 +193,11 @@ static bool freeResources(TakyonPath *path, PrivateTakyonPath *private_path, Rem
     if (private_buffer != NULL) {
 #ifdef ENABLE_CUDA
       if (private_buffer->is_cuda) {
-        if (!cudaEventFree(&private_buffer->cuda_event, error_message, MAX_ERROR_MESSAGE_CHARS)) {
-          if (report_errors) TAKYON_RECORD_ERROR(path->error_message, "cudaEventFree() failed: %s\n", error_message);
-          success = false;
+        for (uint32_t j=0; j<MAX_CUDA_EVENTS; j++) {
+          if (private_buffer->cuda_event_allocated[j] && !cudaEventFree(&private_buffer->cuda_event[j], error_message, MAX_ERROR_MESSAGE_CHARS)) {
+            if (report_errors) TAKYON_RECORD_ERROR(path->error_message, "cudaEventFree() failed: %s\n", error_message);
+            success = false;
+          }
         }
       }
 #endif
@@ -277,6 +284,13 @@ bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRe
     return false;
   }
 
+#ifdef ENABLE_CUDA
+  if (MAX_CUDA_EVENTS < path->attrs.max_pending_recv_requests) {
+    TAKYON_RECORD_ERROR(path->error_message, "MAX_CUDA_EVENTS < path->attrs.max_pending_recv_requests. May be better to increase MAX_CUDA_EVENTS in %s, versus reducing path->attrs.max_pending_recv_requests\n", __FILE__);
+    return false;
+  }
+#endif
+
   // Allocate the private data
   PrivateTakyonPath *private_path = calloc(1, sizeof(PrivateTakyonPath));
   if (private_path == NULL) {
@@ -321,9 +335,12 @@ bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRe
     }
     if (private_buffer->is_cuda) {
       is_cuda = true;
-      if (!cudaEventAlloc(&private_buffer->cuda_event, error_message, MAX_ERROR_MESSAGE_CHARS)) {
-        TAKYON_RECORD_ERROR(path->error_message, "cudaEventAlloc() failed: %s\n", error_message);
-        goto cleanup;
+      for (uint32_t j=0; j<MAX_CUDA_EVENTS; j++) {
+        if (!cudaEventAlloc(&private_buffer->cuda_event[j], error_message, MAX_ERROR_MESSAGE_CHARS)) {
+          TAKYON_RECORD_ERROR(path->error_message, "cudaEventAlloc() failed: %s\n", error_message);
+          goto cleanup;
+        }
+        private_buffer->cuda_event_allocated[j] = true;
       }
     }
 #endif
@@ -371,9 +388,11 @@ bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRe
         TAKYON_RECORD_ERROR(path->error_message, "cudaCreateIpcMapFromLocalAddr() failed: %s\n", error_message);
         goto cleanup;
       }
-      if (!cudaCreateIpcMapFromLocalEvent(&private_buffer->cuda_event, &buffer_info->ipc_event_map, error_message, MAX_ERROR_MESSAGE_CHARS)) {
-        TAKYON_RECORD_ERROR(path->error_message, "cudaCreateIpcMapFromLocalEvent() failed: %s\n", error_message);
-        goto cleanup;
+      for (uint32_t j=0; j<MAX_CUDA_EVENTS; j++) {
+        if (!cudaCreateIpcMapFromLocalEvent(&private_buffer->cuda_event[j], &buffer_info->ipc_event_map[j], error_message, MAX_ERROR_MESSAGE_CHARS)) {
+          TAKYON_RECORD_ERROR(path->error_message, "cudaCreateIpcMapFromLocalEvent() failed: %s\n", error_message);
+          goto cleanup;
+        }
       }
     }
 #endif
@@ -459,9 +478,11 @@ bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRe
         TAKYON_RECORD_ERROR(path->error_message, "cudaGetRemoteAddrFromIpcMap() failed: %s\n", error_message);
         goto cleanup;
       }
-      if (!cudaGetRemoteEventFromIpcMap(remote_buffer_info->ipc_event_map, &remote_buffer->cuda_event, error_message, MAX_ERROR_MESSAGE_CHARS)) {
-        TAKYON_RECORD_ERROR(path->error_message, "cudaGetRemoteEventFromIpcMap() failed: %s\n", error_message);
-        goto cleanup;
+      for (uint32_t j=0; j<MAX_CUDA_EVENTS; j++) {
+        if (!cudaGetRemoteEventFromIpcMap(remote_buffer_info->ipc_event_map[j], &remote_buffer->cuda_event[j], error_message, MAX_ERROR_MESSAGE_CHARS)) {
+          TAKYON_RECORD_ERROR(path->error_message, "cudaGetRemoteEventFromIpcMap() failed: %s\n", error_message);
+          goto cleanup;
+        }
       }
     }
 #endif
@@ -741,6 +762,11 @@ bool interProcessSend(TakyonPath *path, TakyonSendRequest *request, uint32_t pig
       TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju and exceeds remote buffer\n", remote_max_bytes);
       return false;
     }
+#ifdef ENABLE_CUDA
+    if (remote_buffer->is_cuda) {
+      remote_buffer->send_notification = false; // Prepare for this memory to be used
+    }
+#endif
     total_available_recv_bytes += remote_max_bytes;
   }
 
@@ -779,15 +805,7 @@ bool interProcessSend(TakyonPath *path, TakyonSendRequest *request, uint32_t pig
       }
 #ifdef ENABLE_CUDA
       if (remote_buffer->is_cuda) {
-        // If remote is CUDA, then the remote side needs a way to know when the transfer is done.
-        /*+ This is not a good sync method because a cuda_event resets, and is not unique per transfer.
-          There needs to be a sync method that is unique per transfer and per CUDA device. Maybe an array of events
-        */
-        char error_message[MAX_ERROR_MESSAGE_CHARS];
-        if (!cudaEventNotify(&remote_buffer->cuda_event, error_message, MAX_ERROR_MESSAGE_CHARS)) {
-          TAKYON_RECORD_ERROR(path->error_message, "cudaEventNotify() failed: %s\n", error_message);
-          return false;
-        }
+        remote_buffer->send_notification = true; // This cuda buffer was used, so will need to send notificastion after the transfer has been started
       }
 #endif
       src_addr = (void *)((uint64_t)src_addr + bytes_to_send);
@@ -796,6 +814,33 @@ bool interProcessSend(TakyonPath *path, TakyonSendRequest *request, uint32_t pig
       remote_max_bytes -= bytes_to_send;
     }
   }
+
+  // See if any CUDA event notifications need to be sent (if the remote CUDA buffers had data transfered to them)
+#ifdef ENABLE_CUDA
+  {
+    char error_message[MAX_ERROR_MESSAGE_CHARS];
+    for (uint32_t i=0; i<remote_request->sub_buffer_count; i++) {
+      RecvRequestAndCompletion *remote_sub_buffer = &private_path->remote_recv_request_and_completions[private_path->curr_remote_recv_request_index + i];
+      RemoteTakyonBuffer *remote_buffer = &private_path->remote_buffers[remote_sub_buffer->buffer_index];
+      if (remote_buffer->is_cuda && remote_buffer->send_notification) {
+        // Data was sent to this remote CUDA buffer
+        uint32_t event_index = remote_buffer->curr_cuda_event_index;
+        // Verify the event is still not be used for a previous transfer
+        if (!cudaEventAvailable(&remote_buffer->cuda_event[event_index], error_message, MAX_ERROR_MESSAGE_CHARS)) {
+          TAKYON_RECORD_ERROR(path->error_message, "cudaEventNotify() failed: %s\n", error_message);
+          return false;
+        }
+        // Active the event
+        if (!cudaEventNotify(&remote_buffer->cuda_event[event_index], error_message, MAX_ERROR_MESSAGE_CHARS)) {
+          TAKYON_RECORD_ERROR(path->error_message, "cudaEventNotify() failed: %s\n", error_message);
+          return false;
+        }
+        remote_buffer->curr_cuda_event_index = (remote_buffer->curr_cuda_event_index + 1) % MAX_CUDA_EVENTS;
+        remote_buffer->send_notification = false;
+      }
+    }
+  }
+#endif
 
   // Set the request results
   remote_request->bytes_received = total_bytes_to_send;
@@ -893,22 +938,27 @@ bool interProcessIsRecved(TakyonPath *path, TakyonRecvRequest *request, double t
     }
   }
 
-  // For each CUDA buffer, need to wait on a sync event
+  // Data was sent. CPU transfers are synchronous, but CUDA transfers are asynchronous
+
+  // For each CUDA buffer, need to wait on a sync event, but only for bytes received (i.e. more recv bytes may have been posted than were received, so not all sub buffers may get data
 #ifdef ENABLE_CUDA
+  char error_message[MAX_ERROR_MESSAGE_CHARS];
+  uint64_t total_available_recv_bytes = 0;
   for (uint32_t i=0; i<local_request->sub_buffer_count; i++) {
     RecvRequestAndCompletion *local_sub_buffer = &private_path->local_recv_request_and_completions[private_path->curr_local_recv_request_index + i];
+    uint64_t local_max_bytes = local_sub_buffer->bytes;
     TakyonBuffer *local_buffer = &path->attrs.buffers[local_sub_buffer->buffer_index];
     PrivateTakyonBuffer *private_buffer = (PrivateTakyonBuffer *)local_buffer->private;
-    if (private_buffer->is_cuda) {
-      /*+ This is not a good sync method because a cuda_event resets, and is not unique per transfer.
-        There needs to be a sync method that is unique per transfer and per CUDA device. Maybe an array of events
-      */
-      char error_message[MAX_ERROR_MESSAGE_CHARS];
-      if (!cudaEventWait(&private_buffer->cuda_event, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    if (private_buffer->is_cuda && local_request->bytes_received > total_available_recv_bytes) {
+      // Data was copied to this CUDA buffer, so need to know that it arrived
+      uint32_t event_index = private_buffer->curr_cuda_event_index;
+      if (!cudaEventWait(&private_buffer->cuda_event[event_index], error_message, MAX_ERROR_MESSAGE_CHARS)) {
         TAKYON_RECORD_ERROR(path->error_message, "cudaEventWait() failed: %s\n", error_message);
         return false;
       }
+      private_buffer->curr_cuda_event_index = (private_buffer->curr_cuda_event_index + 1) % MAX_CUDA_EVENTS;
     }
+    total_available_recv_bytes += local_max_bytes;
   }
 #endif
 

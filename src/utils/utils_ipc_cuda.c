@@ -126,6 +126,20 @@ bool cudaEventNotify(cudaEvent_t *event, char *error_message, int max_error_mess
   return true;
 }
 
+// Either endpoint can call this, but really meant for the sender to verify a previous use of the event is still not active
+bool cudaEventAvailable(cudaEvent_t *event, char *error_message, int max_error_message_chars) {
+  cudaError_t cuda_status = cudaEventQuery(*event);
+  if (cuda_status != cudaSuccess) {
+    if (cuda_status == cudaErrorNotReady) {
+      snprintf(error_message, max_error_message_chars, "Previous use of CUDA event is still not ready; i.e. a previous transfer is still not complete. May need to increase MAX_CUDA_EVENTS in interconnect_InterProcess.c");
+    } else {
+      snprintf(error_message, max_error_message_chars, "Failed to wait for notification from CUDA event: %s", cudaGetErrorString(cuda_status));
+    }
+    return false;
+  }
+  return true;
+}
+
 // Either endpoint can call this, but really meant for the recever to call to block waiting for the sender to complete its transfer
 bool cudaEventWait(cudaEvent_t *event, char *error_message, int max_error_message_chars) {
   cudaError_t cuda_status = cudaEventSynchronize(*event);

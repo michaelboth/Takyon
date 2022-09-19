@@ -62,6 +62,7 @@ extern bool cudaEventFree(cudaEvent_t *event, char *error_message, int max_error
 extern bool cudaCreateIpcMapFromLocalEvent(cudaEvent_t *event, cudaIpcEventHandle_t *ipc_map_ret, char *error_message, int max_error_message_chars);
 extern bool cudaGetRemoteEventFromIpcMap(cudaIpcEventHandle_t remote_ipc_map, cudaEvent_t *remote_event_ret, char *error_message, int max_error_message_chars);
 extern bool cudaEventNotify(cudaEvent_t *event, char *error_message, int max_error_message_chars);
+extern bool cudaEventAvailable(cudaEvent_t *event, char *error_message, int max_error_message_chars);
 extern bool cudaEventWait(cudaEvent_t *event, char *error_message, int max_error_message_chars);
 #endif
 

@@ -1,4 +1,5 @@
 To DO
+  - Linux testing with mmap off
   - Windows CUDA
   - Windows testing scripts
   - BUG: OSX ephemeral sockets
