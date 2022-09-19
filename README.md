@@ -1,7 +1,6 @@
 <img src="docs/Takyon_Logo.png" alt="Logo" style="width:400px;"/>
 
-The only proposal for a new Khronos open standard<br>
-www.khronos.org/exploratory/heterogeneous-communication/<br>
+The only proposal for a new Khronos open standard: www.khronos.org/exploratory/heterogeneous-communication/<br>
 The future of high performance heterogeneous point-to-point communication<br>
 
 # Takyon: Key Features
@@ -15,7 +14,7 @@ The future of high performance heterogeneous point-to-point communication<br>
 - Designed to allow for fault tolerance
 - Tested on Windows, Mac, & Linux
 
-## Currenlt Supported Interconnects
+## Currently Supported Interconnects
 Interconnect  | Type                   | Max Message Bytes | Non-Blocking | Supports One-Sided | Zero Byte Messages | GPU
 --------------|------------------------|-------------------|--------------|--------------------|--------------------|----
 InterThread   | Reliable-Connected     | >4 GB             | No           | Yes                | Yes                | Yes
@@ -51,4 +50,4 @@ To help you get started, some examples are provided. Each example has a ```READM
 Example | Description
 --------|------------
 hello-two_sided | Transfer a simple greeting between two endpoints using send() and recv()
-hello-one_sided | Transfer a simple greeting between two endpoints using a one-sided read and write
+hello-one_sided | Transfer a simple greeting between two endpoints using a one-sided read/write
