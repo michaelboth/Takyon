@@ -2,10 +2,8 @@ To DO
   - Windows CUDA
   - Windows testing scripts
   - BUG: OSX ephemeral sockets
-  - ISSUE: Need more CUDA events with InterProcess
   - Ask OFA if they no longer support Verbs implementations anymore. Do they still support the API spec? How is Intel and Mellanox supported with implementations?
   - Ask Mellanox if Verbs is also on Windows
-  - GETTING_STARTED.txt
   - Examples
     - throughput: show Gb/sec & GB/sec
 
@@ -14,13 +12,13 @@ Promote To
   - Intel's RDMA group
   - Microsoft's Network Direct group
   - NVIDIA's Mellanox group
-  - OFA
+  - OFA: leads to many companies that are members
   - Mercury computers
   - Curtiss Wright
   - Huawei
   - Abaco
 
-Future:
+Future Ideas
   - Collectives: base on Takyon 1.x graph extension
     - Also create GUI to make graph design easy
   - Strided (maybe)
