@@ -1,6 +1,7 @@
 <img src="docs/Takyon_Logo.png" alt="Logo" style="width:400px;"/>
 
 The only proposal for a new Khronos open standard<br>
+www.khronos.org/exploratory/heterogeneous-communication/<br>
 The future of high performance heterogeneous point-to-point communication<br>
 
 # Takyon: Key Features
@@ -15,15 +16,15 @@ The future of high performance heterogeneous point-to-point communication<br>
 - Tested on Windows, Mac, & Linux
 
 ## Currenlt Supported Interconnects
-Interconnect | Type                   | Max Message Bytes | Non-Blocking | Supports One-Sided | Zero Byte Messages | GPU
--------------|------------------------|-------------------|--------------|--------------------|--------------------|----
-InterThread  | Reliable-Connected     | >4 GB             | No           | Yes                | Yes                | Yes
-InterProcess | Reliable-Connected     | >4 GB             | No           | Yes                | Yes                | Yes
-SocketTcp    | Reliable-Connected     | 1 GB              | No           | No                 | Yes                | No
-SocketUdp    | Unreliable-Unconnected | 64 KB             | No           | No                 | No                 | No
-RdmaRC       | Reliable-Connected     | 1 GB              | Yes          | Yes                | Yes                | Yes
-RdmaUC       | Unreliable-Connected   | 1 GB              | Yes          | Yes                | Yes                | Yes
-RdmaUD       | Unreliable-Unconnected | MTU               | Yes          | No                 | Yes                | Yes
+Interconnect  | Type                   | Max Message Bytes | Non-Blocking | Supports One-Sided | Zero Byte Messages | GPU
+--------------|------------------------|-------------------|--------------|--------------------|--------------------|----
+InterThread   | Reliable-Connected     | >4 GB             | No           | Yes                | Yes                | Yes
+InterProcess  | Reliable-Connected     | >4 GB             | No           | Yes                | Yes                | Yes
+SocketTcp     | Reliable-Connected     | 1 GB              | No           | No                 | Yes                | No
+SocketUdp     | Unreliable-Unconnected | 64 KB             | No           | No                 | No                 | No
+RdmaRC (soon) | Reliable-Connected     | 1 GB              | Yes          | Yes                | Yes                | Yes
+RdmaUC (soon) | Unreliable-Connected   | 1 GB              | Yes          | Yes                | Yes                | Yes
+RdmaUD (soon) | Unreliable-Unconnected | MTU               | Yes          | No                 | Yes                | Yes
 
 ## Takyon Presentation
 <a href="Takyon_Introduction.pdf">
