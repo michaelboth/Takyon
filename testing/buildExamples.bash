@@ -70,7 +70,7 @@ echo "options = $options"
 
 # Takyon library
 cleanFolder ../lib
-command="make $options InterThread=Yes TcpSocket=Yes UdpSocket=Yes"
+command="make $options InterThread=Yes SocketTcp=Yes SocketUdp=Yes"
 if [ "$mmap" == "yes" ]; then
     command+=" InterProcess=Yes"
 fi

@@ -37,37 +37,37 @@ runExample ./hello_mp $endpoint "InterProcess -pathID=1" 0
 runExample ./hello_mp $endpoint "InterProcess -pathID=1" 1
 runExample ./hello_mp $endpoint "InterProcess -pathID=1" 10
 
-runExample ./hello_mp $endpoint "TcpSocket -local -pathID=1" 0
-runExample ./hello_mp $endpoint "TcpSocket -local -pathID=1" 10
+runExample ./hello_mp $endpoint "SocketTcp -local -pathID=1" 0
+runExample ./hello_mp $endpoint "SocketTcp -local -pathID=1" 10
 
 if [ "$endpoint" == "A" ]; then
-    runExample ./hello_mp $endpoint "TcpSocket -client -remoteIP=127.0.0.1 -port=23456" 0
-    runExample ./hello_mp $endpoint "TcpSocket -client -remoteIP=127.0.0.1 -port=23456" 10
+    runExample ./hello_mp $endpoint "SocketTcp -client -remoteIP=127.0.0.1 -port=23456" 0
+    runExample ./hello_mp $endpoint "SocketTcp -client -remoteIP=127.0.0.1 -port=23456" 10
 else
-    runExample ./hello_mp $endpoint "TcpSocket -server -localIP=127.0.0.1 -port=23456 -reuse" 0
-    runExample ./hello_mp $endpoint "TcpSocket -server -localIP=127.0.0.1 -port=23456 -reuse" 10
+    runExample ./hello_mp $endpoint "SocketTcp -server -localIP=127.0.0.1 -port=23456 -reuse" 0
+    runExample ./hello_mp $endpoint "SocketTcp -server -localIP=127.0.0.1 -port=23456 -reuse" 10
 fi
 
 if [ "$endpoint" == "A" ]; then
-    runExample ./hello_mp $endpoint "TcpSocket -client -remoteIP=127.0.0.1 -ephemeralID=1" 0
-    runExample ./hello_mp $endpoint "TcpSocket -client -remoteIP=127.0.0.1 -ephemeralID=1" 10
+    runExample ./hello_mp $endpoint "SocketTcp -client -remoteIP=127.0.0.1 -ephemeralID=1" 0
+    runExample ./hello_mp $endpoint "SocketTcp -client -remoteIP=127.0.0.1 -ephemeralID=1" 10
 else
-    runExample ./hello_mp $endpoint "TcpSocket -server -localIP=127.0.0.1 -ephemeralID=1" 0
-    runExample ./hello_mp $endpoint "TcpSocket -server -localIP=127.0.0.1 -ephemeralID=1" 10
-fi
-
-if [ "$endpoint" == "A" ]; then
-    sleep 1
-    runExample ./hello_mp $endpoint "UdpSocketSend -unicast -remoteIP=127.0.0.1 -port=23456" 10
-else
-    runExample ./hello_mp $endpoint "UdpSocketRecv -unicast -localIP=127.0.0.1 -port=23456 -reuse" 10
+    runExample ./hello_mp $endpoint "SocketTcp -server -localIP=127.0.0.1 -ephemeralID=1" 0
+    runExample ./hello_mp $endpoint "SocketTcp -server -localIP=127.0.0.1 -ephemeralID=1" 10
 fi
 
 if [ "$endpoint" == "A" ]; then
     sleep 1
-    runExample ./hello_mp $endpoint "UdpSocketSend -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23456" 10
+    runExample ./hello_mp $endpoint "SocketUdpSend -unicast -remoteIP=127.0.0.1 -port=23456" 10
 else
-    runExample ./hello_mp $endpoint "UdpSocketRecv -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23456 -reuse" 10
+    runExample ./hello_mp $endpoint "SocketUdpRecv -unicast -localIP=127.0.0.1 -port=23456 -reuse" 10
+fi
+
+if [ "$endpoint" == "A" ]; then
+    sleep 1
+    runExample ./hello_mp $endpoint "SocketUdpSend -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23456" 10
+else
+    runExample ./hello_mp $endpoint "SocketUdpRecv -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23456 -reuse" 10
 fi
 
 toFolder ../hello-one_sided

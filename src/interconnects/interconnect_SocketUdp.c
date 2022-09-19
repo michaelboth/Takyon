@@ -28,7 +28,7 @@
 //     See the License for the specific language governing permissions and
 //     limitations under the License.
 
-#include "interconnect_UdpSocket.h"
+#include "interconnect_SocketUdp.h"
 #include "takyon_private.h"
 #include "utils_socket.h"
 #include "utils_arg_parser.h"
@@ -44,11 +44,11 @@
 //     - Useful where all bytes may not arrive (unreliable): e.g. live stream video or music
 //   ---------------------------------------------------------------------------
 //   Unicast: one sender, zero or one receiver. Transfers limited to 64 KBs
-//     "UdpSocketSend -unicast -remoteIP=<ip_addr>|<hostname> -port=<port_number>"
-//     "UdpSocketRecv -unicast -localIP=<ip_addr>|<hostname>|Any -port=<port_number> [-reuse] [-rcvbuf=<bytes>]"
+//     "SocketUdpSend -unicast -remoteIP=<ip_addr>|<hostname> -port=<port_number>"
+//     "SocketUdpRecv -unicast -localIP=<ip_addr>|<hostname>|Any -port=<port_number> [-reuse] [-rcvbuf=<bytes>]"
 //   Multicast: one sender, zero to many receivers. Transfers typically limited to MTU bytes
-//     "UdpSocketSend -multicast -localIP=<ip_addr>|<hostname> -groupIP=<multicast_ip_addr> -port=<port_number> [-noLoopback] [-TTL=<time_to_live>]"
-//     "UdpSocketRecv -multicast -localIP=<ip_addr>|<hostname> -groupIP=<multicast_ip_addr> -port=<port_number> [-reuse] [-rcvbuf=<bytes>]"
+//     "SocketUdpSend -multicast -localIP=<ip_addr>|<hostname> -groupIP=<multicast_ip_addr> -port=<port_number> [-noLoopback] [-TTL=<time_to_live>]"
+//     "SocketUdpRecv -multicast -localIP=<ip_addr>|<hostname> -groupIP=<multicast_ip_addr> -port=<port_number> [-reuse] [-rcvbuf=<bytes>]"
 //
 //   Argument descriptions:
 //     -port=<port_number> = [1024 .. 65535]
@@ -87,8 +87,8 @@ bool udpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReque
   // Get all posible flags and values
   bool is_unicast = argGetFlag(path->attrs.interconnect, "-unicast");
   bool is_multicast = argGetFlag(path->attrs.interconnect, "-multicast");
-  bool is_a_send = (strcmp(interconnect_name, "UdpSocketSend") == 0);
-  bool is_a_recv = (strcmp(interconnect_name, "UdpSocketRecv") == 0);
+  bool is_a_send = (strcmp(interconnect_name, "SocketUdpSend") == 0);
+  bool is_a_recv = (strcmp(interconnect_name, "SocketUdpRecv") == 0);
   bool allow_reuse = argGetFlag(path->attrs.interconnect, "-reuse");
   bool disable_loopback = argGetFlag(path->attrs.interconnect, "-noLoopback");
   // -localIP=<ip_addr>|<hostname>|Any
@@ -169,12 +169,12 @@ bool udpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReque
   // Validate arguments
   int num_modes = (is_unicast ? 1 : 0) + (is_multicast ? 1 : 0);
   if (num_modes != 1) {
-    TAKYON_RECORD_ERROR(path->error_message, "UdpSocket must specify one of -unicast or -multicast\n");
+    TAKYON_RECORD_ERROR(path->error_message, "SocketUdp must specify one of -unicast or -multicast\n");
     return false;
   }
   num_modes = (is_a_send ? 1 : 0) + (is_a_recv ? 1 : 0);
   if (num_modes != 1) {
-    TAKYON_RECORD_ERROR(path->error_message, "UdpSocket must ne one of UdpSocketSend or UdpSocketRecv\n");
+    TAKYON_RECORD_ERROR(path->error_message, "SocketUdp must ne one of SocketUdpSend or SocketUdpRecv\n");
     return false;
   }
   if (is_unicast && is_a_send && (!remote_ip_addr_found || !port_number_found)) {

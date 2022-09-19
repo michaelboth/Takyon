@@ -17,11 +17,11 @@
 #ifdef ENABLE_InterProcess
   #include "interconnect_InterProcess.h"
 #endif
-#ifdef ENABLE_TcpSocket
-  #include "interconnect_TcpSocket.h"
+#ifdef ENABLE_SocketTcp
+  #include "interconnect_SocketTcp.h"
 #endif
-#ifdef ENABLE_UdpSocket
-  #include "interconnect_UdpSocket.h"
+#ifdef ENABLE_SocketUdp
+  #include "interconnect_SocketUdp.h"
 #endif
 
 typedef struct {
@@ -75,8 +75,8 @@ static CommInterface L_interfaces[] = {
                                          .zero_byte_message_supported = true
                                        },
 #endif
-#ifdef ENABLE_TcpSocket
-                                       { .name = "TcpSocket",
+#ifdef ENABLE_SocketTcp
+                                       { .name = "SocketTcp",
                                          .create = tcpSocketCreate,
                                          .destroy = tcpSocketDestroy,
                                          .oneSided = NULL,
@@ -90,8 +90,8 @@ static CommInterface L_interfaces[] = {
                                          .zero_byte_message_supported = true
                                        },
 #endif
-#ifdef ENABLE_UdpSocket
-                                       { .name = "UdpSocketSend",
+#ifdef ENABLE_SocketUdp
+                                       { .name = "SocketUdpSend",
                                          .create = udpSocketCreate,
                                          .destroy = udpSocketDestroy,
                                          .oneSided = NULL,
@@ -104,7 +104,7 @@ static CommInterface L_interfaces[] = {
                                          .multi_sub_buffers_supported = false,
                                          .zero_byte_message_supported = false
                                        },
-                                       { .name = "UdpSocketRecv",
+                                       { .name = "SocketUdpRecv",
                                          .create = udpSocketCreate,
                                          .destroy = udpSocketDestroy,
                                          .oneSided = NULL,

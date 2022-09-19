@@ -11,21 +11,21 @@ Mac and Linux
     InterProcess
       A> ./hello_mp A "InterProcess -pathID=1" 10
       B> ./hello_mp B "InterProcess -pathID=1" 10
-    TcpSocket (local socket, run A and B on same CPU)
-      A> ./hello_mp A "TcpSocket -local -pathID=1" 10
-      B> ./hello_mp B "TcpSocket -local -pathID=1" 10
-    TcpSocket (different CPUs, user defined port number)
-      A> ./hello_mp A "TcpSocket -client -remoteIP=127.0.0.1 -port=23456" 10
-      B> ./hello_mp B "TcpSocket -server -localIP=127.0.0.1 -port=23456 -reuse" 10
-    TcpSocket (different CPUs, OS implicitly determines port number)
-      A> ./hello_mp A "TcpSocket -client -remoteIP=127.0.0.1 -ephemeralID=1" 10
-      B> ./hello_mp B "TcpSocket -server -localIP=127.0.0.1 -ephemeralID=1" 10
-    UdpSocket (unicast)
-      A> ./hello_mp A "UdpSocketSend -unicast -remoteIP=127.0.0.1 -port=23456" 10
-      B> ./hello_mp B "UdpSocketRecv -unicast -localIP=127.0.0.1 -port=23456 -reuse" 10
-    UdpSocket (multicast)
-      A> ./hello_mp A "UdpSocketSend -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23456" 10
-      B> ./hello_mp B "UdpSocketRecv -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23456 -reuse" 10
+    SocketTcp (local socket, run A and B on same CPU)
+      A> ./hello_mp A "SocketTcp -local -pathID=1" 10
+      B> ./hello_mp B "SocketTcp -local -pathID=1" 10
+    SocketTcp (different CPUs, user defined port number)
+      A> ./hello_mp A "SocketTcp -client -remoteIP=127.0.0.1 -port=23456" 10
+      B> ./hello_mp B "SocketTcp -server -localIP=127.0.0.1 -port=23456 -reuse" 10
+    SocketTcp (different CPUs, OS implicitly determines port number)
+      A> ./hello_mp A "SocketTcp -client -remoteIP=127.0.0.1 -ephemeralID=1" 10
+      B> ./hello_mp B "SocketTcp -server -localIP=127.0.0.1 -ephemeralID=1" 10
+    SocketUdp (unicast)
+      A> ./hello_mp A "SocketUdpSend -unicast -remoteIP=127.0.0.1 -port=23456" 10
+      B> ./hello_mp B "SocketUdpRecv -unicast -localIP=127.0.0.1 -port=23456 -reuse" 10
+    SocketUdp (multicast)
+      A> ./hello_mp A "SocketUdpSend -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23456" 10
+      B> ./hello_mp B "SocketUdpRecv -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23456 -reuse" 10
   Clean:
     > make clean
 

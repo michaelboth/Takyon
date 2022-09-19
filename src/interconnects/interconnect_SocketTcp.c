@@ -28,7 +28,7 @@
 //     See the License for the specific language governing permissions and
 //     limitations under the License.
 
-#include "interconnect_TcpSocket.h"
+#include "interconnect_SocketTcp.h"
 #include "takyon_private.h"
 #include "utils_socket.h"
 #include "utils_arg_parser.h"
@@ -44,13 +44,13 @@
 //     - Use this if every bytes matters (reliable): e.g. downloading an applicaton
 //   ------------------------------------------------------------------------
 //   Local TCP Unix socket (both endpoints in the same OS, has better performance)
-//     "TcpSocket -local -pathID=<non_negative_integer>"
+//     "SocketTcp -local -pathID=<non_negative_integer>"
 //   User assigned port number:
-//     "TcpSocket -client -remoteIP=<ip_addr>|<hostname> -port=<port_number>"
-//     "TcpSocket -server -localIP=<ip_addr>|<hostname>|Any -port=<port_number> [-reuse]"
+//     "SocketTcp -client -remoteIP=<ip_addr>|<hostname> -port=<port_number>"
+//     "SocketTcp -server -localIP=<ip_addr>|<hostname>|Any -port=<port_number> [-reuse]"
 //   Ephemeral port number (assigned by system)
-//     "TcpSocket -client -remoteIP=<ip_addr>|<hostname> -ephemeralID=<non_negative_integer>"
-//     "TcpSocket -server -localIP=<ip_addr>|<hostname>|Any -ephemeralID=<non_negative_integer>"
+//     "SocketTcp -client -remoteIP=<ip_addr>|<hostname> -ephemeralID=<non_negative_integer>"
+//     "SocketTcp -server -localIP=<ip_addr>|<hostname>|Any -ephemeralID=<non_negative_integer>"
 //
 //   Argument descriptions:
 //     -port=<port_number> = [1024 .. 65535]

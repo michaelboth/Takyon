@@ -102,6 +102,7 @@ void hello(const bool is_endpointA, const char *interconnect, const uint32_t ite
   for (uint32_t i=0; i<NUM_BUFFERS; i++) {
     TakyonBuffer *buffer = &buffers[i];
     buffer->bytes = TRANSPORT_BYTES;
+    buffer->app_data = NULL;
 #ifdef ENABLE_CUDA
     cudaError_t cuda_status = cudaMalloc(&buffer->addr, buffer->bytes);
     if (cuda_status != cudaSuccess) { printf("cudaMalloc() failed: %s\n", cudaGetErrorString(cuda_status)); exit(0); }

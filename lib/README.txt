@@ -5,9 +5,9 @@ Linux and Mac
   Build:
     > cd takyon/lib
     Specification
-      > make [DEBUG=Yes] [InterThread=Yes] [InterProcess=Yes] [TcpSocket=Yes] [UdpSocket=Yes] [CUDA=Yes]
+      > make [DEBUG=Yes] [InterThread=Yes] [InterProcess=Yes] [SocketTcp=Yes] [SocketUdp=Yes] [CUDA=Yes]
     Example
-      > make DEBUG=Yes InterThread=Yes InterProcess=Yes TcpSocket=Yes UdpSocket=Yes CUDA=Yes
+      > make DEBUG=Yes InterThread=Yes InterProcess=Yes SocketTcp=Yes SocketUdp=Yes CUDA=Yes
 
   When linking the library into your app, add the following to the link line:
     -L../../lib -ltakyon -pthread
@@ -25,9 +25,9 @@ Windows
   Build:
     > cd takyon\lib
     Specification
-      > nmake -f windows.Makefile [DEBUG=Yes] [InterThread=Yes] [InterProcess=Yes] [TcpSocket=Yes] [UdpSocket=Yes] [CUDA=Yes]
+      > nmake -f windows.Makefile [DEBUG=Yes] [InterThread=Yes] [InterProcess=Yes] [SocketTcp=Yes] [SocketUdp=Yes] [CUDA=Yes]
     Example
-      > nmake -f windows.Makefile DEBUG=Yes InterThread=Yes InterProcess=Yes TcpSocket=Yes UdpSocket=Yes CUDA=Yes
+      > nmake -f windows.Makefile DEBUG=Yes InterThread=Yes InterProcess=Yes SocketTcp=Yes SocketUdp=Yes CUDA=Yes
 
   When linking the library into your app add the following to the link line:
     OPTIMIZED: ../../lib/takyon.lib c:/pthreads4w/install/lib/libpthreadVC3.lib -nodefaultlib:LIBCMT.LIB

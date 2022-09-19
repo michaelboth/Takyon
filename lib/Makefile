@@ -56,27 +56,27 @@ ifeq ($(InterProcess),Yes)
 endif
 
 #---------------------------------------------
-# TcpSocket
+# SocketTcp
 #---------------------------------------------
-ifeq ($(TcpSocket),Yes)
-    C_FLAGS      += -DENABLE_TcpSocket
+ifeq ($(SocketTcp),Yes)
+    C_FLAGS      += -DENABLE_SocketTcp
     NEED_utils_time := Yes
     NEED_utils_thread_cond_timed_wait := Yes
     NEED_utils_socket := Yes
     NEED_utils_ephemeral_port_manager := Yes
-    C_OBJS       += interconnect_TcpSocket.o
-    HEADER_FILES += interconnect_TcpSocket.h
+    C_OBJS       += interconnect_SocketTcp.o
+    HEADER_FILES += interconnect_SocketTcp.h
 endif
 
 #---------------------------------------------
-# UdpSocket
+# SocketUdp
 #---------------------------------------------
-ifeq ($(UdpSocket),Yes)
-    C_FLAGS      += -DENABLE_UdpSocket
+ifeq ($(SocketUdp),Yes)
+    C_FLAGS      += -DENABLE_SocketUdp
     NEED_utils_time := Yes
     NEED_utils_socket := Yes
-    C_OBJS       += interconnect_UdpSocket.o
-    HEADER_FILES += interconnect_UdpSocket.h
+    C_OBJS       += interconnect_SocketUdp.o
+    HEADER_FILES += interconnect_SocketUdp.h
 endif
 
 #---------------------------------------------

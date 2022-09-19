@@ -9,8 +9,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef _interconnect_TcpSocket_h_
-#define _interconnect_TcpSocket_h_
+#ifndef _interconnect_SocketUdp_h_
+#define _interconnect_SocketUdp_h_
 
 #include "takyon.h"
 
@@ -19,10 +19,10 @@ extern "C"
 {
 #endif
 
-extern bool tcpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *recv_requests, double timeout_seconds);
-extern bool tcpSocketDestroy(TakyonPath *path, double timeout_seconds);
-extern bool tcpSocketSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_back_message, double timeout_seconds, bool *timed_out_ret);
-extern bool tcpSocketIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret);
+extern bool udpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *recv_requests, double timeout_seconds);
+extern bool udpSocketDestroy(TakyonPath *path, double timeout_seconds);
+extern bool udpSocketSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_back_message, double timeout_seconds, bool *timed_out_ret);
+extern bool udpSocketIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret);
 
 #ifdef __cplusplus
 }

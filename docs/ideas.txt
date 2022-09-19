@@ -1,5 +1,4 @@
 To DO
-  - Rename TcpSocket to SocketTcp, and UdpSocket to SocketUdp
   - Windows CUDA
   - Windows testing scripts
   - BUG: OSX ephemeral sockets

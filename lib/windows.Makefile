@@ -36,26 +36,26 @@ InterProcess_C_OBJS = interconnect_InterProcess.obj
 !ENDIF
 
 #---------------------------------------------
-# TcpSocket
+# SocketTcp
 #---------------------------------------------
-!IF "$(TcpSocket)" == "Yes"
-TcpSocket_C_FLAGS = -DENABLE_TcpSocket
+!IF "$(SocketTcp)" == "Yes"
+SocketTcp_C_FLAGS = -DENABLE_SocketTcp
 NEED_utils_time = Yes
 NEED_utils_thread_cond_timed_wait = Yes
 NEED_utils_socket = Yes
 NEED_utils_ephemeral_port_manager = Yes
-TcpSocket_C_OBJS = interconnect_TcpSocket.obj
+SocketTcp_C_OBJS = interconnect_SocketTcp.obj
 !ENDIF
 
 #---------------------------------------------
-# UdpSocket
+# SocketUdp
 #---------------------------------------------
-!IF "$(UdpSocket)" == "Yes"
-UdpSocket_C_FLAGS = -DENABLE_UdpSocket
+!IF "$(SocketUdp)" == "Yes"
+SocketUdp_C_FLAGS = -DENABLE_SocketUdp
 NEED_utils_time = Yes
 NEED_utils_socket = Yes
 NEED_utils_thread_cond_timed_wait = Yes
-UdpSocket_C_OBJS = interconnect_UdpSocket.obj
+SocketUdp_C_OBJS = interconnect_SocketUdp.obj
 !ENDIF
 
 #---------------------------------------------
@@ -102,14 +102,14 @@ C_FLAGS = $(OPTIMIZATION_C_FLAGS) -nologo -WX -W3 -D_CRT_SECURE_NO_WARNINGS $(C_
  $(CUDA_C_FLAGS) \
  $(InterThread_C_FLAGS) $(utils_thread_cond_timed_wait_C_FLAGS) \
  $(InterProcess_C_FLAGS) \
- $(TcpSocket_C_FLAGS) $(utils_ephemeral_port_manager_C_FLAGS) \
- $(UdpSocket_C_FLAGS)
+ $(SocketTcp_C_FLAGS) $(utils_ephemeral_port_manager_C_FLAGS) \
+ $(SocketUdp_C_FLAGS)
 
 C_OBJS  = takyon.obj supported_interconnects.obj utils_arg_parser.obj utils_endian.obj \
  $(InterThread_C_OBJS) $(utils_time_C_OBJS) $(utils_thread_cond_timed_wait_C_OBJS) \
  $(InterProcess_C_OBJS) $(utils_ipc_C_OBJS) $(utils_socket_C_OBJS) \
- $(TcpSocket_C_OBJS) $(utils_ephemeral_port_manager_C_OBJS) \
- $(UdpSocket_C_OBJS)
+ $(SocketTcp_C_OBJS) $(utils_ephemeral_port_manager_C_OBJS) \
+ $(SocketUdp_C_OBJS)
 
 .SUFFIXES: .c
 
