@@ -193,7 +193,7 @@ static bool socket_send_event_driven(int socket_fd, void *addr, size_t total_byt
         // Interrupted by external signal. Just try again
         bytes_written = 0;
       } else {
-        snprintf(error_message, max_error_message_chars, "Failed to write to socket: errno=%d", errno);
+        snprintf(error_message, max_error_message_chars, "Failed to write to socket (are you writing to GPU memory?): errno=%d", errno);
         return false;
       }
     } else {
@@ -247,7 +247,7 @@ static bool socket_send_polling(int socket, void *addr, size_t total_bytes_to_wr
         // Interrupted by external signal. Just try again
         bytes_written = 0;
       } else {
-        snprintf(error_message, max_error_message_chars, "Failed to write to socket: errno=%d", errno);
+        snprintf(error_message, max_error_message_chars, "Failed to write to socket (are you writing to GPU memory?): errno=%d", errno);
         return false;
       }
     } else {
@@ -1102,7 +1102,7 @@ static bool datagram_send_polling(int socket_fd, void *sock_in_addr, void *addr,
         // Interrupted by external signal. Just try again
         bytes_written = 0;
       } else {
-        snprintf(error_message, max_error_message_chars, "Failed to write to socket: errno=%d", errno);
+        snprintf(error_message, max_error_message_chars, "Failed to write to socket (are you writing to GPU memory?): errno=%d", errno);
         return false;
       }
     } else if (bytes_written == 0) {
@@ -1149,7 +1149,7 @@ static bool datagram_send_event_driven(int socket_fd, void *sock_in_addr, void *
       } else if (errno == EINTR) {
         // Interrupted by external signal. Just try again
       } else {
-        snprintf(error_message, max_error_message_chars, "Failed to write to socket: errno=%d", errno);
+        snprintf(error_message, max_error_message_chars, "Failed to write to socket (are you writing to GPU memory?): errno=%d", errno);
         return false;
       }
     } else if (bytes_written == 0) {

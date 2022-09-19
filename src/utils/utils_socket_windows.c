@@ -200,7 +200,7 @@ static bool socket_send_event_driven(TakyonSocket socket_fd, void *addr, size_t 
         // Interrupted by external signal. Just try again
         bytes_written = 0;
       } else {
-        snprintf(error_message, max_error_message_chars, "Failed to write to socket: sock_error=%d", sock_error);
+        snprintf(error_message, max_error_message_chars, "Failed to write to socket (are you writing to GPU memory?): sock_error=%d", sock_error);
         return false;
       }
     } else {
@@ -256,7 +256,7 @@ static bool socket_send_polling(TakyonSocket socket, void *addr, size_t total_by
         // Interrupted by external signal. Just try again
         bytes_written = 0;
       } else {
-        snprintf(error_message, max_error_message_chars, "Failed to write to socket: sock_error=%d", sock_error);
+        snprintf(error_message, max_error_message_chars, "Failed to write to socket (are you writing to GPU memory?): sock_error=%d", sock_error);
         return false;
       }
     } else {
@@ -1201,7 +1201,7 @@ static bool datagram_send_polling(TakyonSocket socket_fd, void *sock_in_addr, vo
         // Interrupted by external signal. Just try again
         bytes_written = 0;
       } else {
-        snprintf(error_message, max_error_message_chars, "Failed to write to socket: error=%d", sock_error);
+        snprintf(error_message, max_error_message_chars, "Failed to write to socket (are you writing to GPU memory?): error=%d", sock_error);
         return false;
       }
     } else if (bytes_written == 0) {
@@ -1254,7 +1254,7 @@ static bool datagram_send_event_driven(TakyonSocket socket_fd, void *sock_in_add
       } else if (sock_error == WSAEINTR) {
         // Interrupted by external signal. Just try again
       } else {
-        snprintf(error_message, max_error_message_chars, "Failed to write to socket: error=%d", sock_error);
+        snprintf(error_message, max_error_message_chars, "Failed to write to socket (are you writing to GPU memory?): error=%d", sock_error);
         return false;
       }
     } else if (bytes_written == 0) {
