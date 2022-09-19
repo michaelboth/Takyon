@@ -3,7 +3,15 @@
 The only proposal for a new Khronos open standard: www.khronos.org/exploratory/heterogeneous-communication/<br>
 The future of high performance heterogeneous point-to-point communication<br>
 
-# Takyon: Key Features
+## Takyon Presentation
+<a href="Takyon_Introduction.pdf">
+  <img src="docs/presentation_icon.png" alt="Takyon Introduction" width="256" height="149">
+</a>
+<br>
+View this presentation to learn the about Takyon
+<br>
+
+# Takyon's Key Features
 - Point-to-point message passing communication API
 - Heterogeneous: unifies RDMA, sockets, and many other interconnects
 - Only 8 functions... can learn in a few days
@@ -14,7 +22,7 @@ The future of high performance heterogeneous point-to-point communication<br>
 - Designed to allow for fault tolerance
 - Tested on Windows, Mac, & Linux
 
-## Currently Supported Interconnects
+## Takyon's Currently Supported Interconnects
 Interconnect  | Type                   | Max Message Bytes | Non-Blocking | Supports One-Sided | Zero Byte Messages | GPU
 --------------|------------------------|-------------------|--------------|--------------------|--------------------|----
 InterThread   | Reliable-Connected     | >4 GB             | No           | Yes                | Yes                | Yes
@@ -24,17 +32,6 @@ SocketUdp     | Unreliable-Unconnected | 64 KB             | No           | No  
 RdmaRC (soon) | Reliable-Connected     | 1 GB              | Yes          | Yes                | Yes                | Yes
 RdmaUC (soon) | Unreliable-Connected   | 1 GB              | Yes          | Yes                | Yes                | Yes
 RdmaUD (soon) | Unreliable-Unconnected | MTU               | Yes          | No                 | Yes                | Yes
-
-## Takyon Presentation
-<a href="Takyon_Introduction.pdf">
-  <img src="docs/presentation_icon.png" alt="Takyon Introduction" width="256" height="149">
-</a>
-<br>
-View this presentation to learn the about Takyon
-<br>
-
-## Download Takyon
-In the 'Releases' section (right panel of the GitHub webpage, near the top), click on 'Latest' to get the latest stable release.
 
 ## Prepare the OS Environment
 To build Takyon into your application, the following is needed:
