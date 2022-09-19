@@ -37,6 +37,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <pthread.h>
 #ifdef ENABLE_CUDA
   #include "cuda_runtime.h"
 #endif
@@ -111,6 +112,8 @@ typedef struct {
 typedef struct {
   // Socket connection to init and finalize the path, also to detect disconnects
   TakyonSocket socket_fd;
+  bool thread_started;
+  pthread_t disconnect_detection_thread_id;
   bool connection_failed;
 
   // Remote buffers
@@ -130,6 +133,18 @@ typedef struct {
   RecvRequestAndCompletion *remote_recv_request_and_completions;
   void *remote_postings_mmap_handle;
 } PrivateTakyonPath;
+
+static void *disconnectDetectionThread(void *user_data) {
+  PrivateTakyonPath *private_path = (PrivateTakyonPath *)user_data;
+  // Wait for either a socket disconnect, or for takyonDestroy() to get called
+  uint32_t dummy;
+  int64_t timeout_nano_seconds = -1; // Wait forever
+  char error_message[MAX_ERROR_MESSAGE_CHARS];
+  if (!socketRecv(private_path->socket_fd, &dummy, sizeof(dummy), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    private_path->connection_failed = true;
+  }
+  return NULL;
+}
 
 static bool freeResources(TakyonPath *path, PrivateTakyonPath *private_path, RemoteTakyonBufferInfo *remote_buffer_info_list, RemoteTakyonBufferInfo *local_buffer_info_list, bool report_errors) {
   bool success = true;
@@ -573,6 +588,14 @@ bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRe
     }
   }
 
+  // Start the thread to detect if the socket is disconnected
+  int rc = pthread_create(&private_path->disconnect_detection_thread_id, NULL, disconnectDetectionThread, private_path);
+  if (rc != 0) {
+    TAKYON_RECORD_ERROR(path->error_message, "Failed to start disconnectDetectionThread(): rc=%d\n", rc);
+    goto cleanup;
+  }
+  private_path->thread_started = true;
+
   // Ready to start transferring
   return true;
 
@@ -587,11 +610,29 @@ bool interProcessDestroy(TakyonPath *path, double timeout_seconds) {
   TakyonComm *comm = (TakyonComm *)path->private;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   int64_t timeout_nano_seconds = (int64_t)(timeout_seconds * NANOSECONDS_PER_SECOND_DOUBLE);
+  char error_message[MAX_ERROR_MESSAGE_CHARS];
+
+  // Wake up thread
+  if (private_path->thread_started) {
+    if (!private_path->connection_failed) {
+      // Wake thread up so it will exit
+      uint32_t dummy = 0;
+      if (!socketSend(private_path->socket_fd, &dummy, sizeof(dummy), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+        TAKYON_RECORD_ERROR(path->error_message, "Failed to wake up disconnectDetectionThread(): %s\n", error_message);
+        private_path->connection_failed = true;
+      }
+    }
+    // Wait for the thread to exit
+    int rc = pthread_join(private_path->disconnect_detection_thread_id, NULL);
+    if (rc != 0) {
+      TAKYON_RECORD_ERROR(path->error_message, "Failed to join disconnectDetectionThread(): rc=%d\n", rc);
+      private_path->connection_failed = true;
+    }
+  }
 
   // Socket barrier
   bool barrier_ok = !private_path->connection_failed;
   if (barrier_ok) {
-    char error_message[MAX_ERROR_MESSAGE_CHARS];
     if (path->attrs.is_endpointA) {
       uint32_t x = 23;
       // Send
@@ -719,7 +760,6 @@ bool interProcessSend(TakyonPath *path, TakyonSendRequest *request, uint32_t pig
   if (timed_out_ret != NULL) *timed_out_ret = false;
 
   // Verify connection is good
-  /*+ need a background thread to detect break */
   if (private_path->connection_failed) {
     TAKYON_RECORD_ERROR(path->error_message, "Connection is broken\n");
     return false;
