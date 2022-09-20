@@ -216,7 +216,11 @@ static bool doTwoSidedTransfer(TakyonPath *path, TakyonPath *remote_path, Takyon
   for (uint32_t i=0; i<request->sub_buffer_count; i++) {
     // Source info
     TakyonSubBuffer *sub_buffer = &request->sub_buffers[i];
-    TakyonBuffer *src_buffer = sub_buffer->buffer;
+    if (sub_buffer->buffer_index >= path->attrs.buffer_count) {
+      TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer->buffer_index == %d out of range\n", sub_buffer->buffer_index);
+      return false;
+    }
+    TakyonBuffer *src_buffer = &path->attrs.buffers[sub_buffer->buffer_index];
     if (src_buffer->private != path) {
       TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer[%d] is not from this Takyon path\n", i);
       return false;
@@ -234,7 +238,11 @@ static bool doTwoSidedTransfer(TakyonPath *path, TakyonPath *remote_path, Takyon
   for (uint32_t i=0; i<remote_request->sub_buffer_count; i++) {
     // Source info
     TakyonSubBuffer *remote_sub_buffer = &remote_request->sub_buffers[i];
-    TakyonBuffer *remote_buffer = remote_sub_buffer->buffer;
+    if (remote_sub_buffer->buffer_index >= remote_path->attrs.buffer_count) {
+      TAKYON_RECORD_ERROR(path->error_message, "'remote_sub_buffer->buffer_index == %d out of range\n", remote_sub_buffer->buffer_index);
+      return false;
+    }
+    TakyonBuffer *remote_buffer = &remote_path->attrs.buffers[remote_sub_buffer->buffer_index];
     if (remote_buffer->private != remote_path) {
       TAKYON_RECORD_ERROR(path->error_message, "'remote sub_buffers[%d] is not from the remote Takyon path\n", i);
       return false;
@@ -258,7 +266,7 @@ static bool doTwoSidedTransfer(TakyonPath *path, TakyonPath *remote_path, Takyon
     // Get a handle to the first remote memory block
     uint32_t remote_sub_buffer_index = 0;
     TakyonSubBuffer *remote_sub_buffer = &remote_request->sub_buffers[remote_sub_buffer_index];
-    TakyonBuffer *remote_buffer = remote_sub_buffer->buffer;
+    TakyonBuffer *remote_buffer = &remote_path->attrs.buffers[remote_sub_buffer->buffer_index];
     void *remote_addr = (void *)((uint64_t)remote_buffer->addr + remote_sub_buffer->offset);
     uint64_t remote_max_bytes = remote_sub_buffer->bytes;
 
@@ -266,14 +274,14 @@ static bool doTwoSidedTransfer(TakyonPath *path, TakyonPath *remote_path, Takyon
     for (uint32_t i=0; i<request->sub_buffer_count; i++) {
       // Source info
       TakyonSubBuffer *sub_buffer = &request->sub_buffers[i];
-      TakyonBuffer *src_buffer = sub_buffer->buffer;
+      TakyonBuffer *src_buffer = &path->attrs.buffers[sub_buffer->buffer_index];
       void *src_addr = (void *)((uint64_t)src_buffer->addr + sub_buffer->offset);
       uint64_t src_bytes = sub_buffer->bytes;
       while (src_bytes > 0) {
         if (remote_max_bytes == 0) {
           remote_sub_buffer_index++;
           remote_sub_buffer = &remote_request->sub_buffers[remote_sub_buffer_index];
-          remote_buffer = remote_sub_buffer->buffer;
+          remote_buffer = &remote_path->attrs.buffers[remote_sub_buffer->buffer_index];
           remote_addr = (void *)((uint64_t)remote_buffer->addr + remote_sub_buffer->offset);
           remote_max_bytes = remote_sub_buffer->bytes;
         }

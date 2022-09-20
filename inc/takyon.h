@@ -77,7 +77,7 @@ typedef struct {
 
 // Only used with multi buffer transfers
 typedef struct {
-  TakyonBuffer *buffer; /*+ use index instead? */
+  uint32_t buffer_index;
   uint64_t bytes;       // Receiver can make this more than what is actually sent, takyonIsRecved() will report that actual bytes received
   uint64_t offset;      // In bytes
   // Do not modify the following fields

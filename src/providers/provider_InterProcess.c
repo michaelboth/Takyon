@@ -234,18 +234,6 @@ static bool freeResources(TakyonPath *path, PrivateTakyonPath *private_path, Rem
   return success;
 }
 
-static uint32_t indexOfBuffer(TakyonPath *path, TakyonBuffer *buffer, bool *buffer_index_found_ret) {
-  *buffer_index_found_ret = false;
-  for (uint32_t i=0; i<path->attrs.buffer_count; i++) {
-    TakyonBuffer *buffer2 = &path->attrs.buffers[i];
-    if (buffer == buffer2) {
-      *buffer_index_found_ret = true;
-      return i;
-    }
-  }
-  return 0;
-}
-
 static bool postRecvRequest(TakyonPath *path, PrivateTakyonPath *private_path, TakyonRecvRequest *request) {
   // Total sub items in list
   uint32_t total_sub_items = path->attrs.max_pending_recv_requests * MY_MAX(1, path->attrs.max_sub_buffers_per_recv_request);
@@ -258,12 +246,11 @@ static bool postRecvRequest(TakyonPath *path, PrivateTakyonPath *private_path, T
   for (uint32_t j=0; j<request->sub_buffer_count; j++) {
     TakyonSubBuffer *sub_buffer = &request->sub_buffers[j];
     RecvRequestAndCompletion *local_sub_buffer = &private_path->local_recv_request_and_completions[private_path->curr_local_unused_recv_request_index + j];
-    bool buffer_index_found = false;
-    local_sub_buffer->buffer_index = indexOfBuffer(path, sub_buffer->buffer, &buffer_index_found);
-    if (!buffer_index_found) {
-      TAKYON_RECORD_ERROR(path->error_message, "Takyon buffer referenced in request is not valid\n");
+    if (sub_buffer->buffer_index >= path->attrs.buffer_count) {
+      TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer->buffer_index == %d out of range\n", sub_buffer->buffer_index);
       return false;
     }
+    local_sub_buffer->buffer_index = sub_buffer->buffer_index;
     local_sub_buffer->bytes = sub_buffer->bytes;
     local_sub_buffer->offset = sub_buffer->offset;
   }
@@ -778,7 +765,11 @@ bool interProcessSend(TakyonPath *path, TakyonSendRequest *request, uint32_t pig
   for (uint32_t i=0; i<request->sub_buffer_count; i++) {
     // Source info
     TakyonSubBuffer *sub_buffer = &request->sub_buffers[i];
-    TakyonBuffer *src_buffer = sub_buffer->buffer;
+    if (sub_buffer->buffer_index >= path->attrs.buffer_count) {
+      TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer->buffer_index == %d out of range\n", sub_buffer->buffer_index);
+      return false;
+    }
+    TakyonBuffer *src_buffer = &path->attrs.buffers[sub_buffer->buffer_index];
     PrivateTakyonBuffer *src_private_buffer = (PrivateTakyonBuffer *)src_buffer->private;
     if (src_private_buffer->path != path) {
       TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer[%d] is not from this Takyon path\n", i);
@@ -835,7 +826,7 @@ bool interProcessSend(TakyonPath *path, TakyonSendRequest *request, uint32_t pig
   for (uint32_t i=0; i<request->sub_buffer_count; i++) {
     // Source info
     TakyonSubBuffer *sub_buffer = &request->sub_buffers[i];
-    TakyonBuffer *src_buffer = sub_buffer->buffer;
+    TakyonBuffer *src_buffer = &path->attrs.buffers[sub_buffer->buffer_index];
     void *src_addr = (void *)((uint64_t)src_buffer->addr + sub_buffer->offset);
     uint64_t src_bytes = sub_buffer->bytes;
     while (src_bytes > 0) {

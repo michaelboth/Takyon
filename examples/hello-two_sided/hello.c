@@ -66,11 +66,11 @@ static void sendMessage(TakyonPath *path, uint32_t i) {
 
   // Setup the send request
   //  - Initially defined with 2 sub buffers, but will only use the first if multiple sub buffers are not supported
-  TakyonSubBuffer sender_sub_buffers[2] = {{ .buffer = &path->attrs.buffers[1], .bytes = split_bytes, .offset = 0 },
-                                           { .buffer = &path->attrs.buffers[0], .bytes = message_bytes-split_bytes, .offset = split_bytes }};
+  TakyonSubBuffer sender_sub_buffers[2] = {{ .buffer_index = 1, .bytes = split_bytes, .offset = 0 },
+                                           { .buffer_index = 0, .bytes = message_bytes-split_bytes, .offset = split_bytes }};
   if (!path->capabilities.multi_sub_buffers_supported) {
     // Provider only supports a single sub buffer
-    sender_sub_buffers[0].buffer = &path->attrs.buffers[0];
+    sender_sub_buffers[0].buffer_index = 0;
     sender_sub_buffers[0].bytes = message_bytes;
     sender_sub_buffers[0].offset = 0;
   }
@@ -100,7 +100,7 @@ static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request) {
 
   // Process the data; i.e. print the received greeting
   TakyonSubBuffer *recver_sub_buffer = &recv_request->sub_buffers[0];
-  char *message_addr = (char *)recver_sub_buffer->buffer->addr + recver_sub_buffer->offset;
+  char *message_addr = (char *)path->attrs.buffers[recver_sub_buffer->buffer_index].addr + recver_sub_buffer->offset;
 #ifdef ENABLE_CUDA
   char message_addr_cpu[MAX_MESSAGE_BYTES];
   cudaError_t cuda_status = cudaMemcpy(message_addr_cpu, message_addr, bytes_received, cudaMemcpyDefault);
@@ -167,7 +167,7 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
 
   // Setup the receive request and it's sub buffer
   //   - This is done before the path is setup in the case the receiver needs the recieves posted before sending can start
-  TakyonSubBuffer recver_sub_buffer = { .buffer = &buffers[2], .bytes = MAX_MESSAGE_BYTES, .offset = 0 };
+  TakyonSubBuffer recver_sub_buffer = { .buffer_index = 2, .bytes = MAX_MESSAGE_BYTES, .offset = 0 };
   TakyonRecvRequest recv_request = { .sub_buffer_count = 1,
                                      .sub_buffers = &recver_sub_buffer,
                                      .use_polling_completion = false,

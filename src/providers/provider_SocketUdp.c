@@ -313,7 +313,11 @@ bool udpSocketSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_
     return false;
   }
   TakyonSubBuffer *sub_buffer = &request->sub_buffers[0];
-  TakyonBuffer *src_buffer = sub_buffer->buffer;
+  if (sub_buffer->buffer_index >= path->attrs.buffer_count) {
+    TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer->buffer_index == %d out of range\n", sub_buffer->buffer_index);
+    return false;
+  }
+  TakyonBuffer *src_buffer = &path->attrs.buffers[sub_buffer->buffer_index];
   if (src_buffer->private != path) {
     private_path->connection_failed = true;
     TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer[0] is not from this Takyon path\n");
@@ -382,7 +386,11 @@ bool udpSocketIsRecved(TakyonPath *path, TakyonRecvRequest *request, double time
     return false;
   }
   TakyonSubBuffer *sub_buffer = &request->sub_buffers[0];
-  TakyonBuffer *buffer = sub_buffer->buffer;
+  if (sub_buffer->buffer_index >= path->attrs.buffer_count) {
+    TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer->buffer_index == %d out of range\n", sub_buffer->buffer_index);
+    return false;
+  }
+  TakyonBuffer *buffer = &path->attrs.buffers[sub_buffer->buffer_index];
   if (buffer->private != path) {
     private_path->connection_failed = true;
     TAKYON_RECORD_ERROR(path->error_message, "'sub_buffers[0] is not from the remote Takyon path\n");

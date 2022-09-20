@@ -52,7 +52,7 @@ static void sendSignal(TakyonPath *path) {
 
 static void sendMessage(TakyonPath *path) {
   // Setup the send request
-  TakyonSubBuffer sender_sub_buffer = { .buffer = &path->attrs.buffers[1], .bytes = MAX_MESSAGE_BYTES, .offset = 0 };
+  TakyonSubBuffer sender_sub_buffer = { .buffer_index = 1, .bytes = MAX_MESSAGE_BYTES, .offset = 0 };
   TakyonSendRequest send_request = { .sub_buffer_count = 1,
                                      .sub_buffers = &sender_sub_buffer,
                                      .use_is_sent_notification = true, /*+ test without */
@@ -140,7 +140,7 @@ void throughput(const bool is_endpointA, const char *provider, const uint32_t it
     recver_sub_buffers = calloc(MAX_RECV_REQUESTS, sizeof(TakyonSubBuffer));
     recv_requests = calloc(MAX_RECV_REQUESTS, sizeof(TakyonRecvRequest));
     for (uint32_t i=0; i<MAX_RECV_REQUESTS; i++) {
-      recver_sub_buffers[i].buffer = &buffers[1];
+      recver_sub_buffers[i].buffer_index = 1;
       recver_sub_buffers[i].bytes = MAX_MESSAGE_BYTES;
       recver_sub_buffers[i].offset = i*MAX_MESSAGE_BYTES;
       recv_requests[i].sub_buffer_count = 1;
@@ -190,9 +190,9 @@ void throughput(const bool is_endpointA, const char *provider, const uint32_t it
     double GB_per_sec = (bytes_transferred / 1000000000.0) / elapsed_time;
     double Gb_per_sec = GB_per_sec * 8;
     double elapsed_print_time = curr_time - last_print_time;
-    if (elapsed_print_time > 0.05) {
+    if (i == (iterations-1) || elapsed_print_time > 0.05) {
       if (!is_multi_threaded || !path->attrs.is_endpointA) {
-        printf("\r%s: %d transfers, %0.3f GB/sec, %0.3f Gb/sec", path->attrs.is_endpointA ? "Sender" : "Recver", i, GB_per_sec, Gb_per_sec);
+        printf("\r%s: %d transfers, %0.3f GB/sec, %0.3f Gb/sec", path->attrs.is_endpointA ? "Sender" : "Recver", i+1, GB_per_sec, Gb_per_sec);
         fflush(stdout);
       }
       last_print_time = curr_time;

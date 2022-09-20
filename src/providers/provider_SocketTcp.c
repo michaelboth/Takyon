@@ -289,7 +289,11 @@ bool tcpSocketSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_
   for (uint32_t i=0; i<request->sub_buffer_count; i++) {
     // Source info
     TakyonSubBuffer *sub_buffer = &request->sub_buffers[i];
-    TakyonBuffer *src_buffer = sub_buffer->buffer;
+    if (sub_buffer->buffer_index >= path->attrs.buffer_count) {
+      TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer->buffer_index == %d out of range\n", sub_buffer->buffer_index);
+      return false;
+    }
+    TakyonBuffer *src_buffer = &path->attrs.buffers[sub_buffer->buffer_index];
     if (src_buffer->private != path) {
       private_path->connection_failed = true;
       TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer[%d] is not from this Takyon path\n", i);
@@ -323,7 +327,7 @@ bool tcpSocketSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_
   for (uint32_t i=0; i<request->sub_buffer_count; i++) {
     // Source info
     TakyonSubBuffer *sub_buffer = &request->sub_buffers[i];
-    TakyonBuffer *src_buffer = sub_buffer->buffer;
+    TakyonBuffer *src_buffer = &path->attrs.buffers[sub_buffer->buffer_index];
     void *src_addr = (void *)((uint64_t)src_buffer->addr + sub_buffer->offset);
     uint64_t src_bytes = sub_buffer->bytes;
     if (src_bytes > 0) {
@@ -394,7 +398,11 @@ bool tcpSocketIsRecved(TakyonPath *path, TakyonRecvRequest *request, double time
     uint64_t total_available_recv_bytes = 0;
     for (uint32_t i=0; i<request->sub_buffer_count; i++) {
       TakyonSubBuffer *sub_buffer = &request->sub_buffers[i];
-      TakyonBuffer *buffer = sub_buffer->buffer;
+      if (sub_buffer->buffer_index >= path->attrs.buffer_count) {
+        TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer->buffer_index == %d out of range\n", sub_buffer->buffer_index);
+        return false;
+      }
+      TakyonBuffer *buffer = &path->attrs.buffers[sub_buffer->buffer_index];
       if (buffer->private != path) {
         private_path->connection_failed = true;
         TAKYON_RECORD_ERROR(path->error_message, "'sub_buffers[%d] is not from the remote Takyon path\n", i);
@@ -420,7 +428,7 @@ bool tcpSocketIsRecved(TakyonPath *path, TakyonRecvRequest *request, double time
     uint64_t bytes_to_receive = total_bytes_sent;
     for (uint32_t i=0; i<request->sub_buffer_count; i++) {
       TakyonSubBuffer *sub_buffer = &request->sub_buffers[i];
-      TakyonBuffer *buffer = sub_buffer->buffer;
+      TakyonBuffer *buffer = &path->attrs.buffers[sub_buffer->buffer_index];
       uint64_t max_bytes = sub_buffer->bytes;
       void *recv_addr = (void *)((uint64_t)buffer->addr + sub_buffer->offset);
       uint64_t recv_bytes = (bytes_to_receive < max_bytes) ? bytes_to_receive : max_bytes;
