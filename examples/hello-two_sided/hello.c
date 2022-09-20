@@ -44,20 +44,20 @@ static void sendMessage(TakyonPath *path, uint32_t i) {
 #ifdef ENABLE_CUDA
   char message_addr_cpu[MAX_MESSAGE_BYTES];
   snprintf(message_addr_cpu, MAX_MESSAGE_BYTES, "--- Iteration %u: Hello from %s (CUDA, %d %s) ---", i+1, path->attrs.is_endpointA ? "A" : "B",
-           path->features.multi_sub_buffers_supported ? 2 : 1, path->features.multi_sub_buffers_supported ? "sub buffers" : "sub buffer");
+           path->capabilities.multi_sub_buffers_supported ? 2 : 1, path->capabilities.multi_sub_buffers_supported ? "sub buffers" : "sub buffer");
   uint64_t message_bytes = strlen(message_addr_cpu) + 1;
   cudaError_t cuda_status = cudaMemcpy(message_addr1, message_addr_cpu, message_bytes, cudaMemcpyDefault);
   if (cuda_status != cudaSuccess) { printf("cudaMemcpy() failed: %s\n", cudaGetErrorString(cuda_status)); exit(0); }
-  if (path->features.multi_sub_buffers_supported) {
+  if (path->capabilities.multi_sub_buffers_supported) {
     // Multiple sub buffers are supported: copy the beginning of the message to second buffer
     cuda_status = cudaMemcpy(message_addr2, message_addr1, split_bytes, cudaMemcpyDefault);
     if (cuda_status != cudaSuccess) { printf("cudaMemcpy() failed: %s\n", cudaGetErrorString(cuda_status)); exit(0); }
   }
 #else
   snprintf(message_addr1, MAX_MESSAGE_BYTES, "--- Iteration %u: Hello from %s (CPU, %d %s) ---", i+1, path->attrs.is_endpointA ? "A" : "B",
-           path->features.multi_sub_buffers_supported ? 2 : 1, path->features.multi_sub_buffers_supported ? "sub buffers" : "sub buffer");
+           path->capabilities.multi_sub_buffers_supported ? 2 : 1, path->capabilities.multi_sub_buffers_supported ? "sub buffers" : "sub buffer");
   uint64_t message_bytes = strlen(message_addr1) + 1;
-  if (path->features.multi_sub_buffers_supported) {
+  if (path->capabilities.multi_sub_buffers_supported) {
     // Multiple sub buffers are supported: copy the beginning of the message to second buffer
     memcpy(message_addr2, message_addr1, split_bytes);
     memset(message_addr1, 'x', split_bytes); // Clear the unsent bytes to prove multi sub buffers is working
@@ -68,27 +68,27 @@ static void sendMessage(TakyonPath *path, uint32_t i) {
   //  - Initially defined with 2 sub buffers, but will only use the first if multiple sub buffers are not supported
   TakyonSubBuffer sender_sub_buffers[2] = {{ .buffer = &path->attrs.buffers[1], .bytes = split_bytes, .offset = 0 },
                                            { .buffer = &path->attrs.buffers[0], .bytes = message_bytes-split_bytes, .offset = split_bytes }};
-  if (!path->features.multi_sub_buffers_supported) {
+  if (!path->capabilities.multi_sub_buffers_supported) {
     // Interconnect only supports a single sub buffer
     sender_sub_buffers[0].buffer = &path->attrs.buffers[0];
     sender_sub_buffers[0].bytes = message_bytes;
     sender_sub_buffers[0].offset = 0;
   }
-  TakyonSendRequest send_request = { .sub_buffer_count = path->features.multi_sub_buffers_supported ? 2 : 1,
+  TakyonSendRequest send_request = { .sub_buffer_count = path->capabilities.multi_sub_buffers_supported ? 2 : 1,
                                      .sub_buffers = sender_sub_buffers,
                                      .use_is_sent_notification = true,
                                      .use_polling_completion = false,
                                      .usec_sleep_between_poll_attempts = 0 };
 
   // Start the send
-  uint32_t piggy_back_message = (path->features.piggy_back_message_supported) ? i : 0;
+  uint32_t piggy_back_message = (path->capabilities.piggy_back_message_supported) ? i : 0;
   takyonSend(path, &send_request, piggy_back_message, TAKYON_WAIT_FOREVER, NULL);
-  if (!path->features.IsRecved_supported) {
-    printf("Message %d sent (one way, %d %s)\n", i+1, path->features.multi_sub_buffers_supported ? 2 : 1, path->features.multi_sub_buffers_supported ? "sub buffers" : "sub buffer");
+  if (!path->capabilities.IsRecved_supported) {
+    printf("Message %d sent (one way, %d %s)\n", i+1, path->capabilities.multi_sub_buffers_supported ? 2 : 1, path->capabilities.multi_sub_buffers_supported ? "sub buffers" : "sub buffer");
   }
 
   // If the interconnect supports non blocking sends, then need to know when it's complete
-  if (path->features.IsSent_supported && send_request.use_is_sent_notification) takyonIsSent(path, &send_request, TAKYON_WAIT_FOREVER, NULL);
+  if (path->capabilities.IsSent_supported && send_request.use_is_sent_notification) takyonIsSent(path, &send_request, TAKYON_WAIT_FOREVER, NULL);
 }
 
 static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request) {
@@ -105,13 +105,13 @@ static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request) {
   char message_addr_cpu[MAX_MESSAGE_BYTES];
   cudaError_t cuda_status = cudaMemcpy(message_addr_cpu, message_addr, bytes_received, cudaMemcpyDefault);
   if (cuda_status != cudaSuccess) { printf("cudaMemcpy() failed: %s\n", cudaGetErrorString(cuda_status)); exit(0); }
-  if (path->features.piggy_back_message_supported) {
+  if (path->capabilities.piggy_back_message_supported) {
     printf("%s (CUDA): Got message '%s', bytes=" UINT64_FORMAT ", piggy_back_message=%u\n", path->attrs.is_endpointA ? "A" : "B", message_addr_cpu, bytes_received, piggy_back_message);
   } else {
     printf("%s (CUDA): Got message '%s', bytes=" UINT64_FORMAT ", piggy_back_message=NOT SUPPORTED\n", path->attrs.is_endpointA ? "A" : "B", message_addr_cpu, bytes_received);
   }
 #else
-  if (path->features.piggy_back_message_supported) {
+  if (path->capabilities.piggy_back_message_supported) {
     printf("%s (CPU): Got message '%s', bytes=" UINT64_FORMAT ", piggy_back_message=%u\n", path->attrs.is_endpointA ? "A" : "B", message_addr, bytes_received, piggy_back_message);
   } else {
     printf("%s (CPU): Got message '%s', bytes=" UINT64_FORMAT ", piggy_back_message=NOT SUPPORTED\n", path->attrs.is_endpointA ? "A" : "B", message_addr, bytes_received);
@@ -119,7 +119,7 @@ static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request) {
 #endif
 
   // If the interconnect supports pre-posting, then need to post the recv to be ready for the next send, before the send starts
-  if (path->features.PostRecvs_supported) takyonPostRecvs(path, 1, recv_request);
+  if (path->capabilities.PostRecvs_supported) takyonPostRecvs(path, 1, recv_request);
 }
 
 void hello(const bool is_endpointA, const char *interconnect, const uint32_t iterations) {
@@ -186,12 +186,12 @@ void hello(const bool is_endpointA, const char *interconnect, const uint32_t ite
       // Send message
       sendMessage(path, i);
       // Wait for the message to arrive (will reuse the recv_request that was already prepared)
-      if (path->features.IsRecved_supported) recvMessage(path, &recv_request);
+      if (path->capabilities.IsRecved_supported) recvMessage(path, &recv_request);
     } else {
       // Wait for the message to arrive (will reuse the recv_request that was already prepared)
       recvMessage(path, &recv_request);
       // Send message
-      if (path->features.Send_supported) sendMessage(path, i);
+      if (path->capabilities.Send_supported) sendMessage(path, i);
     }
   }
 

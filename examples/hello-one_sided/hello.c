@@ -58,7 +58,7 @@ static void writeMessage(TakyonPath *path, uint32_t i) {
   takyonOneSided(path, &write_request, TAKYON_WAIT_FOREVER, NULL);
 
   // If the interconnect supports non blocking transfers, then need to know when it's complete
-  if (path->features.IsOneSidedDone_supported && write_request.use_is_done_notification) takyonIsOneSidedDone(path, &write_request, TAKYON_WAIT_FOREVER, NULL);
+  if (path->capabilities.IsOneSidedDone_supported && write_request.use_is_done_notification) takyonIsOneSidedDone(path, &write_request, TAKYON_WAIT_FOREVER, NULL);
   printf("Message %d written\n", i+1);
 }
 
@@ -78,7 +78,7 @@ static void readMessage(TakyonPath *path) {
   takyonOneSided(path, &read_request, TAKYON_WAIT_FOREVER, NULL);
 
   // If the interconnect supports non blocking transfers, then need to know when it's complete
-  if (path->features.IsOneSidedDone_supported && read_request.use_is_done_notification) takyonIsOneSidedDone(path, &read_request, TAKYON_WAIT_FOREVER, NULL);
+  if (path->capabilities.IsOneSidedDone_supported && read_request.use_is_done_notification) takyonIsOneSidedDone(path, &read_request, TAKYON_WAIT_FOREVER, NULL);
 
   // Process the data; i.e. print the received greeting
   char *message_addr = (char *)path->attrs.buffers[2].addr;

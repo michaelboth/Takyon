@@ -38,7 +38,7 @@ typedef struct {
   bool (*postRecvs)(TakyonPath *path, uint32_t request_count, TakyonRecvRequest *requests);
   bool (*isRecved)(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret);
 
-  // Features
+  // Capabilities
   bool piggy_back_message_supported;      // True if comm allows sending a 32bit message piggy backed on the primary message
   bool multi_sub_buffers_supported;       // True if more than one sub buffer can be in a single transfer
   bool zero_byte_message_supported;       // True if can send zero byte messages
@@ -120,7 +120,7 @@ static CommInterface L_interfaces[] = {
 #endif
 };
 
-bool setInterconnectFunctionsAndFeatures(const char *interconnect_name, TakyonComm *comm, TakyonPathFeatures *features) {
+bool setInterconnectFunctionsAndCapabilities(const char *interconnect_name, TakyonComm *comm, TakyonPathCapabilities *capabilities) {
   uint64_t num_interfaces = (sizeof(L_interfaces) / sizeof(CommInterface));
   for (uint64_t i=0; i<num_interfaces; i++) {
     CommInterface *interface = &L_interfaces[i];
@@ -135,18 +135,18 @@ bool setInterconnectFunctionsAndFeatures(const char *interconnect_name, TakyonCo
       comm->postRecvs      = interface->postRecvs;
       comm->isRecved       = interface->isRecved;
 
-      // Supported functions and features
-      features->OneSided_supported           = interface->create != NULL;
-      features->IsOneSidedDone_supported     = interface->destroy != NULL;
-      features->OneSided_supported           = interface->oneSided != NULL;
-      features->IsOneSidedDone_supported     = interface->isOneSidedDone != NULL;
-      features->Send_supported               = interface->send != NULL;
-      features->IsSent_supported             = interface->isSent != NULL;
-      features->PostRecvs_supported          = interface->postRecvs != NULL;
-      features->IsRecved_supported           = interface->isRecved != NULL;
-      features->piggy_back_message_supported = interface->piggy_back_message_supported;
-      features->multi_sub_buffers_supported  = interface->multi_sub_buffers_supported;
-      features->zero_byte_message_supported  = interface->zero_byte_message_supported;
+      // Supported functions and capabilities
+      capabilities->OneSided_supported           = interface->create != NULL;
+      capabilities->IsOneSidedDone_supported     = interface->destroy != NULL;
+      capabilities->OneSided_supported           = interface->oneSided != NULL;
+      capabilities->IsOneSidedDone_supported     = interface->isOneSidedDone != NULL;
+      capabilities->Send_supported               = interface->send != NULL;
+      capabilities->IsSent_supported             = interface->isSent != NULL;
+      capabilities->PostRecvs_supported          = interface->postRecvs != NULL;
+      capabilities->IsRecved_supported           = interface->isRecved != NULL;
+      capabilities->piggy_back_message_supported = interface->piggy_back_message_supported;
+      capabilities->multi_sub_buffers_supported  = interface->multi_sub_buffers_supported;
+      capabilities->zero_byte_message_supported  = interface->zero_byte_message_supported;
 
       return true;
     }

@@ -163,9 +163,9 @@ char *takyonCreate(TakyonPathAttributes *attrs, uint32_t post_recv_count, Takyon
     return takyon_error_message;
   }
 
-  // Fill in path features and functions
-  TakyonPathFeatures features;
-  bool ok = setInterconnectFunctionsAndFeatures(interconnect_name, comm, &features);
+  // Fill in path capabilities and functions
+  TakyonPathCapabilities capabilities;
+  bool ok = setInterconnectFunctionsAndCapabilities(interconnect_name, comm, &capabilities);
   if (!ok) {
     TAKYON_RECORD_ERROR(takyon_error_message, "Interconnect '%s' is not found in 'supported_interconnects.c'\n", interconnect_name);
     free(comm);
@@ -176,7 +176,7 @@ char *takyonCreate(TakyonPathAttributes *attrs, uint32_t post_recv_count, Takyon
 
   // Fill in the path
   path->attrs = *attrs;
-  path->features = features;
+  path->capabilities = capabilities;
   path->private = comm;
   path->error_message = takyon_error_message;
 
@@ -359,7 +359,7 @@ bool takyonSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_bac
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
-  if (request->sub_buffer_count > 1 && !path->features.multi_sub_buffers_supported) {
+  if (request->sub_buffer_count > 1 && !path->capabilities.multi_sub_buffers_supported) {
     TAKYON_RECORD_ERROR(path->error_message, "This interconnect does not support request->sub_buffer_count > 1.\n");
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
@@ -374,7 +374,7 @@ bool takyonSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_bac
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
-  if (piggy_back_message != 0 && !path->features.piggy_back_message_supported) {
+  if (piggy_back_message != 0 && !path->capabilities.piggy_back_message_supported) {
     TAKYON_RECORD_ERROR(path->error_message, "Piggy back messages are not supported with this interconnect, so piggy_back_message must be 0\n");
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
@@ -469,7 +469,7 @@ bool takyonPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvRequest
   }
   for (uint32_t i=0; i<request_count; i++) {
     TakyonRecvRequest *request = &requests[i];
-    if (request->sub_buffer_count > 1 && !path->features.multi_sub_buffers_supported) {
+    if (request->sub_buffer_count > 1 && !path->capabilities.multi_sub_buffers_supported) {
       TAKYON_RECORD_ERROR(path->error_message, "This interconnect does not support request->sub_buffer_count > 1.\n");
       handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
       return false;
@@ -522,7 +522,7 @@ bool takyonIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
-  if (request->sub_buffer_count > 1 && !path->features.multi_sub_buffers_supported) {
+  if (request->sub_buffer_count > 1 && !path->capabilities.multi_sub_buffers_supported) {
     TAKYON_RECORD_ERROR(path->error_message, "This interconnect does not support request->sub_buffer_count > 1.\n");
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
@@ -549,7 +549,7 @@ bool takyonIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout
 
   // Verbosity
   if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFER) {
-    if (path->features.piggy_back_message_supported) {
+    if (path->capabilities.piggy_back_message_supported) {
       printf("%-15s (%s:%s) Got message: " UINT64_FORMAT " bytes, piggy_back_message=0x%x\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.interconnect, bytes_received, piggy_back_message);
     } else {
       printf("%-15s (%s:%s) Got message: " UINT64_FORMAT " bytes\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.interconnect, bytes_received);

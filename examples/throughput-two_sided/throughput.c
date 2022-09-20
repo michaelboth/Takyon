@@ -47,7 +47,7 @@ static void sendSignal(TakyonPath *path) {
   takyonSend(path, &send_request, piggy_back_message, TAKYON_WAIT_FOREVER, NULL);
 
   // If the interconnect supports non blocking sends, then need to know when it's complete
-  if (path->features.IsSent_supported && send_request.use_is_sent_notification) takyonIsSent(path, &send_request, TAKYON_WAIT_FOREVER, NULL);
+  if (path->capabilities.IsSent_supported && send_request.use_is_sent_notification) takyonIsSent(path, &send_request, TAKYON_WAIT_FOREVER, NULL);
 }
 
 static void sendMessage(TakyonPath *path) {
@@ -64,7 +64,7 @@ static void sendMessage(TakyonPath *path) {
   takyonSend(path, &send_request, piggy_back_message, TAKYON_WAIT_FOREVER, NULL);
 
   // If the interconnect supports non blocking sends, then need to know when it's complete
-  if (path->features.IsSent_supported && send_request.use_is_sent_notification) takyonIsSent(path, &send_request, TAKYON_WAIT_FOREVER, NULL);
+  if (path->capabilities.IsSent_supported && send_request.use_is_sent_notification) takyonIsSent(path, &send_request, TAKYON_WAIT_FOREVER, NULL);
 }
 
 static void recvSignal(TakyonPath *path, TakyonRecvRequest *recv_request) {
@@ -74,7 +74,7 @@ static void recvSignal(TakyonPath *path, TakyonRecvRequest *recv_request) {
   assert(bytes_received == 0);
 
   // If the interconnect supports pre-posting, then need to post the recv to be ready for the next send, before the send starts
-  if (path->features.PostRecvs_supported) takyonPostRecvs(path, 1, recv_request);
+  if (path->capabilities.PostRecvs_supported) takyonPostRecvs(path, 1, recv_request);
 }
 
 static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request) {
@@ -84,7 +84,7 @@ static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request) {
   assert(bytes_received == recv_request->sub_buffers[0].bytes);
 
   // If the interconnect supports pre-posting, then need to post the recv to be ready for the next send, before the send starts
-  if (path->features.PostRecvs_supported) takyonPostRecvs(path, 1, recv_request);
+  if (path->capabilities.PostRecvs_supported) takyonPostRecvs(path, 1, recv_request);
 }
 
 void throughput(const bool is_endpointA, const char *interconnect, const uint32_t iterations) {
@@ -130,8 +130,6 @@ void throughput(const bool is_endpointA, const char *interconnect, const uint32_
   attrs.max_sub_buffers_per_send_request        = is_endpointA ? 1 : 0;  // 0 means zero-byte message
   attrs.max_sub_buffers_per_recv_request        = is_endpointA ? 0 : 1;  // 0 means zero-byte message
 
-  /*+ GITHUB README: for each example, show list of Takyon features used */
-
   // Setup the receive request and it's sub buffer
   //   - This is done before the path is setup in the case the receiver needs the recieves posted before sending can start
   uint32_t recv_request_count = is_endpointA ? 0 : MAX_RECV_REQUESTS;
@@ -175,14 +173,14 @@ void throughput(const bool is_endpointA, const char *interconnect, const uint32_
       // Send message
       sendMessage(path);
       // Wait for the message to arrive (will reuse the recv_request that was already prepared)
-      if (path->features.IsRecved_supported) recvSignal(path, &repost_recv_request);
+      if (path->capabilities.IsRecved_supported) recvSignal(path, &repost_recv_request);
     } else {
       // Wait for the message to arrive (will reuse the recv_request that was already prepared)
       recvMessage(path, &recv_requests[recv_request_index]);
       recv_request_index = (recv_request_index + 1) % MAX_RECV_REQUESTS;
       /*+ re-post in bulk */
       // Send a zero byte message to endpoint A to let it know it can send more messages
-      if (path->features.Send_supported) sendSignal(path);
+      if (path->capabilities.Send_supported) sendSignal(path);
     }
 
     // Print the current throughput

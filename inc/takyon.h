@@ -162,12 +162,12 @@ typedef struct {
   bool piggy_back_message_supported;      // True if comm allows sending a 32bit message piggy backed on the primary message
   bool multi_sub_buffers_supported;       // True if more than one sub buffer can be in a single transfer
   bool zero_byte_message_supported;       // True if can send zero byte messages
-} TakyonPathFeatures; /*+ rename to TakyonPathCapabilities */
+} TakyonPathCapabilities;
 
 typedef struct {
   // IMPORTANT: do not modify any fields in this structure
   TakyonPathAttributes attrs;   // Contains a copy of the attributes passed in from takyonCreate(), but does not copy contents of pointers
-  TakyonPathFeatures features;
+  TakyonPathCapabilities capabilities;
   char *error_message;                // For returning error messages if a failure occurs with sending, or receiving. This should not be freed by the application.
   void *private;                      // Used internally; e.g. book keeping
 } TakyonPath;

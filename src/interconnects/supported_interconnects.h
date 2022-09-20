@@ -19,7 +19,7 @@ extern "C"
 {
 #endif
 
-extern bool setInterconnectFunctionsAndFeatures(const char *interconnect_name, TakyonComm *comm, TakyonPathFeatures *features);
+extern bool setInterconnectFunctionsAndCapabilities(const char *interconnect_name, TakyonComm *comm, TakyonPathCapabilities *capabilities);
 
 #ifdef __cplusplus
 }
