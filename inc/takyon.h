@@ -39,8 +39,8 @@
 #define TAKYON_VERSION_MINOR 0
 #define TAKYON_VERSION_PATCH 0
 
-// For comm's interconnect text
-#define TAKYON_MAX_INTERCONNECT_CHARS 1000  // Max size of text string to define a path's interconnect
+// Takyon text length limits
+#define TAKYON_MAX_PROVIDER_CHARS 1000      // Max size of text string to define a path's endpoint provider
 #define TAKYON_MAX_BUFFER_NAME_CHARS 31     // This small value of 31 is imposed by Apple's OSX mmap name limit
 
 // Special timeout values
@@ -66,7 +66,7 @@ typedef enum {
 
 // App must maintain this memory for life of path
 typedef struct {
-  void *addr;                              // Application must allocate the memory; CPU, CUDA, IO device, etc. The interconnect must support the type of memory allocated.
+  void *addr;                              // Application must allocate the memory; CPU, CUDA, IO device, etc. The provider must support the type of memory allocated.
   uint64_t bytes;
   char name[TAKYON_MAX_BUFFER_NAME_CHARS]; // Only needed for special memory like inter-process mmaps. Ignore if not needed
   // Helpful for application dependent data; e.g. store an mmap or CUDA device ID
@@ -136,18 +136,17 @@ typedef struct {
 
 typedef struct {
   bool is_endpointA;                                 // True: side A of the path. False: side B of the path.
-  /*+ rename to "provider" */
-  char interconnect[TAKYON_MAX_INTERCONNECT_CHARS];  // Text string the describes the endpoint's interconnect specification.
+  char provider[TAKYON_MAX_PROVIDER_CHARS];          // Text string the describes the endpoint's provider specification.
   uint64_t verbosity;                                // 'Or' the bits of the TAKYON_VERBOSITY_* mask values to define what is printed to stdout and stderr.
   TakyonFailureMode failure_mode;                    // Determine what happens when an error is detected
-  // Transport buffers. Some interconnects will pin this memory to avoid it being swapped out to RAM disk
+  // Transport buffers. Some providers will pin this memory to avoid it being swapped out to RAM disk
   uint32_t buffer_count;
   TakyonBuffer *buffers;                             // App must maintain this memory for the life of the path
   // Used for internal book keeping and to avoid internal memory allocations at transfer time
   uint32_t max_pending_send_and_one_sided_requests;  // If takyonIsSent() and/or takyonIsOneSidedDone() is supported, this defines how many active transfers can be in progress
   uint32_t max_pending_recv_requests;                // If takyonPostRecvs() is supported, this defines how many active recvs can be posted at once
-  uint32_t max_sub_buffers_per_send_request;         // Defines the number of sub buffers in a single send message. Will be ignored if interconnect only support 1.
-  uint32_t max_sub_buffers_per_recv_request;         // Defines the number of sub buffers in a single recv message. Will be ignored if interconnect only support 1.
+  uint32_t max_sub_buffers_per_send_request;         // Defines the number of sub buffers in a single send message. Will be ignored if provider only supports 1.
+  uint32_t max_sub_buffers_per_recv_request;         // Defines the number of sub buffers in a single recv message. Will be ignored if provider only supports 1.
 } TakyonPathAttributes;
 
 typedef struct {

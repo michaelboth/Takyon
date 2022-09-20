@@ -28,7 +28,7 @@
 //     See the License for the specific language governing permissions and
 //     limitations under the License.
 
-#include "interconnect_SocketUdp.h"
+#include "provider_SocketUdp.h"
 #include "takyon_private.h"
 #include "utils_socket.h"
 #include "utils_arg_parser.h"
@@ -77,42 +77,42 @@ bool udpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReque
   TakyonComm *comm = (TakyonComm *)path->private;
   char error_message[MAX_ERROR_MESSAGE_CHARS];
 
-  // Get the name of the interconnect
-  char interconnect_name[TAKYON_MAX_INTERCONNECT_CHARS];
-  if (!argGetInterconnect(path->attrs.interconnect, interconnect_name, TAKYON_MAX_INTERCONNECT_CHARS, error_message, MAX_ERROR_MESSAGE_CHARS)) {
-    TAKYON_RECORD_ERROR(path->error_message, "Failed to get interconnect name: %s\n", error_message);
+  // Get the name of the provider
+  char provider_name[TAKYON_MAX_PROVIDER_CHARS];
+  if (!argGetProvider(path->attrs.provider, provider_name, TAKYON_MAX_PROVIDER_CHARS, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    TAKYON_RECORD_ERROR(path->error_message, "Failed to get provider name: %s\n", error_message);
     return false;
   }
 
   // Get all posible flags and values
-  bool is_unicast = argGetFlag(path->attrs.interconnect, "-unicast");
-  bool is_multicast = argGetFlag(path->attrs.interconnect, "-multicast");
-  bool is_a_send = (strcmp(interconnect_name, "SocketUdpSend") == 0);
-  bool is_a_recv = (strcmp(interconnect_name, "SocketUdpRecv") == 0);
-  bool allow_reuse = argGetFlag(path->attrs.interconnect, "-reuse");
-  bool disable_loopback = argGetFlag(path->attrs.interconnect, "-noLoopback");
+  bool is_unicast = argGetFlag(path->attrs.provider, "-unicast");
+  bool is_multicast = argGetFlag(path->attrs.provider, "-multicast");
+  bool is_a_send = (strcmp(provider_name, "SocketUdpSend") == 0);
+  bool is_a_recv = (strcmp(provider_name, "SocketUdpRecv") == 0);
+  bool allow_reuse = argGetFlag(path->attrs.provider, "-reuse");
+  bool disable_loopback = argGetFlag(path->attrs.provider, "-noLoopback");
   // -localIP=<ip_addr>|<hostname>|Any
-  char local_ip_addr[TAKYON_MAX_INTERCONNECT_CHARS];
+  char local_ip_addr[TAKYON_MAX_PROVIDER_CHARS];
   bool local_ip_addr_found = false;
-  bool ok = argGetText(path->attrs.interconnect, "-localIP=", local_ip_addr, TAKYON_MAX_INTERCONNECT_CHARS, &local_ip_addr_found, error_message, MAX_ERROR_MESSAGE_CHARS);
+  bool ok = argGetText(path->attrs.provider, "-localIP=", local_ip_addr, TAKYON_MAX_PROVIDER_CHARS, &local_ip_addr_found, error_message, MAX_ERROR_MESSAGE_CHARS);
   if (!ok) {
-    TAKYON_RECORD_ERROR(path->error_message, "interconnect argument -localIP=<ip_addr>|<hostname>|Any is invalid: %s\n", error_message);
+    TAKYON_RECORD_ERROR(path->error_message, "provider argument -localIP=<ip_addr>|<hostname>|Any is invalid: %s\n", error_message);
     return false;
   }
   // -remoteIP=<ip_addr>|<hostname>
-  char remote_ip_addr[TAKYON_MAX_INTERCONNECT_CHARS];
+  char remote_ip_addr[TAKYON_MAX_PROVIDER_CHARS];
   bool remote_ip_addr_found = false;
-  ok = argGetText(path->attrs.interconnect, "-remoteIP=", remote_ip_addr, TAKYON_MAX_INTERCONNECT_CHARS, &remote_ip_addr_found, error_message, MAX_ERROR_MESSAGE_CHARS);
+  ok = argGetText(path->attrs.provider, "-remoteIP=", remote_ip_addr, TAKYON_MAX_PROVIDER_CHARS, &remote_ip_addr_found, error_message, MAX_ERROR_MESSAGE_CHARS);
   if (!ok) {
-    TAKYON_RECORD_ERROR(path->error_message, "interconnect argument -remoteIP=<ip_addr>|<hostname> is invalid: %s\n");
+    TAKYON_RECORD_ERROR(path->error_message, "provider argument -remoteIP=<ip_addr>|<hostname> is invalid: %s\n");
     return false;
   }
   // -groupIP=<multicast_ip_addr>
-  char group_ip_addr[TAKYON_MAX_INTERCONNECT_CHARS];
+  char group_ip_addr[TAKYON_MAX_PROVIDER_CHARS];
   bool group_ip_addr_found = false;
-  ok = argGetText(path->attrs.interconnect, "-groupIP=", group_ip_addr, TAKYON_MAX_INTERCONNECT_CHARS, &group_ip_addr_found, error_message, MAX_ERROR_MESSAGE_CHARS);
+  ok = argGetText(path->attrs.provider, "-groupIP=", group_ip_addr, TAKYON_MAX_PROVIDER_CHARS, &group_ip_addr_found, error_message, MAX_ERROR_MESSAGE_CHARS);
   if (!ok) {
-    TAKYON_RECORD_ERROR(path->error_message, "interconnect argument -groupIP=<multicast_ip_addr> is invalid: %s\n", error_message);
+    TAKYON_RECORD_ERROR(path->error_message, "provider argument -groupIP=<multicast_ip_addr> is invalid: %s\n", error_message);
     return false;
   }
   if (group_ip_addr_found) {
@@ -126,9 +126,9 @@ bool udpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReque
   // -rcvbuf=<bytes>
   uint32_t recvbuf_bytes = 0;
   bool recvbuf_bytes_found = false;
-  ok = argGetUInt(path->attrs.interconnect, "-rcvbuf=", &recvbuf_bytes, &recvbuf_bytes_found, error_message, MAX_ERROR_MESSAGE_CHARS);
+  ok = argGetUInt(path->attrs.provider, "-rcvbuf=", &recvbuf_bytes, &recvbuf_bytes_found, error_message, MAX_ERROR_MESSAGE_CHARS);
   if (!ok) {
-    TAKYON_RECORD_ERROR(path->error_message, "interconnect argument -rcvbuf=<bytes> is invalid: %s\n", error_message);
+    TAKYON_RECORD_ERROR(path->error_message, "provider argument -rcvbuf=<bytes> is invalid: %s\n", error_message);
     return false;
   }
   if (!recvbuf_bytes_found) {
@@ -137,9 +137,9 @@ bool udpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReque
   // -TTL=<time_to_live>
   uint32_t time_to_live = 1;
   bool time_to_live_found = false;
-  ok = argGetUInt(path->attrs.interconnect, "-TTL=", &time_to_live, &time_to_live_found, error_message, MAX_ERROR_MESSAGE_CHARS);
+  ok = argGetUInt(path->attrs.provider, "-TTL=", &time_to_live, &time_to_live_found, error_message, MAX_ERROR_MESSAGE_CHARS);
   if (!ok) {
-    TAKYON_RECORD_ERROR(path->error_message, "interconnect argument -TTL=<time_to_live> is invalid: %s\n", error_message);
+    TAKYON_RECORD_ERROR(path->error_message, "provider argument -TTL=<time_to_live> is invalid: %s\n", error_message);
     return false;
   }
   if (time_to_live_found) {
@@ -154,9 +154,9 @@ bool udpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReque
   // -port=<port_number>
   uint32_t port_number = 0;
   bool port_number_found = false;
-  ok = argGetUInt(path->attrs.interconnect, "-port=", &port_number, &port_number_found, error_message, MAX_ERROR_MESSAGE_CHARS);
+  ok = argGetUInt(path->attrs.provider, "-port=", &port_number, &port_number_found, error_message, MAX_ERROR_MESSAGE_CHARS);
   if (!ok) {
-    TAKYON_RECORD_ERROR(path->error_message, "interconnect spec -port=<port_number> is invalid: %s\n", error_message);
+    TAKYON_RECORD_ERROR(path->error_message, "provider spec -port=<port_number> is invalid: %s\n", error_message);
     return false;
   }
   if (port_number_found) {

@@ -29,7 +29,7 @@
 //     limitations under the License.
 
 #include "takyon_private.h"
-#include "supported_interconnects.h"
+#include "supported_providers.h"
 #include "utils_arg_parser.h"
 #include "utils_endian.h"
 #include <stdio.h>
@@ -52,7 +52,7 @@ static void handleErrorReporting(char *error_message, TakyonPathAttributes *attr
     fflush(stdout);
     // Start error message with endpoint identification
     if (print_errors) {
-      fprintf(stderr, "ERROR in %s(), path=%s:'%s'\n", function, attrs->is_endpointA ? "A" : "B", attrs->interconnect);
+      fprintf(stderr, "ERROR in %s(), path=%s:'%s'\n", function, attrs->is_endpointA ? "A" : "B", attrs->provider);
     }
     // Print error message
     if (print_errors) {
@@ -116,8 +116,8 @@ char *takyonCreate(TakyonPathAttributes *attrs, uint32_t post_recv_count, Takyon
   }
 
   // Validate attributes
-  if (strlen(attrs->interconnect) == 0 || strlen(attrs->interconnect) >= TAKYON_MAX_INTERCONNECT_CHARS) {
-    fprintf(stderr, "ERROR in %s(): attrs->interconnect must not be empty and be less than TAKYON_MAX_INTERCONNECT_CHARS chars\n", __FUNCTION__);
+  if (strlen(attrs->provider) == 0 || strlen(attrs->provider) >= TAKYON_MAX_PROVIDER_CHARS) {
+    fprintf(stderr, "ERROR in %s(): attrs->provider must not be empty and be less than TAKYON_MAX_PROVIDER_CHARS chars\n", __FUNCTION__);
     abort();
   }
   if (attrs->buffer_count == 0 && attrs->buffers != NULL) {
@@ -137,11 +137,11 @@ char *takyonCreate(TakyonPathAttributes *attrs, uint32_t post_recv_count, Takyon
   }
   clearErrorMessage(takyon_error_message);
 
-  // Get the interconnect type
+  // Get the provider type
   char error_message[MAX_ERROR_MESSAGE_CHARS];
-  char interconnect_name[TAKYON_MAX_INTERCONNECT_CHARS];
-  if (!argGetInterconnect(attrs->interconnect, interconnect_name, TAKYON_MAX_INTERCONNECT_CHARS, error_message, MAX_ERROR_MESSAGE_CHARS)) {
-    TAKYON_RECORD_ERROR(takyon_error_message, "argGetInterconnect() failed: %s\n", error_message);
+  char provider_name[TAKYON_MAX_PROVIDER_CHARS];
+  if (!argGetProvider(attrs->provider, provider_name, TAKYON_MAX_PROVIDER_CHARS, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    TAKYON_RECORD_ERROR(takyon_error_message, "argGetProvider() failed: %s\n", error_message);
     handleErrorReporting(takyon_error_message, attrs, __FUNCTION__);
     return takyon_error_message;
   }
@@ -165,9 +165,9 @@ char *takyonCreate(TakyonPathAttributes *attrs, uint32_t post_recv_count, Takyon
 
   // Fill in path capabilities and functions
   TakyonPathCapabilities capabilities;
-  bool ok = setInterconnectFunctionsAndCapabilities(interconnect_name, comm, &capabilities);
+  bool ok = setProviderFunctionsAndCapabilities(provider_name, comm, &capabilities);
   if (!ok) {
-    TAKYON_RECORD_ERROR(takyon_error_message, "Interconnect '%s' is not found in 'supported_interconnects.c'\n", interconnect_name);
+    TAKYON_RECORD_ERROR(takyon_error_message, "Provider '%s' is not found in 'supported_providers.c'\n", provider_name);
     free(comm);
     free(path);
     handleErrorReporting(takyon_error_message, attrs, __FUNCTION__);
@@ -182,13 +182,13 @@ char *takyonCreate(TakyonPathAttributes *attrs, uint32_t post_recv_count, Takyon
 
   // Verbosity
   if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY) {
-    printf("%-15s (%s:%s) endian=%s, bits=%d\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.interconnect, endianIsBig() ? "big" : "little", (int)sizeof(int*)*8);
+    printf("%-15s (%s:%s) endian=%s, bits=%d\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider, endianIsBig() ? "big" : "little", (int)sizeof(int*)*8);
   }
 
   // Initialize the actual connection (this is a blocking coordination between side A and B)
   ok = comm->create(path, post_recv_count, recv_requests, timeout_seconds);
   if (!ok) {
-    TAKYON_RECORD_ERROR(takyon_error_message, "Failed to make connection with %s:%s\n", path->attrs.is_endpointA ? "A" : "B", path->attrs.interconnect);
+    TAKYON_RECORD_ERROR(takyon_error_message, "Failed to make connection with %s:%s\n", path->attrs.is_endpointA ? "A" : "B", path->attrs.provider);
     free(comm);
     free(path);
     handleErrorReporting(takyon_error_message, attrs, __FUNCTION__);
@@ -197,7 +197,7 @@ char *takyonCreate(TakyonPathAttributes *attrs, uint32_t post_recv_count, Takyon
 
   // Verbosity
   if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY) {
-    printf("%-15s (%s:%s) created path\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.interconnect);
+    printf("%-15s (%s:%s) created path\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider);
   }
 
   *path_out = path;
@@ -211,7 +211,7 @@ char *takyonDestroy(TakyonPath *path, double timeout_seconds) {
 
   // Verbosity
   if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY) {
-    printf("%-15s (%s:%s)\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.interconnect);
+    printf("%-15s (%s:%s)\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider);
   }
 
   // If this is a connected path, do a coordinated shutdown with side A and B (this is a blocking call)
@@ -241,7 +241,7 @@ bool takyonOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double tim
 
   // Error checking
   if (comm->oneSided == NULL) {
-    TAKYON_RECORD_ERROR(path->error_message, "This interconnect does not support takyonOneSided().\n");
+    TAKYON_RECORD_ERROR(path->error_message, "This provider does not support takyonOneSided().\n");
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
@@ -268,7 +268,7 @@ bool takyonOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double tim
 
   // Verbosity
   if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFER) {
-    printf("%-15s (%s:%s) %s message\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.interconnect, request->is_write_request ? "Writing" : "Reading");
+    printf("%-15s (%s:%s) %s message\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider, request->is_write_request ? "Writing" : "Reading");
   }
 
   // Initiate the send
@@ -280,7 +280,7 @@ bool takyonOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double tim
 
   // Verbosity
   if (comm->isOneSidedDone == NULL && timed_out_ret != NULL && !(*timed_out_ret) && path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFER) {
-    printf("%-15s (%s:%s) Message transferred\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.interconnect);
+    printf("%-15s (%s:%s) Message transferred\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider);
   }
 
   return true;
@@ -293,7 +293,7 @@ bool takyonIsOneSidedDone(TakyonPath *path, TakyonOneSidedRequest *request, doub
 
   // Error checking
   if (comm->isOneSidedDone == NULL) {
-    TAKYON_RECORD_ERROR(path->error_message, "This interconnect does not support takyonIsOneSidedDone().\n");
+    TAKYON_RECORD_ERROR(path->error_message, "This provider does not support takyonIsOneSidedDone().\n");
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
@@ -320,7 +320,7 @@ bool takyonIsOneSidedDone(TakyonPath *path, TakyonOneSidedRequest *request, doub
 
   // Verbosity
   if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFER) {
-    printf("%-15s (%s:%s) Waiting '%s message' to complete\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.interconnect, request->is_write_request ? "write" : "read");
+    printf("%-15s (%s:%s) Waiting '%s message' to complete\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider, request->is_write_request ? "write" : "read");
   }
 
   // Initiate the send
@@ -332,7 +332,7 @@ bool takyonIsOneSidedDone(TakyonPath *path, TakyonOneSidedRequest *request, doub
 
   // Verbosity
   if (timed_out_ret != NULL && !(*timed_out_ret) && path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFER) {
-    printf("%-15s (%s:%s) Message transferred\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.interconnect);
+    printf("%-15s (%s:%s) Message transferred\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider);
   }
 
   return true;
@@ -345,12 +345,12 @@ bool takyonSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_bac
 
   // Verbosity
   if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFER) {
-    printf("%-15s (%s:%s) Sending message\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.interconnect);
+    printf("%-15s (%s:%s) Sending message\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider);
   }
 
   // Error checking
   if (comm->send == NULL) {
-    TAKYON_RECORD_ERROR(path->error_message, "This interconnect does not support takyonSend().\n");
+    TAKYON_RECORD_ERROR(path->error_message, "This provider does not support takyonSend().\n");
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
@@ -360,7 +360,7 @@ bool takyonSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_bac
     return false;
   }
   if (request->sub_buffer_count > 1 && !path->capabilities.multi_sub_buffers_supported) {
-    TAKYON_RECORD_ERROR(path->error_message, "This interconnect does not support request->sub_buffer_count > 1.\n");
+    TAKYON_RECORD_ERROR(path->error_message, "This provider does not support request->sub_buffer_count > 1.\n");
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
@@ -375,7 +375,7 @@ bool takyonSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_bac
     return false;
   }
   if (piggy_back_message != 0 && !path->capabilities.piggy_back_message_supported) {
-    TAKYON_RECORD_ERROR(path->error_message, "Piggy back messages are not supported with this interconnect, so piggy_back_message must be 0\n");
+    TAKYON_RECORD_ERROR(path->error_message, "Piggy back messages are not supported with this provider, so piggy_back_message must be 0\n");
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
@@ -394,7 +394,7 @@ bool takyonSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_bac
 
   // Verbosity
   if (comm->isSent == NULL && timed_out_ret != NULL && !(*timed_out_ret) && path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFER) {
-    printf("%-15s (%s:%s) Message sent\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.interconnect);
+    printf("%-15s (%s:%s) Message sent\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider);
   }
 
   return true;
@@ -407,12 +407,12 @@ bool takyonIsSent(TakyonPath *path, TakyonSendRequest *request, double timeout_s
 
   // Verbosity
   if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFER) {
-    printf("%-15s (%s:%s) Waiting for message to be sent\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.interconnect);
+    printf("%-15s (%s:%s) Waiting for message to be sent\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider);
   }
 
   // Error checking
   if (comm->isSent == NULL) {
-    TAKYON_RECORD_ERROR(path->error_message, "This interconnect does not support takyonIsSent().\n");
+    TAKYON_RECORD_ERROR(path->error_message, "This provider does not support takyonIsSent().\n");
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
@@ -436,7 +436,7 @@ bool takyonIsSent(TakyonPath *path, TakyonSendRequest *request, double timeout_s
 
   // Verbosity
   if (timed_out_ret != NULL && !(*timed_out_ret) && path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFER) {
-    printf("%-15s (%s:%s) Message sent\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.interconnect);
+    printf("%-15s (%s:%s) Message sent\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider);
   }
 
   return true;
@@ -448,12 +448,12 @@ bool takyonPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvRequest
 
   // Verbosity
   if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFER) {
-    printf("%-15s (%s:%s) Posting %d receive(s)\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.interconnect, request_count);
+    printf("%-15s (%s:%s) Posting %d receive(s)\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider, request_count);
   }
 
   // Error checking
   if (comm->postRecvs == NULL) {
-    TAKYON_RECORD_ERROR(path->error_message, "This interconnect does not support takyonPostRecvs().\n");
+    TAKYON_RECORD_ERROR(path->error_message, "This provider does not support takyonPostRecvs().\n");
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
@@ -470,7 +470,7 @@ bool takyonPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvRequest
   for (uint32_t i=0; i<request_count; i++) {
     TakyonRecvRequest *request = &requests[i];
     if (request->sub_buffer_count > 1 && !path->capabilities.multi_sub_buffers_supported) {
-      TAKYON_RECORD_ERROR(path->error_message, "This interconnect does not support request->sub_buffer_count > 1.\n");
+      TAKYON_RECORD_ERROR(path->error_message, "This provider does not support request->sub_buffer_count > 1.\n");
       handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
       return false;
     }
@@ -503,12 +503,12 @@ bool takyonIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout
 
   // Verbosity
   if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFER) {
-    printf("%-15s (%s:%s) Waiting for message\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.interconnect);
+    printf("%-15s (%s:%s) Waiting for message\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider);
   }
 
   // Error checking
   if (comm->isRecved == NULL) {
-    TAKYON_RECORD_ERROR(path->error_message, "This interconnect does not support takyonIsRecved().\n");
+    TAKYON_RECORD_ERROR(path->error_message, "This provider does not support takyonIsRecved().\n");
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
@@ -523,7 +523,7 @@ bool takyonIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout
     return false;
   }
   if (request->sub_buffer_count > 1 && !path->capabilities.multi_sub_buffers_supported) {
-    TAKYON_RECORD_ERROR(path->error_message, "This interconnect does not support request->sub_buffer_count > 1.\n");
+    TAKYON_RECORD_ERROR(path->error_message, "This provider does not support request->sub_buffer_count > 1.\n");
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
@@ -550,9 +550,9 @@ bool takyonIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout
   // Verbosity
   if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFER) {
     if (path->capabilities.piggy_back_message_supported) {
-      printf("%-15s (%s:%s) Got message: " UINT64_FORMAT " bytes, piggy_back_message=0x%x\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.interconnect, bytes_received, piggy_back_message);
+      printf("%-15s (%s:%s) Got message: " UINT64_FORMAT " bytes, piggy_back_message=0x%x\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider, bytes_received, piggy_back_message);
     } else {
-      printf("%-15s (%s:%s) Got message: " UINT64_FORMAT " bytes\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.interconnect, bytes_received);
+      printf("%-15s (%s:%s) Got message: " UINT64_FORMAT " bytes\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider, bytes_received);
     }
   }
 

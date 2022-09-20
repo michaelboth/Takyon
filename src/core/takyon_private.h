@@ -15,7 +15,7 @@
 // Changes for 2.0 (starting from Takyon 1.1.0):
 //   - See comments in takyon.h for the bigger picture of the changes
 //   - Redesigned to the 2.x API functionality
-//   - Stripped out all the stuff that was interconnect specific
+//   - Stripped out all the stuff that was provider specific
 //
 // Copyright for modifications:
 //     Copyright 2022 Michael Both
@@ -35,7 +35,7 @@
 #include "takyon.h"
 
 // Some helpful values
-#define MICROSECONDS_TO_SLEEP_BEFORE_DISCONNECTING 20000  // 20 Milliseconds. Used by some interconnects to provided time to complete last transfer before disconnecting
+#define MICROSECONDS_TO_SLEEP_BEFORE_DISCONNECTING 20000  // 20 Milliseconds. Used by some providers to provided time to complete last transfer before disconnecting
 #define NANOSECONDS_PER_SECOND_DOUBLE 1000000000.0        // Needed when converting timeouts from double seconds to int64_t nano_seconds
 #define MAX_ERROR_MESSAGE_CHARS 1000
 
@@ -50,7 +50,7 @@ typedef struct {
   bool (*postRecvs)(TakyonPath *path, uint32_t request_count, TakyonRecvRequest *requests);
   bool (*isRecved)(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret);
 
-  // Use this maintain interconnect's instance data
+  // Use this maintain provider's instance data
   void *data;
 } TakyonComm;
 

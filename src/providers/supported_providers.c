@@ -9,24 +9,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "supported_interconnects.h"
+#include "supported_providers.h"
 #include <string.h>
 #ifdef ENABLE_InterThread
-  #include "interconnect_InterThread.h"
+  #include "provider_InterThread.h"
 #endif
 #ifdef ENABLE_InterProcess
-  #include "interconnect_InterProcess.h"
+  #include "provider_InterProcess.h"
 #endif
 #ifdef ENABLE_SocketTcp
-  #include "interconnect_SocketTcp.h"
+  #include "provider_SocketTcp.h"
 #endif
 #ifdef ENABLE_SocketUdp
-  #include "interconnect_SocketUdp.h"
+  #include "provider_SocketUdp.h"
 #endif
 
 typedef struct {
   // Name
-  char name[TAKYON_MAX_INTERCONNECT_CHARS];
+  char name[TAKYON_MAX_PROVIDER_CHARS];
 
   // Functions
   bool (*create)(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *recv_requests, double timeout_seconds);
@@ -120,11 +120,11 @@ static CommInterface L_interfaces[] = {
 #endif
 };
 
-bool setInterconnectFunctionsAndCapabilities(const char *interconnect_name, TakyonComm *comm, TakyonPathCapabilities *capabilities) {
+bool setProviderFunctionsAndCapabilities(const char *provider_name, TakyonComm *comm, TakyonPathCapabilities *capabilities) {
   uint64_t num_interfaces = (sizeof(L_interfaces) / sizeof(CommInterface));
   for (uint64_t i=0; i<num_interfaces; i++) {
     CommInterface *interface = &L_interfaces[i];
-    if (strcmp(interface->name, interconnect_name) == 0) {
+    if (strcmp(interface->name, provider_name) == 0) {
       // Functions
       comm->create         = interface->create;
       comm->destroy        = interface->destroy;

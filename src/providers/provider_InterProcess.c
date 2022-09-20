@@ -28,7 +28,7 @@
 //     See the License for the specific language governing permissions and
 //     limitations under the License.
 
-#include "interconnect_InterProcess.h"
+#include "provider_InterProcess.h"
 #include "takyon_private.h"
 #include "utils_socket.h"
 #include "utils_ipc.h"
@@ -288,9 +288,9 @@ bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRe
   // -pathID=<non_negative_integer>
   uint32_t path_id = 0;
   bool path_id_found = false;
-  bool ok = argGetUInt(path->attrs.interconnect, "-pathID=", &path_id, &path_id_found, error_message, MAX_ERROR_MESSAGE_CHARS);
+  bool ok = argGetUInt(path->attrs.provider, "-pathID=", &path_id, &path_id_found, error_message, MAX_ERROR_MESSAGE_CHARS);
   if (!ok) {
-    TAKYON_RECORD_ERROR(path->error_message, "interconnect argument -pathID=<non_negative_integer> is invalid: %s\n", error_message);
+    TAKYON_RECORD_ERROR(path->error_message, "provider argument -pathID=<non_negative_integer> is invalid: %s\n", error_message);
     return false;
   }
   if (!path_id_found) {
@@ -376,8 +376,8 @@ bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRe
   }
 
   // Create the socket and connect with remote endpoint
-  char local_socket_name[TAKYON_MAX_INTERCONNECT_CHARS];
-  snprintf(local_socket_name, TAKYON_MAX_INTERCONNECT_CHARS, "InterProcessSocket_%d", path_id);
+  char local_socket_name[TAKYON_MAX_PROVIDER_CHARS];
+  snprintf(local_socket_name, TAKYON_MAX_PROVIDER_CHARS, "InterProcessSocket_%d", path_id);
   if (path->attrs.is_endpointA) {
     if (!socketCreateLocalClient(local_socket_name, &private_path->socket_fd, timeout_nano_seconds, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to create local client socket, needed to organize the InterProcess communication: %s\n", error_message);

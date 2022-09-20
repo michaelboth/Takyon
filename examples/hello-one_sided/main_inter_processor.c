@@ -15,13 +15,13 @@
 #include <stdlib.h>
 
 int main(int argc, char **argv) {
-  if (argc != 4) { printf("usage: %s [A|B] \"<interconnect>\" <iterations>\n", argv[0]); return 1; }
+  if (argc != 4) { printf("usage: %s [A|B] \"<provider>\" <iterations>\n", argv[0]); return 1; }
   const bool is_endpointA = (strlen(argv[1]) == 1 && argv[1][0] == 'A');
-  const char *interconnect = argv[2];
+  const char *provider = argv[2];
   const uint32_t iterations = (uint32_t)atoi(argv[3]);
 
   // Run one endpoint of the path
-  hello(is_endpointA, interconnect, iterations);
+  hello(is_endpointA, provider, iterations);
 
   return 0;
 }

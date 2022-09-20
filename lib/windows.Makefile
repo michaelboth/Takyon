@@ -20,7 +20,7 @@ NEED_utils_ephemeral_port_manager = No
 InterThread_C_FLAGS = -DENABLE_InterThread
 NEED_utils_time = Yes
 NEED_utils_thread_cond_timed_wait = Yes
-InterThread_C_OBJS = takyon_inter_thread_manager.obj interconnect_InterThread.obj
+InterThread_C_OBJS = takyon_inter_thread_manager.obj provider_InterThread.obj
 !ENDIF
 
 #---------------------------------------------
@@ -32,7 +32,7 @@ NEED_utils_time = Yes
 NEED_utils_ipc = Yes
 NEED_utils_thread_cond_timed_wait = Yes
 NEED_utils_socket = Yes
-InterProcess_C_OBJS = interconnect_InterProcess.obj
+InterProcess_C_OBJS = provider_InterProcess.obj
 !ENDIF
 
 #---------------------------------------------
@@ -44,7 +44,7 @@ NEED_utils_time = Yes
 NEED_utils_thread_cond_timed_wait = Yes
 NEED_utils_socket = Yes
 NEED_utils_ephemeral_port_manager = Yes
-SocketTcp_C_OBJS = interconnect_SocketTcp.obj
+SocketTcp_C_OBJS = provider_SocketTcp.obj
 !ENDIF
 
 #---------------------------------------------
@@ -55,7 +55,7 @@ SocketUdp_C_FLAGS = -DENABLE_SocketUdp
 NEED_utils_time = Yes
 NEED_utils_socket = Yes
 NEED_utils_thread_cond_timed_wait = Yes
-SocketUdp_C_OBJS = interconnect_SocketUdp.obj
+SocketUdp_C_OBJS = provider_SocketUdp.obj
 !ENDIF
 
 #---------------------------------------------
@@ -94,7 +94,7 @@ CUDA_C_FLAGS = -DENABLE_CUDA -I"$(CUDA_HOME)\include"
 #---------------------------------------------
 # Put it all together
 #---------------------------------------------
-C_INCS  = -I../inc -I../src/utils -I../src/interconnects -I../src/core
+C_INCS  = -I../inc -I../src/utils -I../src/providers -I../src/core
 
 # -std:c11
 # -std:c17
@@ -105,7 +105,7 @@ C_FLAGS = $(OPTIMIZATION_C_FLAGS) -nologo -WX -W3 -D_CRT_SECURE_NO_WARNINGS $(C_
  $(SocketTcp_C_FLAGS) $(utils_ephemeral_port_manager_C_FLAGS) \
  $(SocketUdp_C_FLAGS)
 
-C_OBJS  = takyon.obj supported_interconnects.obj utils_arg_parser.obj utils_endian.obj \
+C_OBJS  = takyon.obj supported_providers.obj utils_arg_parser.obj utils_endian.obj \
  $(InterThread_C_OBJS) $(utils_time_C_OBJS) $(utils_thread_cond_timed_wait_C_OBJS) \
  $(InterProcess_C_OBJS) $(utils_ipc_C_OBJS) $(utils_socket_C_OBJS) \
  $(SocketTcp_C_OBJS) $(utils_ephemeral_port_manager_C_OBJS) \
@@ -127,7 +127,7 @@ clean:
 {..\src\utils}.c{}.obj::
 	cl -c $(C_FLAGS) -Fo $<
 
-{..\src\interconnects}.c{}.obj::
+{..\src\providers}.c{}.obj::
 	cl -c $(C_FLAGS) -Fo $<
 
 $(LIBRARY): $(C_OBJS)

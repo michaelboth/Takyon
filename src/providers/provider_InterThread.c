@@ -28,7 +28,7 @@
 //     See the License for the specific language governing permissions and
 //     limitations under the License.
 
-#include "interconnect_InterThread.h"
+#include "provider_InterThread.h"
 #include "takyon_inter_thread_manager.h"
 #include "takyon_private.h"
 #include "utils_arg_parser.h"
@@ -41,10 +41,10 @@
   #include "cuda_runtime.h"
 #endif
 
-// attrs->interconnect[] Specification:
+// attrs->provider[] Specification:
 //   "InterThread -pathID=<non_negative_integer>"
 
-#define THREAD_MANAGER_ID 23 // This must be different from the other interconnects that use the thread manager
+#define THREAD_MANAGER_ID 23 // This must be different from the other providers that use the thread manager
 
 typedef struct {
   bool transfer_complete;
@@ -69,9 +69,9 @@ bool interThreadCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReq
   // Get the path ID
   uint32_t path_id;
   bool found;
-  bool ok = argGetUInt(path->attrs.interconnect, "-pathID=", &path_id, &found, error_message, MAX_ERROR_MESSAGE_CHARS);
+  bool ok = argGetUInt(path->attrs.provider, "-pathID=", &path_id, &found, error_message, MAX_ERROR_MESSAGE_CHARS);
   if (!ok) {
-    TAKYON_RECORD_ERROR(path->error_message, "interconnect argument -pathID=<non_negative_integer> is invalid: %s\n", error_message);
+    TAKYON_RECORD_ERROR(path->error_message, "provider argument -pathID=<non_negative_integer> is invalid: %s\n", error_message);
     return false;
   }
   if (!found) {

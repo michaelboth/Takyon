@@ -20,7 +20,7 @@ extern "C"
 {
 #endif
 
-extern bool argGetInterconnect(const char *arguments, char *result, const int max_chars, char *error_message, int max_error_message_chars);
+extern bool argGetProvider(const char *arguments, char *result, const int max_chars, char *error_message, int max_error_message_chars);
 extern bool argGetFlag(const char *arguments, const char *name);
 extern bool argGetText(const char *arguments, const char *name, char *result, const int max_chars, bool *found_ret, char *error_message, int max_error_message_chars);
 extern bool argGetInt(const char *arguments, const char *name, int *result, bool *found_ret, char *error_message, int max_error_message_chars);

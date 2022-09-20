@@ -69,7 +69,7 @@ static void sendMessage(TakyonPath *path, uint32_t i) {
   TakyonSubBuffer sender_sub_buffers[2] = {{ .buffer = &path->attrs.buffers[1], .bytes = split_bytes, .offset = 0 },
                                            { .buffer = &path->attrs.buffers[0], .bytes = message_bytes-split_bytes, .offset = split_bytes }};
   if (!path->capabilities.multi_sub_buffers_supported) {
-    // Interconnect only supports a single sub buffer
+    // Provider only supports a single sub buffer
     sender_sub_buffers[0].buffer = &path->attrs.buffers[0];
     sender_sub_buffers[0].bytes = message_bytes;
     sender_sub_buffers[0].offset = 0;
@@ -87,7 +87,7 @@ static void sendMessage(TakyonPath *path, uint32_t i) {
     printf("Message %d sent (one way, %d %s)\n", i+1, path->capabilities.multi_sub_buffers_supported ? 2 : 1, path->capabilities.multi_sub_buffers_supported ? "sub buffers" : "sub buffer");
   }
 
-  // If the interconnect supports non blocking sends, then need to know when it's complete
+  // If the provider supports non blocking sends, then need to know when it's complete
   if (path->capabilities.IsSent_supported && send_request.use_is_sent_notification) takyonIsSent(path, &send_request, TAKYON_WAIT_FOREVER, NULL);
 }
 
@@ -118,12 +118,12 @@ static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request) {
   }
 #endif
 
-  // If the interconnect supports pre-posting, then need to post the recv to be ready for the next send, before the send starts
+  // If the provider supports pre-posting, then need to post the recv to be ready for the next send, before the send starts
   if (path->capabilities.PostRecvs_supported) takyonPostRecvs(path, 1, recv_request);
 }
 
-void hello(const bool is_endpointA, const char *interconnect, const uint32_t iterations) {
-  printf("Hello Takyon Example (two-sided): endpoint %s: interconnect '%s'\n", is_endpointA ? "A" : "B", interconnect);
+void hello(const bool is_endpointA, const char *provider, const uint32_t iterations) {
+  printf("Hello Takyon Example (two-sided): endpoint %s: provider '%s'\n", is_endpointA ? "A" : "B", provider);
 
   // Create the memory buffers used with transfering data
   //   - The first 2 are for the sender, and the 3rd is for the receiver
@@ -137,7 +137,7 @@ void hello(const bool is_endpointA, const char *interconnect, const uint32_t ite
     if (cuda_status != cudaSuccess) { printf("cudaMalloc() failed: %s\n", cudaGetErrorString(cuda_status)); exit(0); }
 #else
 #ifdef ENABLE_MMAP
-    if (strncmp(interconnect, "InterProcess ", 13) == 0) {
+    if (strncmp(provider, "InterProcess ", 13) == 0) {
       snprintf(buffer->name, TAKYON_MAX_BUFFER_NAME_CHARS, "%s_hello_buffer_%d_" UINT64_FORMAT, is_endpointA ? "A" : "B", i, buffer->bytes);
       char error_message[300];
       bool ok = mmapAlloc(buffer->name, buffer->bytes, &buffer->addr, &buffer->app_data, error_message, 300);
@@ -154,7 +154,7 @@ void hello(const bool is_endpointA, const char *interconnect, const uint32_t ite
   // Define the path attributes
   //   - Can't be changed after path creation
   TakyonPathAttributes attrs;
-  strncpy(attrs.interconnect, interconnect, TAKYON_MAX_INTERCONNECT_CHARS-1);
+  strncpy(attrs.provider, provider, TAKYON_MAX_PROVIDER_CHARS-1);
   attrs.is_endpointA                            = is_endpointA;
   attrs.failure_mode                            = TAKYON_EXIT_ON_ERROR;
   attrs.verbosity                               = TAKYON_VERBOSITY_ERRORS;

@@ -1,4 +1,4 @@
-Show the max sustained throughput of a Takyon two-sided interconnect; i.e. a combination of send/recv.
+Show the max sustained throughput of a Takyon two-sided provider; i.e. a combination of send/recv.
 
 Mac and Linux
   First build the Takyon library: see lib/README.txt

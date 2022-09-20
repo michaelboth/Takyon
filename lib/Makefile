@@ -8,16 +8,16 @@ C_FLAGS += -fPIC
 C_FLAGS += -Wall
 C_FLAGS += -Werror
 C_FLAGS += -Wextra
-C_FLAGS += -I../inc -I../src/utils -I../src/interconnects -I../src/core
+C_FLAGS += -I../inc -I../src/utils -I../src/providers -I../src/core
 
 C_OBJS := takyon.o
-C_OBJS += supported_interconnects.o
+C_OBJS += supported_providers.o
 C_OBJS += utils_arg_parser.o
 C_OBJS += utils_endian.o
 
 HEADER_FILES := takyon.h
 HEADER_FILES += takyon_private.h
-HEADER_FILES += supported_interconnects.h
+HEADER_FILES += supported_providers.h
 HEADER_FILES += utils_arg_parser.h
 HEADER_FILES += utils_endian.h
 
@@ -37,9 +37,9 @@ ifeq ($(InterThread),Yes)
     NEED_utils_time := Yes
     NEED_utils_thread_cond_timed_wait := Yes
     C_OBJS       += takyon_inter_thread_manager.o
-    C_OBJS       += interconnect_InterThread.o
+    C_OBJS       += provider_InterThread.o
     HEADER_FILES += takyon_inter_thread_manager.h
-    HEADER_FILES += interconnect_InterThread.h
+    HEADER_FILES += provider_InterThread.h
 endif
 
 #---------------------------------------------
@@ -51,8 +51,8 @@ ifeq ($(InterProcess),Yes)
     NEED_utils_ipc := Yes
     NEED_utils_thread_cond_timed_wait := Yes
     NEED_utils_socket := Yes
-    C_OBJS       += interconnect_InterProcess.o
-    HEADER_FILES += interconnect_InterProcess.h
+    C_OBJS       += provider_InterProcess.o
+    HEADER_FILES += provider_InterProcess.h
 endif
 
 #---------------------------------------------
@@ -64,8 +64,8 @@ ifeq ($(SocketTcp),Yes)
     NEED_utils_thread_cond_timed_wait := Yes
     NEED_utils_socket := Yes
     NEED_utils_ephemeral_port_manager := Yes
-    C_OBJS       += interconnect_SocketTcp.o
-    HEADER_FILES += interconnect_SocketTcp.h
+    C_OBJS       += provider_SocketTcp.o
+    HEADER_FILES += provider_SocketTcp.h
 endif
 
 #---------------------------------------------
@@ -75,8 +75,8 @@ ifeq ($(SocketUdp),Yes)
     C_FLAGS      += -DENABLE_SocketUdp
     NEED_utils_time := Yes
     NEED_utils_socket := Yes
-    C_OBJS       += interconnect_SocketUdp.o
-    HEADER_FILES += interconnect_SocketUdp.h
+    C_OBJS       += provider_SocketUdp.o
+    HEADER_FILES += provider_SocketUdp.h
 endif
 
 #---------------------------------------------
@@ -117,8 +117,8 @@ endif
 
 vpath %.c ../src/utils
 vpath %.h ../src/utils
-vpath %.c ../src/interconnects
-vpath %.h ../src/interconnects
+vpath %.c ../src/providers
+vpath %.h ../src/providers
 vpath %.c ../src/core
 vpath %.h ../src/core
 vpath %.h ../inc

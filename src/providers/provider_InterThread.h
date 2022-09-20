@@ -9,8 +9,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef _interconnect_InterThread_h_
-#define _interconnect_InterThread_h_
+#ifndef _provider_InterThread_h_
+#define _provider_InterThread_h_
 
 #include "takyon.h"
 

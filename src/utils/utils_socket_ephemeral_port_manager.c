@@ -30,7 +30,7 @@
 
 
 #include "utils_socket.h"
-#include "takyon.h"   // Need for TAKYON_MAX_INTERCONNECT_CHARS and TAKYON_VERBOSITY_*
+#include "takyon.h"   // Need for TAKYON_MAX_PROVIDER_CHARS and TAKYON_VERBOSITY_*
 #include "utils_socket.h"
 #include "utils_endian.h"
 #include "utils_time.h"
@@ -71,7 +71,7 @@ typedef struct {
   bool in_use;
   uint32_t path_id;
   uint16_t ephemeral_port_number;
-  char interconnect_name[TAKYON_MAX_INTERCONNECT_CHARS];
+  char provider_name[TAKYON_MAX_PROVIDER_CHARS];
 } EphemeralPortManagerItem;
 
 #pragma pack(push, 1)  // Make sure no gaps in data structure
@@ -80,7 +80,7 @@ typedef struct {
   unsigned char is_big_endian;
   uint16_t ephemeral_port_number;
   uint32_t path_id;
-  char interconnect_name[TAKYON_MAX_INTERCONNECT_CHARS];
+  char provider_name[TAKYON_MAX_PROVIDER_CHARS];
 } EphemeralPortMessage;
 #pragma pack(pop)
 
@@ -110,13 +110,13 @@ static int L_write_pipe_fd;
 static pthread_t L_thread_id;
 static uint64_t L_verbosity = TAKYON_VERBOSITY_NONE;
 
-static void addItem(const char *interconnect_name, uint32_t path_id, uint16_t ephemeral_port_number) {
+static void addItem(const char *provider_name, uint32_t path_id, uint16_t ephemeral_port_number) {
   // Check if already in list
   for (uint32_t i=0; i<L_num_manager_items; i++) {
     EphemeralPortManagerItem *item = &L_manager_items[i];
-    if (item->in_use && item->path_id == path_id && strcmp(item->interconnect_name, interconnect_name)==0) {
+    if (item->in_use && item->path_id == path_id && strcmp(item->provider_name, provider_name)==0) {
       if (item->ephemeral_port_number != ephemeral_port_number) {
-        // A path with the interconnect and ID might have been shut down and restarted
+        // A path with the provider and ID might have been shut down and restarted
         // Since this is creating a port number, overwrite the potentially stale port number
         item->ephemeral_port_number = ephemeral_port_number;
       }
@@ -126,7 +126,7 @@ static void addItem(const char *interconnect_name, uint32_t path_id, uint16_t ep
   }
 
   if (L_verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) {
-    printf("Ephemeral port manager: adding item (interconnect='%s', path_id=%u, ephemeral_port_number=%hu)\n", interconnect_name, path_id, ephemeral_port_number);
+    printf("Ephemeral port manager: adding item (provider='%s', path_id=%u, ephemeral_port_number=%hu)\n", provider_name, path_id, ephemeral_port_number);
   }
 
   // See if there is an unused item
@@ -157,14 +157,14 @@ static void addItem(const char *interconnect_name, uint32_t path_id, uint16_t ep
   item->in_use = true;
   item->path_id = path_id;
   item->ephemeral_port_number = ephemeral_port_number;
-  strncpy(item->interconnect_name, interconnect_name, TAKYON_MAX_INTERCONNECT_CHARS-1);
-  item->interconnect_name[TAKYON_MAX_INTERCONNECT_CHARS-1] = '\0';
+  strncpy(item->provider_name, provider_name, TAKYON_MAX_PROVIDER_CHARS-1);
+  item->provider_name[TAKYON_MAX_PROVIDER_CHARS-1] = '\0';
 }
 
-static bool hasItem(const char *interconnect_name, uint32_t path_id, uint16_t *ephemeral_port_number_ret) {
+static bool hasItem(const char *provider_name, uint32_t path_id, uint16_t *ephemeral_port_number_ret) {
   for (uint32_t i=0; i<L_num_manager_items; i++) {
     EphemeralPortManagerItem *item = &L_manager_items[i];
-    if (item->in_use && item->path_id == path_id && strcmp(item->interconnect_name, interconnect_name)==0) {
+    if (item->in_use && item->path_id == path_id && strcmp(item->provider_name, provider_name)==0) {
       *ephemeral_port_number_ret = item->ephemeral_port_number;
       return true;
     }
@@ -172,14 +172,14 @@ static bool hasItem(const char *interconnect_name, uint32_t path_id, uint16_t *e
   return false;
 }
 
-static void removeItem(const char *interconnect_name, uint32_t path_id) {
+static void removeItem(const char *provider_name, uint32_t path_id) {
 #ifdef DEBUG_MESSAGE
-  printf("Ephemeral port manager: removing item (interconnect='%s', path_id=%u)\n", interconnect_name, path_id);
+  printf("Ephemeral port manager: removing item (provider='%s', path_id=%u)\n", provider_name, path_id);
 #endif
   for (uint32_t i=0; i<L_num_manager_items; i++) {
     EphemeralPortManagerItem *item = &L_manager_items[i];
     if (item->in_use) {
-      if (item->path_id == path_id && strcmp(item->interconnect_name, interconnect_name)==0) {
+      if (item->path_id == path_id && strcmp(item->provider_name, provider_name)==0) {
         item->in_use = false;
       }
     }
@@ -263,16 +263,16 @@ static void *ephemeralPortMonitoringThread(void *user_arg) {
     if (message.command == NEW_EPHEMERAL_PORT) {
       // Record the info and wake up any threads waiting for it
       pthread_mutex_lock(L_mutex);
-      addItem(message.interconnect_name, message.path_id, message.ephemeral_port_number);
+      addItem(message.provider_name, message.path_id, message.ephemeral_port_number);
       pthread_mutex_unlock(L_mutex);
       // Wake up all threads waiting on an ephemeral port number
       pthread_cond_broadcast(L_cond);
     } else if (message.command == REQUEST_EPHEMERAL_PORT) {
       pthread_mutex_lock(L_mutex);
-      if (hasItem(message.interconnect_name, message.path_id, &message.ephemeral_port_number)) {
+      if (hasItem(message.provider_name, message.path_id, &message.ephemeral_port_number)) {
         // Exists in database, so re-multicast it
 #ifdef DEBUG_MESSAGE
-        printf("Ephemeral port manager: Re-multicast (interconnect='%s', path_id=%u, ephemeral_port_number=%hu)\n", message.interconnect_name, message.path_id, message.ephemeral_port_number);
+        printf("Ephemeral port manager: Re-multicast (provider='%s', path_id=%u, ephemeral_port_number=%hu)\n", message.provider_name, message.path_id, message.ephemeral_port_number);
 #endif
         message.command = NEW_EPHEMERAL_PORT;
         message.is_big_endian = this_is_big_endian;
@@ -291,7 +291,7 @@ static void *ephemeralPortMonitoringThread(void *user_arg) {
       // Remove item from the list: this message will go to all managers on the sub net, but no gaurantee it wont get dropped. Still need to locally remove at endpoints
       // NOTE: This will be called by the endpoint that received the port number
       pthread_mutex_lock(L_mutex);
-      removeItem(message.interconnect_name, message.path_id);
+      removeItem(message.provider_name, message.path_id);
       pthread_mutex_unlock(L_mutex);
     }
   }
@@ -520,9 +520,9 @@ void ephemeralPortManagerFinalize() {
 }
 
 // NOTE: This is called by the endpoint that wants a port number
-uint16_t ephemeralPortManagerGet(const char *interconnect_name, uint32_t path_id, int64_t timeout_ns, bool *timed_out_ret, uint64_t verbosity, char *error_message, int max_error_message_chars) {
+uint16_t ephemeralPortManagerGet(const char *provider_name, uint32_t path_id, int64_t timeout_ns, bool *timed_out_ret, uint64_t verbosity, char *error_message, int max_error_message_chars) {
   if (verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) {
-    printf("Ephemeral port manager: asking for port for (interconnect='%s', path_id=%u)\n", interconnect_name, path_id);
+    printf("Ephemeral port manager: asking for port for (provider='%s', path_id=%u)\n", provider_name, path_id);
   }
 
   int64_t start_time = clockTimeNanoseconds();
@@ -530,7 +530,7 @@ uint16_t ephemeralPortManagerGet(const char *interconnect_name, uint32_t path_id
   // Keep trying until the timeout period occurs
   uint16_t ephemeral_port_number = 0;
   pthread_mutex_lock(L_mutex);
-  while (!hasItem(interconnect_name, path_id, &ephemeral_port_number)) {
+  while (!hasItem(provider_name, path_id, &ephemeral_port_number)) {
     // Get time remaining
     // NOTE: Don't want cond wait to wait the full timeout (e.g. wait forever) to allow for periodic heartbeats to multcast a request for the ephemeral port number
     int64_t cond_wait_timeout = COND_WAIT_TIMEOUT_NS;
@@ -551,15 +551,15 @@ uint16_t ephemeralPortManagerGet(const char *interconnect_name, uint32_t path_id
     // Send muticast message to ask for port number
     {
 #ifdef DEBUG_MESSAGE
-      printf("Ephemeral port manager: asking again for port for (interconnect='%s', path_id=%u)\n", interconnect_name, path_id);
+      printf("Ephemeral port manager: asking again for port for (provider='%s', path_id=%u)\n", provider_name, path_id);
 #endif
       EphemeralPortMessage message;
       message.command = REQUEST_EPHEMERAL_PORT;
       message.is_big_endian = endianIsBig();
       message.ephemeral_port_number = 0;
       message.path_id = path_id;
-      strncpy(message.interconnect_name, interconnect_name, TAKYON_MAX_INTERCONNECT_CHARS-1);
-      message.interconnect_name[TAKYON_MAX_INTERCONNECT_CHARS-1] = '\0';
+      strncpy(message.provider_name, provider_name, TAKYON_MAX_PROVIDER_CHARS-1);
+      message.provider_name[TAKYON_MAX_PROVIDER_CHARS-1] = '\0';
       bool is_polling = false;
       int64_t heartbeat_timeout_ns = REQUEST_TIMEOUT_NS; // Need some time to get the message out, so ignore the path's timeout period
       bool timed_out = false;
@@ -584,39 +584,39 @@ uint16_t ephemeralPortManagerGet(const char *interconnect_name, uint32_t path_id
   }
 
   // Remove from the database so if it's stale, it can be later replaced with the correct one
-  removeItem(interconnect_name, path_id);
+  removeItem(provider_name, path_id);
 
   pthread_mutex_unlock(L_mutex);
 
   if (verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) {
-    printf("Ephemeral port manager: got port for (interconnect='%s', path_id=%u) ephemeral_port_number=%hu\n", interconnect_name, path_id, ephemeral_port_number);
+    printf("Ephemeral port manager: got port for (provider='%s', path_id=%u) ephemeral_port_number=%hu\n", provider_name, path_id, ephemeral_port_number);
   }
 
   return ephemeral_port_number;
 }
 
 // NOTE: This will be call by the creator of the port number
-void ephemeralPortManagerRemoveLocally(const char *interconnect_name, uint32_t path_id) {
+void ephemeralPortManagerRemoveLocally(const char *provider_name, uint32_t path_id) {
   // Remove the item locally since the socket creation is done with trying to create (succefully or not)
   pthread_mutex_lock(L_mutex);
-  removeItem(interconnect_name, path_id);
+  removeItem(provider_name, path_id);
   pthread_mutex_unlock(L_mutex);
 }
 
 // NOTE: This is called by the receiver of the port number after the connection succesfully is made
-void ephemeralPortManagerRemove(const char *interconnect_name, uint32_t path_id, uint16_t ephemeral_port_number) {
+void ephemeralPortManagerRemove(const char *provider_name, uint32_t path_id, uint16_t ephemeral_port_number) {
   pthread_mutex_lock(L_mutex);
 
   // Remove the item locally in case the datagram is dropped or no loopback
-  removeItem(interconnect_name, path_id);
+  removeItem(provider_name, path_id);
 
   EphemeralPortMessage message;
   message.command = EPHEMERAL_PORT_CONNECTED;
   message.is_big_endian = endianIsBig();
   message.ephemeral_port_number = ephemeral_port_number;
   message.path_id = path_id;
-  strncpy(message.interconnect_name, interconnect_name, TAKYON_MAX_INTERCONNECT_CHARS-1);
-  message.interconnect_name[TAKYON_MAX_INTERCONNECT_CHARS-1] = '\0';
+  strncpy(message.provider_name, provider_name, TAKYON_MAX_PROVIDER_CHARS-1);
+  message.provider_name[TAKYON_MAX_PROVIDER_CHARS-1] = '\0';
   bool is_polling = false;
   int64_t heartbeat_timeout_ns = REQUEST_TIMEOUT_NS; // Need some time to get the message out, so ignore the path's timeout period
   // NOTE: this send is within a mutex, but this port manager is not used once a coonection is made and will not perturb communication performance
@@ -632,7 +632,7 @@ void ephemeralPortManagerRemove(const char *interconnect_name, uint32_t path_id,
 }
 
 // NOTE: This is called by the creator of the ephemeral port number
-void ephemeralPortManagerSet(const char *interconnect_name, uint32_t path_id, uint16_t ephemeral_port_number) {
+void ephemeralPortManagerSet(const char *provider_name, uint32_t path_id, uint16_t ephemeral_port_number) {
   pthread_mutex_lock(L_mutex);
 
   // IMPORTANT: Need to guarantee that it gets into this local database in case the multicast message gets dropped
@@ -641,8 +641,8 @@ void ephemeralPortManagerSet(const char *interconnect_name, uint32_t path_id, ui
   message.is_big_endian = endianIsBig();
   message.ephemeral_port_number = ephemeral_port_number;
   message.path_id = path_id;
-  strncpy(message.interconnect_name, interconnect_name, TAKYON_MAX_INTERCONNECT_CHARS-1);
-  message.interconnect_name[TAKYON_MAX_INTERCONNECT_CHARS-1] = '\0';
+  strncpy(message.provider_name, provider_name, TAKYON_MAX_PROVIDER_CHARS-1);
+  message.provider_name[TAKYON_MAX_PROVIDER_CHARS-1] = '\0';
   bool is_polling = false;
   int64_t heartbeat_timeout_ns = REQUEST_TIMEOUT_NS; // Need some time to get the message out
   // NOTE: this send is within a mutex, but this port manager is not used once a coonection is made and will not perturb communication performance

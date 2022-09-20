@@ -28,7 +28,7 @@
 //     See the License for the specific language governing permissions and
 //     limitations under the License.
 
-#include "interconnect_SocketTcp.h"
+#include "provider_SocketTcp.h"
 #include "takyon_private.h"
 #include "utils_socket.h"
 #include "utils_arg_parser.h"
@@ -73,57 +73,57 @@ bool tcpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReque
   int64_t timeout_nano_seconds = (int64_t)(timeout_seconds * NANOSECONDS_PER_SECOND_DOUBLE);
   char error_message[MAX_ERROR_MESSAGE_CHARS];
 
-  // Get the name of the interconnect
-  char interconnect_name[TAKYON_MAX_INTERCONNECT_CHARS];
-  if (!argGetInterconnect(path->attrs.interconnect, interconnect_name, TAKYON_MAX_INTERCONNECT_CHARS, error_message, MAX_ERROR_MESSAGE_CHARS)) {
-    TAKYON_RECORD_ERROR(path->error_message, "Failed to get interconnect name: %s\n", error_message);
+  // Get the name of the provider
+  char provider_name[TAKYON_MAX_PROVIDER_CHARS];
+  if (!argGetProvider(path->attrs.provider, provider_name, TAKYON_MAX_PROVIDER_CHARS, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    TAKYON_RECORD_ERROR(path->error_message, "Failed to get provider name: %s\n", error_message);
     return false;
   }
 
   // Get all posible flags and values
-  bool is_local = argGetFlag(path->attrs.interconnect, "-local");
-  bool is_client = argGetFlag(path->attrs.interconnect, "-client");
-  bool is_server = argGetFlag(path->attrs.interconnect, "-server");
-  bool allow_reuse = argGetFlag(path->attrs.interconnect, "-reuse");
+  bool is_local = argGetFlag(path->attrs.provider, "-local");
+  bool is_client = argGetFlag(path->attrs.provider, "-client");
+  bool is_server = argGetFlag(path->attrs.provider, "-server");
+  bool allow_reuse = argGetFlag(path->attrs.provider, "-reuse");
   // -localIP=<ip_addr>|<hostname>|Any
-  char local_ip_addr[TAKYON_MAX_INTERCONNECT_CHARS];
+  char local_ip_addr[TAKYON_MAX_PROVIDER_CHARS];
   bool local_ip_addr_found = false;
-  bool ok = argGetText(path->attrs.interconnect, "-localIP=", local_ip_addr, TAKYON_MAX_INTERCONNECT_CHARS, &local_ip_addr_found, error_message, MAX_ERROR_MESSAGE_CHARS);
+  bool ok = argGetText(path->attrs.provider, "-localIP=", local_ip_addr, TAKYON_MAX_PROVIDER_CHARS, &local_ip_addr_found, error_message, MAX_ERROR_MESSAGE_CHARS);
   if (!ok) {
-    TAKYON_RECORD_ERROR(path->error_message, "interconnect argument -localIP=<ip_addr>|<hostname>|Any is invalid: %s\n", error_message);
+    TAKYON_RECORD_ERROR(path->error_message, "provider argument -localIP=<ip_addr>|<hostname>|Any is invalid: %s\n", error_message);
     return false;
   }
   // -remoteIP=<ip_addr>|<hostname>
-  char remote_ip_addr[TAKYON_MAX_INTERCONNECT_CHARS];
+  char remote_ip_addr[TAKYON_MAX_PROVIDER_CHARS];
   bool remote_ip_addr_found = false;
-  ok = argGetText(path->attrs.interconnect, "-remoteIP=", remote_ip_addr, TAKYON_MAX_INTERCONNECT_CHARS, &remote_ip_addr_found, error_message, MAX_ERROR_MESSAGE_CHARS);
+  ok = argGetText(path->attrs.provider, "-remoteIP=", remote_ip_addr, TAKYON_MAX_PROVIDER_CHARS, &remote_ip_addr_found, error_message, MAX_ERROR_MESSAGE_CHARS);
   if (!ok) {
-    TAKYON_RECORD_ERROR(path->error_message, "interconnect argument -remoteIP=<ip_addr>|<hostname> is invalid: %s\n", error_message);
+    TAKYON_RECORD_ERROR(path->error_message, "provider argument -remoteIP=<ip_addr>|<hostname> is invalid: %s\n", error_message);
     return false;
   }
   // -pathID=<non_negative_integer>
   uint32_t path_id = 0;
   bool path_id_found = false;
-  ok = argGetUInt(path->attrs.interconnect, "-pathID=", &path_id, &path_id_found, error_message, MAX_ERROR_MESSAGE_CHARS);
+  ok = argGetUInt(path->attrs.provider, "-pathID=", &path_id, &path_id_found, error_message, MAX_ERROR_MESSAGE_CHARS);
   if (!ok) {
-    TAKYON_RECORD_ERROR(path->error_message, "interconnect argument -pathID=<non_negative_integer> is invalid: %s\n", error_message);
+    TAKYON_RECORD_ERROR(path->error_message, "provider argument -pathID=<non_negative_integer> is invalid: %s\n", error_message);
     return false;
   }
   // -ephemeralID=<non_negative_integer>
   uint32_t ephemeral_id = 0;
   bool ephemeral_id_found = false;
-  ok = argGetUInt(path->attrs.interconnect, "-ephemeralID=", &ephemeral_id, &ephemeral_id_found, error_message, MAX_ERROR_MESSAGE_CHARS);
+  ok = argGetUInt(path->attrs.provider, "-ephemeralID=", &ephemeral_id, &ephemeral_id_found, error_message, MAX_ERROR_MESSAGE_CHARS);
   if (!ok) {
-    TAKYON_RECORD_ERROR(path->error_message, "interconnect argument -ephemeralID=<non_negative_integer> is invalid: %s\n", error_message);
+    TAKYON_RECORD_ERROR(path->error_message, "provider argument -ephemeralID=<non_negative_integer> is invalid: %s\n", error_message);
     return false;
   }
 
   // -port=<port_number>
   uint32_t port_number = 0;
   bool port_number_found = false;
-  ok = argGetUInt(path->attrs.interconnect, "-port=", &port_number, &port_number_found, error_message, MAX_ERROR_MESSAGE_CHARS);
+  ok = argGetUInt(path->attrs.provider, "-port=", &port_number, &port_number_found, error_message, MAX_ERROR_MESSAGE_CHARS);
   if (!ok) {
-    TAKYON_RECORD_ERROR(path->error_message, "interconnect spec -port=<port_number> is invalid: %s\n", error_message);
+    TAKYON_RECORD_ERROR(path->error_message, "provider spec -port=<port_number> is invalid: %s\n", error_message);
     return false;
   }
   if (port_number_found) {
@@ -136,7 +136,7 @@ bool tcpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReque
   // Validate arguments
   int num_modes = (is_local ? 1 : 0) + (is_client ? 1 : 0) + (is_server ? 1 : 0);
   if (num_modes != 1) {
-    TAKYON_RECORD_ERROR(path->error_message, "Interconnect must specifiy one of -local -client or -server\n");
+    TAKYON_RECORD_ERROR(path->error_message, "Provider must specifiy one of -local -client or -server\n");
     return false;
   }
   if (is_local) {
@@ -184,8 +184,8 @@ bool tcpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReque
 
   // Create the socket and connect with remote endpoint
   if (is_local) {
-    char local_socket_name[TAKYON_MAX_INTERCONNECT_CHARS];
-    snprintf(local_socket_name, TAKYON_MAX_INTERCONNECT_CHARS, "TakyonSocket_%d", path_id);
+    char local_socket_name[TAKYON_MAX_PROVIDER_CHARS];
+    snprintf(local_socket_name, TAKYON_MAX_PROVIDER_CHARS, "TakyonSocket_%d", path_id);
     if (path->attrs.is_endpointA) {
       if (!socketCreateLocalClient(local_socket_name, &private_path->socket_fd, timeout_nano_seconds, error_message, MAX_ERROR_MESSAGE_CHARS)) {
         TAKYON_RECORD_ERROR(path->error_message, "Failed to create local client socket: %s\n", error_message);
@@ -200,7 +200,7 @@ bool tcpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReque
   } else if (is_client) {
     // Client
     if (ephemeral_id_found) {
-      if (!socketCreateEphemeralTcpClient(remote_ip_addr, interconnect_name, ephemeral_id, &private_path->socket_fd, timeout_nano_seconds, path->attrs.verbosity, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+      if (!socketCreateEphemeralTcpClient(remote_ip_addr, provider_name, ephemeral_id, &private_path->socket_fd, timeout_nano_seconds, path->attrs.verbosity, error_message, MAX_ERROR_MESSAGE_CHARS)) {
         TAKYON_RECORD_ERROR(path->error_message, "Failed to create TCP client socket: %s\n", error_message);
         goto cleanup;
       }
@@ -213,7 +213,7 @@ bool tcpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReque
   } else {
     // Server
     if (ephemeral_id_found) {
-      if (!socketCreateEphemeralTcpServer(local_ip_addr, interconnect_name, ephemeral_id, &private_path->socket_fd, timeout_nano_seconds, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+      if (!socketCreateEphemeralTcpServer(local_ip_addr, provider_name, ephemeral_id, &private_path->socket_fd, timeout_nano_seconds, error_message, MAX_ERROR_MESSAGE_CHARS)) {
         TAKYON_RECORD_ERROR(path->error_message, "Failed to create TCP server socket: %s\n", error_message);
         goto cleanup;
       }

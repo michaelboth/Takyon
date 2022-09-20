@@ -14,18 +14,18 @@
 #include <stdlib.h>
 #include <pthread.h>
 
-static const char *L_interconnect = NULL;
+static const char *L_provider = NULL;
 static uint32_t L_iterations = 1;
 
 static void *throughputThread(void *user_data) {
   bool is_endpointA = (user_data != NULL);
-  throughput(is_endpointA, L_interconnect, L_iterations);
+  throughput(is_endpointA, L_provider, L_iterations);
   return NULL;
 }
 
 int main(int argc, char **argv) {
-  if (argc != 3) { printf("usage: %s \"<interconnect>\" <iterations>\n", argv[0]); return 1; }
-  L_interconnect = argv[1];
+  if (argc != 3) { printf("usage: %s \"<provider>\" <iterations>\n", argv[0]); return 1; }
+  L_provider = argv[1];
   L_iterations = (uint32_t)atoi(argv[2]);
 
   // Start threads

@@ -53,8 +53,8 @@ extern bool socketCreateTcpClient(const char *ip_addr, uint16_t port_number, Tak
 extern bool socketCreateLocalServer(const char *socket_name, TakyonSocket *socket_fd_ret, int64_t timeout_ns, char *error_message, int max_error_message_chars);
 extern bool socketCreateTcpServer(const char *ip_addr, uint16_t port_number, bool allow_reuse, TakyonSocket *socket_fd_ret, int64_t timeout_ns, char *error_message, int max_error_message_chars);
 #ifdef ENABLE_EPHEMERAL_PORT_MANAGER
-extern bool socketCreateEphemeralTcpClient(const char *ip_addr, const char *interconnect_name, uint32_t path_id, TakyonSocket *socket_fd_ret, int64_t timeout_ns, uint64_t verbosity, char *error_message, int max_error_message_chars);
-extern bool socketCreateEphemeralTcpServer(const char *ip_addr, const char *interconnect_name, uint32_t path_id, TakyonSocket *socket_fd_ret, int64_t timeout_ns, char *error_message, int max_error_message_chars);
+extern bool socketCreateEphemeralTcpClient(const char *ip_addr, const char *provider_name, uint32_t path_id, TakyonSocket *socket_fd_ret, int64_t timeout_ns, uint64_t verbosity, char *error_message, int max_error_message_chars);
+extern bool socketCreateEphemeralTcpServer(const char *ip_addr, const char *provider_name, uint32_t path_id, TakyonSocket *socket_fd_ret, int64_t timeout_ns, char *error_message, int max_error_message_chars);
 #endif
 extern bool socketSend(TakyonSocket socket_fd, void *addr, size_t bytes_to_write, bool is_polling, int64_t timeout_ns, bool *timed_out_ret, char *error_message, int max_error_message_chars);
 extern bool socketRecv(TakyonSocket socket_fd, void *data_ptr, size_t bytes_to_read, bool is_polling, int64_t timeout_ns, bool *timed_out_ret, char *error_message, int max_error_message_chars);
@@ -78,10 +78,10 @@ extern bool socketSetKernelRecvBufferingSize(TakyonSocket socket_fd, int bytes, 
 // Ephemeral port manager (let OS find unused port numbers to be used by IP connections: sockets, RDMA)
 extern void ephemeralPortManagerInit(uint64_t verbosity);
 extern void ephemeralPortManagerFinalize();
-extern void ephemeralPortManagerSet(const char *interconnect_name, uint32_t path_id, uint16_t ephemeral_port_number);
-extern uint16_t ephemeralPortManagerGet(const char *interconnect_name, uint32_t path_id, int64_t timeout_ns, bool *timed_out_ret, uint64_t verbosity, char *error_message, int max_error_message_chars);
-extern void ephemeralPortManagerRemove(const char *interconnect_name, uint32_t path_id, uint16_t ephemeral_port_number);
-extern void ephemeralPortManagerRemoveLocally(const char *interconnect_name, uint32_t path_id);
+extern void ephemeralPortManagerSet(const char *provider_name, uint32_t path_id, uint16_t ephemeral_port_number);
+extern uint16_t ephemeralPortManagerGet(const char *provider_name, uint32_t path_id, int64_t timeout_ns, bool *timed_out_ret, uint64_t verbosity, char *error_message, int max_error_message_chars);
+extern void ephemeralPortManagerRemove(const char *provider_name, uint32_t path_id, uint16_t ephemeral_port_number);
+extern void ephemeralPortManagerRemoveLocally(const char *provider_name, uint32_t path_id);
 
 // Pipes (helpful with closing sockets that are sleeping while waiting for activity)
 extern bool pipeCreate(int *read_pipe_fd_ret, int *write_pipe_fd_ret, char *error_message, int max_error_message_chars);

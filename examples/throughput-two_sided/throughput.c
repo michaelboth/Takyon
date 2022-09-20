@@ -46,7 +46,7 @@ static void sendSignal(TakyonPath *path) {
   uint32_t piggy_back_message = 0;
   takyonSend(path, &send_request, piggy_back_message, TAKYON_WAIT_FOREVER, NULL);
 
-  // If the interconnect supports non blocking sends, then need to know when it's complete
+  // If the provider supports non blocking sends, then need to know when it's complete
   if (path->capabilities.IsSent_supported && send_request.use_is_sent_notification) takyonIsSent(path, &send_request, TAKYON_WAIT_FOREVER, NULL);
 }
 
@@ -63,7 +63,7 @@ static void sendMessage(TakyonPath *path) {
   uint32_t piggy_back_message = 0;
   takyonSend(path, &send_request, piggy_back_message, TAKYON_WAIT_FOREVER, NULL);
 
-  // If the interconnect supports non blocking sends, then need to know when it's complete
+  // If the provider supports non blocking sends, then need to know when it's complete
   if (path->capabilities.IsSent_supported && send_request.use_is_sent_notification) takyonIsSent(path, &send_request, TAKYON_WAIT_FOREVER, NULL);
 }
 
@@ -73,7 +73,7 @@ static void recvSignal(TakyonPath *path, TakyonRecvRequest *recv_request) {
   takyonIsRecved(path, recv_request, TAKYON_WAIT_FOREVER, NULL, &bytes_received, NULL);
   assert(bytes_received == 0);
 
-  // If the interconnect supports pre-posting, then need to post the recv to be ready for the next send, before the send starts
+  // If the provider supports pre-posting, then need to post the recv to be ready for the next send, before the send starts
   if (path->capabilities.PostRecvs_supported) takyonPostRecvs(path, 1, recv_request);
 }
 
@@ -83,12 +83,12 @@ static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request) {
   takyonIsRecved(path, recv_request, TAKYON_WAIT_FOREVER, NULL, &bytes_received, NULL);
   assert(bytes_received == recv_request->sub_buffers[0].bytes);
 
-  // If the interconnect supports pre-posting, then need to post the recv to be ready for the next send, before the send starts
+  // If the provider supports pre-posting, then need to post the recv to be ready for the next send, before the send starts
   if (path->capabilities.PostRecvs_supported) takyonPostRecvs(path, 1, recv_request);
 }
 
-void throughput(const bool is_endpointA, const char *interconnect, const uint32_t iterations) {
-  printf("Takyon Throughput (two-sided): endpoint %s: interconnect '%s'\n", is_endpointA ? "A" : "B", interconnect);
+void throughput(const bool is_endpointA, const char *provider, const uint32_t iterations) {
+  printf("Takyon Throughput (two-sided): endpoint %s: provider '%s'\n", is_endpointA ? "A" : "B", provider);
 
   // Create the memory buffers used with transfering data
   // The 1st is for the sender, and the 2nd is for the receiver
@@ -102,7 +102,7 @@ void throughput(const bool is_endpointA, const char *interconnect, const uint32_
     if (cuda_status != cudaSuccess) { printf("cudaMalloc() failed: %s\n", cudaGetErrorString(cuda_status)); exit(0); }
 #else
 #ifdef ENABLE_MMAP
-    if (strncmp(interconnect, "InterProcess ", 13) == 0) {
+    if (strncmp(provider, "InterProcess ", 13) == 0) {
       snprintf(buffer->name, TAKYON_MAX_BUFFER_NAME_CHARS, "%s_tp_buffer_%d_" UINT64_FORMAT, is_endpointA ? "A" : "B", i, buffer->bytes);
       char error_message[300];
       bool ok = mmapAlloc(buffer->name, buffer->bytes, &buffer->addr, &buffer->app_data, error_message, 300);
@@ -119,7 +119,7 @@ void throughput(const bool is_endpointA, const char *interconnect, const uint32_
   // Define the path attributes
   //   - Can't be changed after path creation
   TakyonPathAttributes attrs;
-  strncpy(attrs.interconnect, interconnect, TAKYON_MAX_INTERCONNECT_CHARS-1);
+  strncpy(attrs.provider, provider, TAKYON_MAX_PROVIDER_CHARS-1);
   attrs.is_endpointA                            = is_endpointA;
   attrs.failure_mode                            = TAKYON_EXIT_ON_ERROR;
   attrs.verbosity                               = TAKYON_VERBOSITY_ERRORS;
@@ -163,7 +163,7 @@ void throughput(const bool is_endpointA, const char *interconnect, const uint32_
   (void)takyonCreate(&attrs, recv_request_count, recv_requests, TAKYON_WAIT_FOREVER, &path);
 
   // Do the transfers, and calculate the throughput
-  bool is_multi_threaded = (strncmp(interconnect, "InterThread ", 12) == 0);
+  bool is_multi_threaded = (strncmp(provider, "InterThread ", 12) == 0);
   uint32_t recv_request_index = 0;
   double start_time = clockTimeSeconds();
   int64_t bytes_transferred = 0;

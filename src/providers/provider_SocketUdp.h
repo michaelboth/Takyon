@@ -9,17 +9,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef _supported_interconnects_h_
-#define _supported_interconnects_h_
+#ifndef _provider_SocketUdp_h_
+#define _provider_SocketUdp_h_
 
-#include <takyon_private.h>
+#include "takyon.h"
 
 #ifdef __cplusplus
 extern "C"
 {
 #endif
 
-extern bool setInterconnectFunctionsAndCapabilities(const char *interconnect_name, TakyonComm *comm, TakyonPathCapabilities *capabilities);
+extern bool udpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *recv_requests, double timeout_seconds);
+extern bool udpSocketDestroy(TakyonPath *path, double timeout_seconds);
+extern bool udpSocketSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_back_message, double timeout_seconds, bool *timed_out_ret);
+extern bool udpSocketIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret);
 
 #ifdef __cplusplus
 }

@@ -20,7 +20,7 @@ extern "C"
 {
 #endif
 
-extern void hello(const bool is_endpointA, const char *interconnect, const uint32_t iterations);
+extern void hello(const bool is_endpointA, const char *provider, const uint32_t iterations);
 
 #ifdef __cplusplus
 }

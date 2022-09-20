@@ -35,12 +35,12 @@
 #include "utils_socket.h"
 #include "utils_time.h"
 #include "pthread.h"
-#include "takyon.h" // For TAKYON_MAX_INTERCONNECT_CHARS
+#include "takyon.h" // For TAKYON_MAX_PROVIDER_CHARS
 #include <stdio.h>
 #include <stdlib.h>
 
 #define MAX_IP_ADDR_CHARS 40 // Good for IPv4 or IPv6
-#define MAX_TEMP_FILENAME_CHARS (TAKYON_MAX_INTERCONNECT_CHARS+MAX_PATH+1)
+#define MAX_TEMP_FILENAME_CHARS (TAKYON_MAX_PROVIDER_CHARS+MAX_PATH+1)
 #define MICROSECONDS_BETWEEN_CONNECT_ATTEMPTS 10000
 
 static pthread_once_t L_once_control = PTHREAD_ONCE_INIT;
@@ -655,7 +655,7 @@ bool socketCreateTcpClient(const char *ip_addr, uint16_t port_number, TakyonSock
 }
 
 #ifdef ENABLE_EPHEMERAL_PORT_MANAGER
-bool socketCreateEphemeralTcpClient(const char *ip_addr, const char *interconnect_name, uint32_t path_id, TakyonSocket *socket_fd_ret, int64_t timeout_ns, uint64_t verbosity, char *error_message, int max_error_message_chars) {
+bool socketCreateEphemeralTcpClient(const char *ip_addr, const char *provider_name, uint32_t path_id, TakyonSocket *socket_fd_ret, int64_t timeout_ns, uint64_t verbosity, char *error_message, int max_error_message_chars) {
   if (!windows_socket_manager_init(error_message, max_error_message_chars)) {
     return false;
   }
@@ -675,7 +675,7 @@ bool socketCreateEphemeralTcpClient(const char *ip_addr, const char *interconnec
   while (1) {
     // Wait for the ephemeral port number to get multicasted (this is in the while loop incase a stale port number is initially grabbed, and allows it to refresh)
     bool timed_out = false;
-    ephemeral_port_number = ephemeralPortManagerGet(interconnect_name, path_id, timeout_ns, &timed_out, verbosity, error_message, max_error_message_chars);
+    ephemeral_port_number = ephemeralPortManagerGet(provider_name, path_id, timeout_ns, &timed_out, verbosity, error_message, max_error_message_chars);
     if (ephemeral_port_number == 0) {
       if (timed_out) {
         snprintf(error_message, max_error_message_chars, "TCP client socket timed out waiting for the ephemeral port number");
@@ -739,7 +739,7 @@ bool socketCreateEphemeralTcpClient(const char *ip_addr, const char *interconnec
   // The connect is made
 
   // Send out a message to let the other nodes know the path no longer needs the ephemeral port number
-  ephemeralPortManagerRemove(interconnect_name, path_id, ephemeral_port_number);
+  ephemeralPortManagerRemove(provider_name, path_id, ephemeral_port_number);
 
   // TCP sockets use the Nagle algorithm, so need to turn it off to get good latency (at the expense of added network traffic and under utilized TCP packets).
   if (!socketSetNoDelay(socket_fd, 1, error_message, max_error_message_chars)) {
@@ -982,7 +982,7 @@ bool socketCreateTcpServer(const char *ip_addr, uint16_t port_number, bool allow
 }
 
 #ifdef ENABLE_EPHEMERAL_PORT_MANAGER
-bool socketCreateEphemeralTcpServer(const char *ip_addr, const char *interconnect_name, uint32_t path_id, TakyonSocket *socket_fd_ret, int64_t timeout_ns, char *error_message, int max_error_message_chars) {
+bool socketCreateEphemeralTcpServer(const char *ip_addr, const char *provider_name, uint32_t path_id, TakyonSocket *socket_fd_ret, int64_t timeout_ns, char *error_message, int max_error_message_chars) {
   if (!windows_socket_manager_init(error_message, max_error_message_chars)) {
     return false;
   }
@@ -1053,13 +1053,13 @@ bool socketCreateEphemeralTcpServer(const char *ip_addr, const char *interconnec
   }
 
   // Multicast this out to all active Takyon endpoints
-  ephemeralPortManagerSet(interconnect_name, path_id, ephemeral_port_number);
+  ephemeralPortManagerSet(provider_name, path_id, ephemeral_port_number);
 
   // Wait for a client to ask for a connection
   if (timeout_ns >= 0) {
     if (!wait_for_socket_read_activity(listening_fd, timeout_ns, error_message, max_error_message_chars)) {
       // Error message already set
-      ephemeralPortManagerRemoveLocally(interconnect_name, path_id);
+      ephemeralPortManagerRemoveLocally(provider_name, path_id);
       closesocket(listening_fd);
       return false;
     }
@@ -1067,7 +1067,7 @@ bool socketCreateEphemeralTcpServer(const char *ip_addr, const char *interconnec
 
   // This blocks until a connection is acctual made
   TakyonSocket socket_fd = accept(listening_fd, NULL, NULL);
-  ephemeralPortManagerRemoveLocally(interconnect_name, path_id);
+  ephemeralPortManagerRemoveLocally(provider_name, path_id);
   if (socket_fd == INVALID_SOCKET) {
     snprintf(error_message, max_error_message_chars, "Could not accept TCP socket. sock_error=%d", WSAGetLastError());
     closesocket(listening_fd);

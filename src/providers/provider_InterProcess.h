@@ -9,8 +9,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef _interconnect_InterProcess_h_
-#define _interconnect_InterProcess_h_
+#ifndef _provider_InterProcess_h_
+#define _provider_InterProcess_h_
 
 #include "takyon.h"
 

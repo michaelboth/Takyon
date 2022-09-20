@@ -29,12 +29,12 @@
 //     limitations under the License.
 
 #include "utils_arg_parser.h"
-#include "takyon.h" // For TAKYON_MAX_INTERCONNECT_CHARS
+#include "takyon.h" // For TAKYON_MAX_PROVIDER_CHARS
 #include <string.h>
 #include <stdio.h>
 
 // This is a simple parse with a few requirements
-//  - Format: "interconnect [-arg[=value]]*"
+//  - Format: "provider [-arg[=value]]*"
 //  - Args are separated by a single space: spaces are not allowed in values
 //  - Flags are always the form " -<named_flag>"
 //  - Name/value pairs are always the format: " -<arg_name>=<value>"
@@ -96,7 +96,7 @@ static bool getArgWithName(const char *arguments, const char *key, bool is_prefi
   return true;
 }
 
-bool argGetInterconnect(const char *arguments, char *result, const int max_chars, char *error_message, int max_error_message_chars) {
+bool argGetProvider(const char *arguments, char *result, const int max_chars, char *error_message, int max_error_message_chars) {
   // Skip any leading spaces
   while (arguments[0] == ' ') arguments++;
   // Copy first argument
@@ -107,7 +107,7 @@ bool argGetInterconnect(const char *arguments, char *result, const int max_chars
   }
   result[index] = '\0';
   if (strlen(result) == 0) {
-    snprintf(error_message, max_error_message_chars, "No interconnect specified.");
+    snprintf(error_message, max_error_message_chars, "No provider specified.");
     return false;
   }
   return true;
@@ -115,8 +115,8 @@ bool argGetInterconnect(const char *arguments, char *result, const int max_chars
 
 bool argGetFlag(const char *arguments, const char *name) {
   bool found = false;
-  char value_text[TAKYON_MAX_INTERCONNECT_CHARS];
-  if (!getArgWithName(arguments, name, false, &found, value_text, TAKYON_MAX_INTERCONNECT_CHARS, NULL, 0)) return false;
+  char value_text[TAKYON_MAX_PROVIDER_CHARS];
+  if (!getArgWithName(arguments, name, false, &found, value_text, TAKYON_MAX_PROVIDER_CHARS, NULL, 0)) return false;
   return found;
 }
 
@@ -127,8 +127,8 @@ bool argGetText(const char *arguments, const char *name, char *result, const int
 }
 
 bool argGetInt(const char *arguments, const char *name, int *result, bool *found_ret, char *error_message, int max_error_message_chars) {
-  char value_text[TAKYON_MAX_INTERCONNECT_CHARS];
-  if (!getArgWithName(arguments, name, true, found_ret, value_text, TAKYON_MAX_INTERCONNECT_CHARS, error_message, max_error_message_chars)) return false;
+  char value_text[TAKYON_MAX_PROVIDER_CHARS];
+  if (!getArgWithName(arguments, name, true, found_ret, value_text, TAKYON_MAX_PROVIDER_CHARS, error_message, max_error_message_chars)) return false;
   if (!(*found_ret)) return true; // Argument not found
   int tokens = sscanf(value_text, "%d", result);
   if (tokens != 1) {
@@ -139,8 +139,8 @@ bool argGetInt(const char *arguments, const char *name, int *result, bool *found
 }
 
 bool argGetUInt(const char *arguments, const char *name, uint32_t *result, bool *found_ret, char *error_message, int max_error_message_chars) {
-  char value_text[TAKYON_MAX_INTERCONNECT_CHARS];
-  if (!getArgWithName(arguments, name, true, found_ret, value_text, TAKYON_MAX_INTERCONNECT_CHARS, error_message, max_error_message_chars)) return false;
+  char value_text[TAKYON_MAX_PROVIDER_CHARS];
+  if (!getArgWithName(arguments, name, true, found_ret, value_text, TAKYON_MAX_PROVIDER_CHARS, error_message, max_error_message_chars)) return false;
   if (!(*found_ret)) return true; // Argument not found
   int tokens = sscanf(value_text, "%u", result);
   if (tokens != 1) {
@@ -151,8 +151,8 @@ bool argGetUInt(const char *arguments, const char *name, uint32_t *result, bool 
 }
 
 bool argGetFloat(const char *arguments, const char *name, float *result, bool *found_ret, char *error_message, int max_error_message_chars) {
-  char value_text[TAKYON_MAX_INTERCONNECT_CHARS];
-  if (!getArgWithName(arguments, name, true, found_ret, value_text, TAKYON_MAX_INTERCONNECT_CHARS, error_message, max_error_message_chars)) return false;
+  char value_text[TAKYON_MAX_PROVIDER_CHARS];
+  if (!getArgWithName(arguments, name, true, found_ret, value_text, TAKYON_MAX_PROVIDER_CHARS, error_message, max_error_message_chars)) return false;
   if (!(*found_ret)) return true; // Argument not found
   int tokens = sscanf(value_text, "%f", result);
   if (tokens != 1) {

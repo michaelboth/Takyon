@@ -57,7 +57,7 @@ static void writeMessage(TakyonPath *path, uint32_t i) {
   // Start the send
   takyonOneSided(path, &write_request, TAKYON_WAIT_FOREVER, NULL);
 
-  // If the interconnect supports non blocking transfers, then need to know when it's complete
+  // If the provider supports non blocking transfers, then need to know when it's complete
   if (path->capabilities.IsOneSidedDone_supported && write_request.use_is_done_notification) takyonIsOneSidedDone(path, &write_request, TAKYON_WAIT_FOREVER, NULL);
   printf("Message %d written\n", i+1);
 }
@@ -77,7 +77,7 @@ static void readMessage(TakyonPath *path) {
   // Start the read
   takyonOneSided(path, &read_request, TAKYON_WAIT_FOREVER, NULL);
 
-  // If the interconnect supports non blocking transfers, then need to know when it's complete
+  // If the provider supports non blocking transfers, then need to know when it's complete
   if (path->capabilities.IsOneSidedDone_supported && read_request.use_is_done_notification) takyonIsOneSidedDone(path, &read_request, TAKYON_WAIT_FOREVER, NULL);
 
   // Process the data; i.e. print the received greeting
@@ -92,8 +92,8 @@ static void readMessage(TakyonPath *path) {
 #endif
 }
 
-void hello(const bool is_endpointA, const char *interconnect, const uint32_t iterations) {
-  printf("Hello Takyon Example (one-sided): endpoint %s: interconnect '%s'\n", is_endpointA ? "A" : "B", interconnect);
+void hello(const bool is_endpointA, const char *provider, const uint32_t iterations) {
+  printf("Hello Takyon Example (one-sided): endpoint %s: provider '%s'\n", is_endpointA ? "A" : "B", provider);
 
   // Create the memory buffers used with transfering data
   //   1. A writes from buffers[0] to buffer[1]
@@ -108,7 +108,7 @@ void hello(const bool is_endpointA, const char *interconnect, const uint32_t ite
     if (cuda_status != cudaSuccess) { printf("cudaMalloc() failed: %s\n", cudaGetErrorString(cuda_status)); exit(0); }
 #else
 #ifdef ENABLE_MMAP
-    if (strncmp(interconnect, "InterProcess ", 13) == 0) {
+    if (strncmp(provider, "InterProcess ", 13) == 0) {
       snprintf(buffer->name, TAKYON_MAX_BUFFER_NAME_CHARS, "%s_hello_buffer_%d_" UINT64_FORMAT, is_endpointA ? "A" : "B", i, buffer->bytes);
       char error_message[300];
       bool ok = mmapAlloc(buffer->name, buffer->bytes, &buffer->addr, &buffer->app_data, error_message, 300);
@@ -125,7 +125,7 @@ void hello(const bool is_endpointA, const char *interconnect, const uint32_t ite
   // Define the path attributes
   //   - Can't be changed after path creation
   TakyonPathAttributes attrs;
-  strncpy(attrs.interconnect, interconnect, TAKYON_MAX_INTERCONNECT_CHARS-1);
+  strncpy(attrs.provider, provider, TAKYON_MAX_PROVIDER_CHARS-1);
   attrs.is_endpointA                            = is_endpointA;
   attrs.failure_mode                            = TAKYON_EXIT_ON_ERROR;
   attrs.verbosity                               = TAKYON_VERBOSITY_ERRORS;

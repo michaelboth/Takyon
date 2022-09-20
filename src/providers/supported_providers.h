@@ -9,20 +9,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef _interconnect_SocketTcp_h_
-#define _interconnect_SocketTcp_h_
+#ifndef _supported_providers_h_
+#define _supported_providers_h_
 
-#include "takyon.h"
+#include <takyon_private.h>
 
 #ifdef __cplusplus
 extern "C"
 {
 #endif
 
-extern bool tcpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *recv_requests, double timeout_seconds);
-extern bool tcpSocketDestroy(TakyonPath *path, double timeout_seconds);
-extern bool tcpSocketSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_back_message, double timeout_seconds, bool *timed_out_ret);
-extern bool tcpSocketIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret);
+extern bool setProviderFunctionsAndCapabilities(const char *provider_name, TakyonComm *comm, TakyonPathCapabilities *capabilities);
 
 #ifdef __cplusplus
 }

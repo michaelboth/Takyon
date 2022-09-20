@@ -155,7 +155,7 @@ void interThreadManagerFinalize() {
 static void threadManagerAddItem(InterThreadManagerItem *item) {
   // NOTE: this function should only be called when the global mutex is locked
 #ifdef DEBUG_MESSAGE
-  printf("Inter Thread Manager: adding item with interconnect id %d and id %d\n", item->interconnect_id, item->path_id);
+  printf("Inter Thread Manager: adding item with provider id %d and id %d\n", item->provider_id, item->path_id);
 #endif
 
   if (L_num_manager_items == L_max_manager_items) {
@@ -180,13 +180,13 @@ static void threadManagerAddItem(InterThreadManagerItem *item) {
   L_num_manager_items++;
 }
 
-static InterThreadManagerItem *getUnconnectedManagerItem(uint32_t interconnect_id, uint32_t path_id) {
+static InterThreadManagerItem *getUnconnectedManagerItem(uint32_t provider_id, uint32_t path_id) {
   // NOTE: this function should only be called when the global mutex is locked
 #ifdef DEBUG_MESSAGE
-  printf("Inter Thread Manager: find item with interconnect id %d and id %d\n", interconnect_id, path_id);
+  printf("Inter Thread Manager: find item with provider id %d and id %d\n", provider_id, path_id);
 #endif
   for (uint32_t i=0; i<L_num_manager_items; i++) {
-    if ((L_manager_items[i]->connected == false) && (L_manager_items[i]->interconnect_id == interconnect_id) && (L_manager_items[i]->path_id == path_id)) {
+    if ((L_manager_items[i]->connected == false) && (L_manager_items[i]->provider_id == provider_id) && (L_manager_items[i]->path_id == path_id)) {
       return L_manager_items[i];
     }
   }
@@ -196,7 +196,7 @@ static InterThreadManagerItem *getUnconnectedManagerItem(uint32_t interconnect_i
 static void threadManagerRemoveItem(InterThreadManagerItem *item) {
   // NOTE: this function should only be called when the global mutex is locked
 #ifdef DEBUG_MESSAGE
-  printf("Inter Thread Manager: remove item with interconnect id %d and id %d\n", item->interconnect_id, item->path_id);
+  printf("Inter Thread Manager: remove item with provider id %d and id %d\n", item->provider_id, item->path_id);
 #endif
   for (uint32_t i=0; i<L_num_manager_items; i++) {
     if (L_manager_items[i] == item) {
@@ -209,21 +209,21 @@ static void threadManagerRemoveItem(InterThreadManagerItem *item) {
   L_num_manager_items--;
 }
 
-InterThreadManagerItem *interThreadManagerConnect(uint32_t interconnect_id, uint32_t path_id, TakyonPath *path, double timeout_in_seconds) {
+InterThreadManagerItem *interThreadManagerConnect(uint32_t provider_id, uint32_t path_id, TakyonPath *path, double timeout_in_seconds) {
   InterThreadManagerItem *item = NULL;
   char error_message[MAX_ERROR_MESSAGE_CHARS];
 
   if (path->attrs.is_endpointA) {
 #ifdef DEBUG_MESSAGE
-    printf("Inter Thread Manager: endpoint A waiting to connect: interconnect id %d and id %d\n", interconnect_id, path_id);
+    printf("Inter Thread Manager: endpoint A waiting to connect: provider id %d and id %d\n", provider_id, path_id);
 #endif
     // Lock mutex
     pthread_mutex_lock(L_master_mutex);
     // Verify not already in use
-    item = getUnconnectedManagerItem(interconnect_id, path_id);
+    item = getUnconnectedManagerItem(provider_id, path_id);
     if (item != NULL) {
       pthread_mutex_unlock(L_master_mutex);
-      TAKYON_RECORD_ERROR(path->error_message, "Endpoint A inter-thread connection failure. Interconnect ID=%d and path ID=%d are already in use.\n", interconnect_id, path_id);
+      TAKYON_RECORD_ERROR(path->error_message, "Endpoint A inter-thread connection failure. Provider ID=%d and path ID=%d are already in use.\n", provider_id, path_id);
       return NULL;
     }
     // Create the new item
@@ -233,7 +233,7 @@ InterThreadManagerItem *interThreadManagerConnect(uint32_t interconnect_id, uint
       fprintf(stderr, "Out of memory\n");
       exit(EXIT_FAILURE);
     }
-    item->interconnect_id = interconnect_id;
+    item->provider_id = provider_id;
     item->path_id = path_id;
     item->pathA = path;
     item->pathB = NULL;
@@ -287,11 +287,11 @@ InterThreadManagerItem *interThreadManagerConnect(uint32_t interconnect_id, uint
 
   } else {
 #ifdef DEBUG_MESSAGE
-    printf("Inter Thread Manager: endpoint B waiting to connect: interconnect id %d and id %d\n", interconnect_id, path_id);
+    printf("Inter Thread Manager: endpoint B waiting to connect: provider id %d and id %d\n", provider_id, path_id);
 #endif
     pthread_mutex_lock(L_master_mutex);
     // See if item already exists
-    item = getUnconnectedManagerItem(interconnect_id, path_id);
+    item = getUnconnectedManagerItem(provider_id, path_id);
     while (item == NULL) {
       // Give some time for endpointA to connect
       bool timed_out;
@@ -307,7 +307,7 @@ InterThreadManagerItem *interThreadManagerConnect(uint32_t interconnect_id, uint
         }
         return NULL;
       }
-      item = getUnconnectedManagerItem(interconnect_id, path_id);
+      item = getUnconnectedManagerItem(provider_id, path_id);
     }
     // Fill in the remote details
     item->pathB = path;

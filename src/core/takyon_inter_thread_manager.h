@@ -37,7 +37,7 @@
 #include <pthread.h>
 
 typedef struct { // This is used to allow threads in the same process to share a mutex and conditional variable for synchronizing communications
-  uint32_t interconnect_id; // Make sure this is different for each interconnect that uses this manager.
+  uint32_t provider_id; // Make sure this is different for each provider that uses this manager.
   uint32_t path_id;
   TakyonPath *pathA;
   TakyonPath *pathB;
@@ -56,7 +56,7 @@ extern "C"
 
 extern bool interThreadManagerInit();
 extern void interThreadManagerFinalize();
-extern InterThreadManagerItem *interThreadManagerConnect(uint32_t interconnect_id, uint32_t path_id, TakyonPath *path, double timeout_in_seconds);
+extern InterThreadManagerItem *interThreadManagerConnect(uint32_t provider_id, uint32_t path_id, TakyonPath *path, double timeout_in_seconds);
 extern void interThreadManagerMarkConnectionAsBad(InterThreadManagerItem *item);
 extern bool interThreadManagerDisconnect(TakyonPath *path, InterThreadManagerItem *item, double timeout_in_seconds);
 
