@@ -31,7 +31,6 @@
 #include "utils_time.h"
 #include <unistd.h>
 #include <sched.h>
-#include <sys/time.h>
 #include <time.h>
 
 void clockSleep(int64_t microseconds) {
@@ -55,12 +54,9 @@ void clockSleepYield(int64_t microseconds) {
 }
 
 int64_t clockTimeNanoseconds() {
-  /*+ base time */
-  int64_t total_nanoseconds;
-  struct timeval tp;
-  /*+ clock_gettime? */
-  gettimeofday(&tp, NULL);
-  total_nanoseconds = ((int64_t)tp.tv_sec * 1000000000LL) + (int64_t)(tp.tv_usec * 1000);
+  struct timespec curr_time;
+  clock_gettime(CLOCK_MONOTONIC, &curr_time); // CLOCK_MONOTONIC is only increasing
+  int64_t total_nanoseconds = ((int64_t)curr_time.tv_sec * 1000000000ULL) + (int64_t)curr_time.tv_nsec;
   return total_nanoseconds;
 }
 
