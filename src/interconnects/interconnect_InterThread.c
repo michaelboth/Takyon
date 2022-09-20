@@ -223,7 +223,7 @@ static bool doTwoSidedTransfer(TakyonPath *path, TakyonPath *remote_path, Takyon
     }
     uint64_t src_bytes = sub_buffer->bytes;
     if (src_bytes > (src_buffer->bytes - sub_buffer->offset)) {
-      TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju exceeds src buffer\n", src_bytes);
+      TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju, offset = %ju exceeds src buffer (bytes = %ju)\n", src_bytes, sub_buffer->offset, src_buffer->bytes);
       return false;
     }
     total_bytes_to_send += src_bytes;
@@ -240,8 +240,9 @@ static bool doTwoSidedTransfer(TakyonPath *path, TakyonPath *remote_path, Takyon
       return false;
     }
     uint64_t remote_max_bytes = remote_sub_buffer->bytes;
-    if (remote_max_bytes < (remote_buffer->bytes - remote_sub_buffer->offset)) {
-      TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju and exceeds remote buffer\n", remote_max_bytes);
+    if (remote_max_bytes > (remote_buffer->bytes - remote_sub_buffer->offset)) {
+      /*+ how is %ju working on Apple with this? */
+      TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju, offset = %ju exceeds remote buffer (bytes = %ju)\n", remote_max_bytes, remote_sub_buffer->offset, remote_buffer->bytes);
       return false;
     }
     total_available_recv_bytes += remote_max_bytes;
@@ -253,37 +254,39 @@ static bool doTwoSidedTransfer(TakyonPath *path, TakyonPath *remote_path, Takyon
     return false;
   }
 
-  // Get a handle to the first remote memory block
-  uint32_t remote_sub_buffer_index = 0;
-  TakyonSubBuffer *remote_sub_buffer = &remote_request->sub_buffers[remote_sub_buffer_index];
-  TakyonBuffer *remote_buffer = remote_sub_buffer->buffer;
-  void *remote_addr = (void *)((uint64_t)remote_buffer->addr + remote_sub_buffer->offset);
-  uint64_t remote_max_bytes = remote_sub_buffer->bytes;
+  if (request->sub_buffer_count > 0) {
+    // Get a handle to the first remote memory block
+    uint32_t remote_sub_buffer_index = 0;
+    TakyonSubBuffer *remote_sub_buffer = &remote_request->sub_buffers[remote_sub_buffer_index];
+    TakyonBuffer *remote_buffer = remote_sub_buffer->buffer;
+    void *remote_addr = (void *)((uint64_t)remote_buffer->addr + remote_sub_buffer->offset);
+    uint64_t remote_max_bytes = remote_sub_buffer->bytes;
 
-  // Copy the data to the remote side
-  for (uint32_t i=0; i<request->sub_buffer_count; i++) {
-    // Source info
-    TakyonSubBuffer *sub_buffer = &request->sub_buffers[i];
-    TakyonBuffer *src_buffer = sub_buffer->buffer;
-    void *src_addr = (void *)((uint64_t)src_buffer->addr + sub_buffer->offset);
-    uint64_t src_bytes = sub_buffer->bytes;
-    while (src_bytes > 0) {
-      if (remote_max_bytes == 0) {
-        remote_sub_buffer_index++;
-        remote_sub_buffer = &remote_request->sub_buffers[remote_sub_buffer_index];
-        remote_buffer = remote_sub_buffer->buffer;
-        remote_addr = (void *)((uint64_t)remote_buffer->addr + remote_sub_buffer->offset);
-        remote_max_bytes = remote_sub_buffer->bytes;
+    // Copy the data to the remote side
+    for (uint32_t i=0; i<request->sub_buffer_count; i++) {
+      // Source info
+      TakyonSubBuffer *sub_buffer = &request->sub_buffers[i];
+      TakyonBuffer *src_buffer = sub_buffer->buffer;
+      void *src_addr = (void *)((uint64_t)src_buffer->addr + sub_buffer->offset);
+      uint64_t src_bytes = sub_buffer->bytes;
+      while (src_bytes > 0) {
+        if (remote_max_bytes == 0) {
+          remote_sub_buffer_index++;
+          remote_sub_buffer = &remote_request->sub_buffers[remote_sub_buffer_index];
+          remote_buffer = remote_sub_buffer->buffer;
+          remote_addr = (void *)((uint64_t)remote_buffer->addr + remote_sub_buffer->offset);
+          remote_max_bytes = remote_sub_buffer->bytes;
+        }
+        uint64_t bytes_to_send = src_bytes;
+        if (remote_max_bytes < bytes_to_send) bytes_to_send = remote_max_bytes;
+        if (!transferData(remote_addr, src_addr, bytes_to_send, path->error_message)) {
+          return false;
+        }
+        src_addr = (void *)((uint64_t)src_addr + bytes_to_send);
+        src_bytes -= bytes_to_send;
+        remote_addr = (void *)((uint64_t)remote_addr + bytes_to_send);
+        remote_max_bytes -= bytes_to_send;
       }
-      uint64_t bytes_to_send = src_bytes;
-      if (remote_max_bytes < bytes_to_send) bytes_to_send = remote_max_bytes;
-      if (!transferData(remote_addr, src_addr, bytes_to_send, path->error_message)) {
-        return false;
-      }
-      src_addr = (void *)((uint64_t)src_addr + bytes_to_send);
-      src_bytes -= bytes_to_send;
-      remote_addr = (void *)((uint64_t)remote_addr + bytes_to_send);
-      remote_max_bytes -= bytes_to_send;
     }
   }
 
@@ -328,11 +331,11 @@ static bool doOneWayTransfer(TakyonPath *path, TakyonPath *remote_path, TakyonOn
   // Bytes
   uint64_t bytes = request->bytes;
   if (bytes > (local_buffer->bytes - request->local_offset)) {
-    TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju exceeds local buffer\n", bytes);
+    TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju, offset = %ju exceeds local buffer (bytes = %ju)\n", bytes, request->local_offset, local_buffer->bytes);
     return false;
   }
   if (bytes > (dest_buffer->bytes - request->remote_offset)) {
-    TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju and exceeds remote buffer\n", bytes);
+    TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju, offset = %ju exceeds remote buffer (bytes = %ju)\n", bytes, request->remote_offset, dest_buffer->bytes);
     return false;
   }
 
@@ -404,7 +407,7 @@ bool interThreadSend(TakyonPath *path, TakyonSendRequest *request, uint32_t pigg
   TakyonPath *remote_path = path->attrs.is_endpointA ? remote_thread_handle->pathB : remote_thread_handle->pathA;
   if (!doTwoSidedTransfer(path, remote_path, request, piggy_back_message, remote_thread_handle)) {
     pthread_mutex_unlock(&remote_thread_handle->mutex);
-    TAKYON_RECORD_ERROR(path->error_message, "One sided transfer failed\n");
+    TAKYON_RECORD_ERROR(path->error_message, "Send failed\n");
     return false;
   }
 

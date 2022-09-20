@@ -53,6 +53,9 @@
 #define KLUDGE_USEC_SLEEP_BETWEEN_POLL_ATTEMPTS 100
 #define MAX_CUDA_EVENTS 100  // Verify does not exceed attrs.max_pending_recv_requests
 
+// This is use to allow for zero byte messages
+#define MY_MAX(_a,_b) ((_a>_b) ? _a : _b)
+
 // IMPORTANT: This is not stored, but is used during the init phase to get mmap address
 typedef struct {
   uint64_t bytes;
@@ -124,12 +127,14 @@ typedef struct {
   //   - Memory mapped circular buffer
   //   - List size == max_pending_recv_requests * max_multi_blocks_per_recv_request;
   //   - A single request will reserve max_multi_blocks_per_recv_request elements, but may use less
-  uint32_t curr_local_recv_request_index;
+  uint32_t curr_local_unused_recv_request_index;
+  uint32_t curr_local_posted_recv_request_index;
   RecvRequestAndCompletion *local_recv_request_and_completions;
   void *local_postings_mmap_handle;
   uint32_t max_remote_pending_recv_requests;
   uint32_t max_remote_sub_buffers_per_recv_request;
-  uint32_t curr_remote_recv_request_index;
+  uint32_t curr_remote_unused_recv_request_index;
+  uint32_t curr_remote_posted_recv_request_index;
   RecvRequestAndCompletion *remote_recv_request_and_completions;
   void *remote_postings_mmap_handle;
 } PrivateTakyonPath;
@@ -243,24 +248,24 @@ static uint32_t indexOfBuffer(TakyonPath *path, TakyonBuffer *buffer, bool *buff
 
 static bool postRecvRequest(TakyonPath *path, PrivateTakyonPath *private_path, TakyonRecvRequest *request) {
   // Total sub items in list
-  uint32_t total_sub_items = path->attrs.max_pending_recv_requests * path->attrs.max_sub_buffers_per_recv_request;
+  uint32_t total_sub_items = path->attrs.max_pending_recv_requests * MY_MAX(1, path->attrs.max_sub_buffers_per_recv_request);
 
   // Get structure shared by sender and receiver
-  RecvRequestAndCompletion *local_request = &private_path->local_recv_request_and_completions[private_path->curr_local_recv_request_index];
+  RecvRequestAndCompletion *local_request = &private_path->local_recv_request_and_completions[private_path->curr_local_unused_recv_request_index];
 
   // Fill in the sub buffer details
   local_request->sub_buffer_count = request->sub_buffer_count;
   for (uint32_t j=0; j<request->sub_buffer_count; j++) {
     TakyonSubBuffer *sub_buffer = &request->sub_buffers[j];
-    RecvRequestAndCompletion *local_sub_buffere = &private_path->local_recv_request_and_completions[private_path->curr_local_recv_request_index + j];
+    RecvRequestAndCompletion *local_sub_buffer = &private_path->local_recv_request_and_completions[private_path->curr_local_unused_recv_request_index + j];
     bool buffer_index_found = false;
-    local_sub_buffere->buffer_index = indexOfBuffer(path, sub_buffer->buffer, &buffer_index_found);
+    local_sub_buffer->buffer_index = indexOfBuffer(path, sub_buffer->buffer, &buffer_index_found);
     if (!buffer_index_found) {
       TAKYON_RECORD_ERROR(path->error_message, "Takyon buffer referenced in request is not valid\n");
       return false;
     }
-    local_sub_buffere->bytes = sub_buffer->bytes;
-    local_sub_buffere->offset = sub_buffer->offset;
+    local_sub_buffer->bytes = sub_buffer->bytes;
+    local_sub_buffer->offset = sub_buffer->offset;
   }
 
   // Make sure the remote side knows the transfer is not yet completed
@@ -270,7 +275,7 @@ static bool postRecvRequest(TakyonPath *path, PrivateTakyonPath *private_path, T
   local_request->transfer_posted = true;
 
   // Prepare for the next buffer
-  private_path->curr_local_recv_request_index = (private_path->curr_local_recv_request_index + path->attrs.max_sub_buffers_per_recv_request) % total_sub_items;
+  private_path->curr_local_unused_recv_request_index = (private_path->curr_local_unused_recv_request_index + MY_MAX(1, path->attrs.max_sub_buffers_per_recv_request)) % total_sub_items;
 
   return true;
 }
@@ -321,8 +326,10 @@ bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRe
   private_path->max_remote_pending_recv_requests = 0;
   private_path->max_remote_sub_buffers_per_recv_request = 0;
   private_path->remote_recv_request_and_completions = NULL;
-  private_path->curr_local_recv_request_index = 0;
-  private_path->curr_remote_recv_request_index = 0;
+  private_path->curr_local_unused_recv_request_index = 0;
+  private_path->curr_local_posted_recv_request_index = 0;
+  private_path->curr_remote_unused_recv_request_index = 0;
+  private_path->curr_remote_posted_recv_request_index = 0;
 
   RemoteTakyonBufferInfo *remote_buffer_info_list = NULL;
   RemoteTakyonBufferInfo *local_buffer_info_list = NULL;
@@ -508,7 +515,7 @@ bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRe
         goto cleanup;
       }
       if (!got_it) {
-        TAKYON_RECORD_ERROR(path->error_message, "Memory map '%s' does not exist. Make sure the app uses mmapAloc() from src/utils/utils_ipc.h, to create the TakyonBuffer instead of malloc()\n", remote_buffer_info->name);
+        TAKYON_RECORD_ERROR(path->error_message, "Memory map '%s' does not exist. Make sure the app uses mmapAlloc() from src/utils/utils_ipc.h, to create the TakyonBuffer instead of malloc()\n", remote_buffer_info->name);
         goto cleanup;
       }
     }
@@ -523,7 +530,7 @@ bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRe
   if (path->attrs.max_pending_recv_requests > 0) {
     local_path_info.max_pending_recv_requests = path->attrs.max_pending_recv_requests;
     local_path_info.max_sub_buffers_per_recv_request = path->attrs.max_sub_buffers_per_recv_request;
-    uint32_t local_request_element_count = path->attrs.max_pending_recv_requests * path->attrs.max_sub_buffers_per_recv_request;
+    uint32_t local_request_element_count = path->attrs.max_pending_recv_requests * MY_MAX(1, path->attrs.max_sub_buffers_per_recv_request);
     uint64_t local_request_list_bytes = local_request_element_count * sizeof(RecvRequestAndCompletion);
     snprintf(local_path_info.mmap_name, TAKYON_MAX_BUFFER_NAME_CHARS, "TakyonPath_%s_%u_" UINT64_FORMAT, path->attrs.is_endpointA ? "A" : "B", path_id, local_request_list_bytes); // IMPORTANT: Must be unique to all named mmaps in OS
     if (!mmapAlloc(local_path_info.mmap_name, local_request_list_bytes, (void **)&private_path->local_recv_request_and_completions, &private_path->local_postings_mmap_handle, error_message, MAX_ERROR_MESSAGE_CHARS)) {
@@ -536,6 +543,7 @@ bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRe
       RecvRequestAndCompletion *element = &private_path->local_recv_request_and_completions[i];
       element->transfer_posted = false;
     }
+
     // Post the inital recvs
     for (uint32_t i=0; i<post_recv_count; i++) {
       TakyonRecvRequest *request = &recv_requests[i];
@@ -576,7 +584,7 @@ bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRe
   private_path->max_remote_pending_recv_requests = remote_path_info.max_pending_recv_requests;
   private_path->max_remote_sub_buffers_per_recv_request = remote_path_info.max_sub_buffers_per_recv_request;
   if (private_path->max_remote_pending_recv_requests > 0) {
-    uint64_t remote_request_list_bytes = path->attrs.max_pending_recv_requests * path->attrs.max_sub_buffers_per_recv_request * sizeof(RecvRequestAndCompletion);
+    uint64_t remote_request_list_bytes = private_path->max_remote_pending_recv_requests * MY_MAX(1, private_path->max_remote_sub_buffers_per_recv_request) * sizeof(RecvRequestAndCompletion);
     bool got_it = false;
     if (!mmapGet(remote_path_info.mmap_name, remote_request_list_bytes, (void **)&private_path->remote_recv_request_and_completions, &got_it, &private_path->remote_postings_mmap_handle, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "mmapGet() failed: %s\n", error_message);
@@ -725,11 +733,11 @@ bool interProcessOneSided(TakyonPath *path, TakyonOneSidedRequest *request, doub
   // Bytes
   uint64_t bytes = request->bytes;
   if (bytes > (local_buffer->bytes - request->local_offset)) {
-    TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju exceeds local buffer\n", bytes);
+    TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju, offset = %ju exceeds local buffer (bytes = %ju)\n", bytes, request->local_offset, local_buffer->bytes);
     return false;
   }
   if (bytes > (dest_buffer->bytes - request->remote_offset)) {
-    TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju and exceeds remote buffer\n", bytes);
+    TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju, offset = %ju exceeds remote buffer (bytes = %ju)\n", bytes, request->remote_offset, dest_buffer->bytes);
     return false;
   }
 
@@ -778,15 +786,15 @@ bool interProcessSend(TakyonPath *path, TakyonSendRequest *request, uint32_t pig
     }
     uint64_t src_bytes = sub_buffer->bytes;
     if (src_bytes > (src_buffer->bytes - sub_buffer->offset)) {
-      TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju exceeds src buffer\n", src_bytes);
+      TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju, offset = %ju exceeds src buffer (bytes = %ju)\n", src_bytes, sub_buffer->offset, src_buffer->bytes);
       return false;
     }
     total_bytes_to_send += src_bytes;
   }
 
   // Get the current posted request
-  uint32_t total_sub_items = private_path->max_remote_pending_recv_requests * private_path->max_remote_sub_buffers_per_recv_request;
-  RecvRequestAndCompletion *remote_request = &private_path->remote_recv_request_and_completions[private_path->curr_remote_recv_request_index];
+  uint32_t total_sub_items = private_path->max_remote_pending_recv_requests * MY_MAX(1, private_path->max_remote_sub_buffers_per_recv_request);
+  RecvRequestAndCompletion *remote_request = &private_path->remote_recv_request_and_completions[private_path->curr_remote_posted_recv_request_index];
   if (!remote_request->transfer_posted || remote_request->transfer_complete) {
     TAKYON_RECORD_ERROR(path->error_message, "Remote side has no posted recvs\n");
     return false;
@@ -795,11 +803,11 @@ bool interProcessSend(TakyonPath *path, TakyonSendRequest *request, uint32_t pig
   // Get total available recv bytes
   uint64_t total_available_recv_bytes = 0;
   for (uint32_t i=0; i<remote_request->sub_buffer_count; i++) {
-    RecvRequestAndCompletion *remote_sub_buffer = &private_path->remote_recv_request_and_completions[private_path->curr_remote_recv_request_index + i];
+    RecvRequestAndCompletion *remote_sub_buffer = &private_path->remote_recv_request_and_completions[private_path->curr_remote_posted_recv_request_index + i];
     RemoteTakyonBuffer *remote_buffer = &private_path->remote_buffers[remote_sub_buffer->buffer_index];
     uint64_t remote_max_bytes = remote_sub_buffer->bytes;
-    if (remote_max_bytes < (remote_buffer->bytes - remote_sub_buffer->offset)) {
-      TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju and exceeds remote buffer\n", remote_max_bytes);
+    if (remote_max_bytes > (remote_buffer->bytes - remote_sub_buffer->offset)) {
+      TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju, offset = %ju exceeds remote buffer (bytes = %ju)\n", remote_max_bytes, remote_sub_buffer->offset, remote_buffer->bytes);
       return false;
     }
 #ifdef ENABLE_CUDA
@@ -817,7 +825,7 @@ bool interProcessSend(TakyonPath *path, TakyonSendRequest *request, uint32_t pig
   }
 
   // Get a handle to the first remote memory block
-  uint32_t remote_sub_buffer_index = private_path->curr_remote_recv_request_index;
+  uint32_t remote_sub_buffer_index = private_path->curr_remote_posted_recv_request_index;
   RecvRequestAndCompletion *remote_sub_buffer = &private_path->remote_recv_request_and_completions[remote_sub_buffer_index];
   RemoteTakyonBuffer *remote_buffer = &private_path->remote_buffers[remote_sub_buffer->buffer_index];
   void *remote_addr = (void *)((uint64_t)remote_buffer->mmap_addr + remote_sub_buffer->offset);
@@ -860,7 +868,7 @@ bool interProcessSend(TakyonPath *path, TakyonSendRequest *request, uint32_t pig
   {
     char error_message[MAX_ERROR_MESSAGE_CHARS];
     for (uint32_t i=0; i<remote_request->sub_buffer_count; i++) {
-      RecvRequestAndCompletion *remote_sub_buffer = &private_path->remote_recv_request_and_completions[private_path->curr_remote_recv_request_index + i];
+      RecvRequestAndCompletion *remote_sub_buffer = &private_path->remote_recv_request_and_completions[private_path->curr_remote_posted_recv_request_index + i];
       RemoteTakyonBuffer *remote_buffer = &private_path->remote_buffers[remote_sub_buffer->buffer_index];
       if (remote_buffer->is_cuda && remote_buffer->send_notification) {
         // Data was sent to this remote CUDA buffer
@@ -890,7 +898,7 @@ bool interProcessSend(TakyonPath *path, TakyonSendRequest *request, uint32_t pig
   remote_request->transfer_complete = true;
 
   // Prepare for the next request
-  private_path->curr_remote_recv_request_index = (private_path->curr_remote_recv_request_index + private_path->max_remote_sub_buffers_per_recv_request) % total_sub_items;
+  private_path->curr_remote_posted_recv_request_index = (private_path->curr_remote_posted_recv_request_index + MY_MAX(1, private_path->max_remote_sub_buffers_per_recv_request)) % total_sub_items;
 
   return true;
 }
@@ -906,19 +914,19 @@ bool interProcessPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvR
   }
 
   // Total sub items in list
-  uint32_t total_sub_items = path->attrs.max_pending_recv_requests * path->attrs.max_sub_buffers_per_recv_request;
+  uint32_t total_sub_items = path->attrs.max_pending_recv_requests * MY_MAX(1, path->attrs.max_sub_buffers_per_recv_request);
 
   // Verify enough room to post
-  uint32_t local_index = private_path->curr_local_recv_request_index;
+  uint32_t local_index = private_path->curr_local_unused_recv_request_index;
   uint32_t temp_request_count = request_count;
   while (temp_request_count > 0) {
     RecvRequestAndCompletion *local_request = &private_path->local_recv_request_and_completions[local_index];
     if (local_request->transfer_posted) {
-      TAKYON_RECORD_ERROR(path->error_message, "Out of room to post recv requests. May need to increase attrs.max_pending_recv_requests\n");
+      TAKYON_RECORD_ERROR(path->error_message, "Out of room to post recv requests (attrs.max_pending_recv_requests = %d). May need to increase attrs.max_pending_recv_requests\n", path->attrs.max_pending_recv_requests);
       return false;
     }
     temp_request_count--;
-    local_index = (local_index + path->attrs.max_sub_buffers_per_recv_request) % total_sub_items;
+    local_index = (local_index + MY_MAX(1, path->attrs.max_sub_buffers_per_recv_request)) % total_sub_items;
   }
 
   // Put the requests on the list
@@ -947,8 +955,8 @@ bool interProcessIsRecved(TakyonPath *path, TakyonRecvRequest *request, double t
   }
 
   // Get the current posted local request
-  uint32_t total_sub_items = path->attrs.max_pending_recv_requests * path->attrs.max_sub_buffers_per_recv_request;
-  RecvRequestAndCompletion *local_request = &private_path->local_recv_request_and_completions[private_path->curr_local_recv_request_index];
+  uint32_t total_sub_items = path->attrs.max_pending_recv_requests * MY_MAX(1, path->attrs.max_sub_buffers_per_recv_request);
+  RecvRequestAndCompletion *local_request = &private_path->local_recv_request_and_completions[private_path->curr_local_posted_recv_request_index];
 
   // See if the data has been sent
   while (!local_request->transfer_complete && !private_path->connection_failed) {
@@ -985,7 +993,7 @@ bool interProcessIsRecved(TakyonPath *path, TakyonRecvRequest *request, double t
   char error_message[MAX_ERROR_MESSAGE_CHARS];
   uint64_t total_available_recv_bytes = 0;
   for (uint32_t i=0; i<local_request->sub_buffer_count; i++) {
-    RecvRequestAndCompletion *local_sub_buffer = &private_path->local_recv_request_and_completions[private_path->curr_local_recv_request_index + i];
+    RecvRequestAndCompletion *local_sub_buffer = &private_path->local_recv_request_and_completions[private_path->curr_local_posted_recv_request_index + i];
     uint64_t local_max_bytes = local_sub_buffer->bytes;
     TakyonBuffer *local_buffer = &path->attrs.buffers[local_sub_buffer->buffer_index];
     PrivateTakyonBuffer *private_buffer = (PrivateTakyonBuffer *)local_buffer->private;
@@ -1003,7 +1011,7 @@ bool interProcessIsRecved(TakyonPath *path, TakyonRecvRequest *request, double t
 #endif
 
   // Prepare for the next request
-  private_path->curr_local_recv_request_index = (private_path->curr_local_recv_request_index + path->attrs.max_sub_buffers_per_recv_request) % total_sub_items;
+  private_path->curr_local_posted_recv_request_index = (private_path->curr_local_posted_recv_request_index + MY_MAX(1, path->attrs.max_sub_buffers_per_recv_request)) % total_sub_items;
 
   // Return results
   *bytes_received_ret = local_request->bytes_received;

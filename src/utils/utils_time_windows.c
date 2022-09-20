@@ -95,3 +95,49 @@ int64_t clockTimeNanoseconds() {
 
   return total_nanoseconds;
 }
+
+double clockTimeSeconds() {
+  static long long base_time;
+  static int got_base_time = 0;
+  static int tested_freq = 0;
+  static long long freq = 0L;
+  if (!tested_freq) {
+    tested_freq = 1;
+    if (!QueryPerformanceFrequency((LARGE_INTEGER *)&freq)) {
+      // High speed clock not available
+      freq = 0L;
+    }
+  }
+  int got_high_speed_clock = 0;
+  long long total_nanoseconds;
+  if (freq > 0L) {
+    // Uses high performance clock, with a frequency of 'freq'
+    long long count;
+    if (QueryPerformanceCounter((LARGE_INTEGER *)&count)) {
+      long long seconds;
+      long long nanoseconds;
+      long long nanoseconds_per_second = 1000000000L;
+      got_high_speed_clock = 1;
+      seconds = count / freq;
+      count = count % freq;
+      nanoseconds = (nanoseconds_per_second * count) / freq;
+      total_nanoseconds = (seconds * nanoseconds_per_second) + nanoseconds;
+    } else {
+      // The high frequency clock may have stopped working mid run, or right from the beginning
+      freq = 0L;
+      got_high_speed_clock = 0;
+    }
+  }
+  if (!got_high_speed_clock) {
+    // Uses the low resolution wall clock
+    struct _timeb timebuffer;
+    _ftime(&timebuffer);
+    total_nanoseconds = (long long)timebuffer.time * (long long)1000000000;
+    total_nanoseconds += ((long long)(timebuffer.millitm) * (long long)(1000000));
+  }
+  if (!got_base_time) {
+    base_time = total_nanoseconds;
+    got_base_time = 1;
+  }
+  return (total_nanoseconds - base_time)/1000000000.0;
+}

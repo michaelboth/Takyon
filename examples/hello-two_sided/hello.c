@@ -26,8 +26,8 @@
   #define UINT64_FORMAT "%ju"
 #endif
 
-#define TRANSPORT_BYTES 100 // Just need enough to transfer a nice text greeting
-#define NUM_BUFFERS 3
+#define MAX_MESSAGE_BYTES 100 // Just need enough to transfer a nice text greeting
+#define NUM_TAKYON_BUFFERS 3
 
 static void sendMessage(TakyonPath *path, uint32_t i) {
   // Fill in the data to send
@@ -42,8 +42,8 @@ static void sendMessage(TakyonPath *path, uint32_t i) {
   char *message_addr2 = (char *)path->attrs.buffers[1].addr;
   uint64_t split_bytes = 10;
 #ifdef ENABLE_CUDA
-  char message_addr_cpu[TRANSPORT_BYTES];
-  snprintf(message_addr_cpu, TRANSPORT_BYTES, "--- Iteration %u: Hello from %s (CUDA, %d %s) ---", i+1, path->attrs.is_endpointA ? "A" : "B",
+  char message_addr_cpu[MAX_MESSAGE_BYTES];
+  snprintf(message_addr_cpu, MAX_MESSAGE_BYTES, "--- Iteration %u: Hello from %s (CUDA, %d %s) ---", i+1, path->attrs.is_endpointA ? "A" : "B",
            path->features.multi_sub_buffers_supported ? 2 : 1, path->features.multi_sub_buffers_supported ? "sub buffers" : "sub buffer");
   uint64_t message_bytes = strlen(message_addr_cpu) + 1;
   cudaError_t cuda_status = cudaMemcpy(message_addr1, message_addr_cpu, message_bytes, cudaMemcpyDefault);
@@ -54,7 +54,7 @@ static void sendMessage(TakyonPath *path, uint32_t i) {
     if (cuda_status != cudaSuccess) { printf("cudaMemcpy() failed: %s\n", cudaGetErrorString(cuda_status)); exit(0); }
   }
 #else
-  snprintf(message_addr1, TRANSPORT_BYTES, "--- Iteration %u: Hello from %s (CPU, %d %s) ---", i+1, path->attrs.is_endpointA ? "A" : "B",
+  snprintf(message_addr1, MAX_MESSAGE_BYTES, "--- Iteration %u: Hello from %s (CPU, %d %s) ---", i+1, path->attrs.is_endpointA ? "A" : "B",
            path->features.multi_sub_buffers_supported ? 2 : 1, path->features.multi_sub_buffers_supported ? "sub buffers" : "sub buffer");
   uint64_t message_bytes = strlen(message_addr1) + 1;
   if (path->features.multi_sub_buffers_supported) {
@@ -102,7 +102,7 @@ static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request) {
   TakyonSubBuffer *recver_sub_buffer = &recv_request->sub_buffers[0];
   char *message_addr = (char *)recver_sub_buffer->buffer->addr + recver_sub_buffer->offset;
 #ifdef ENABLE_CUDA
-  char message_addr_cpu[TRANSPORT_BYTES];
+  char message_addr_cpu[MAX_MESSAGE_BYTES];
   cudaError_t cuda_status = cudaMemcpy(message_addr_cpu, message_addr, bytes_received, cudaMemcpyDefault);
   if (cuda_status != cudaSuccess) { printf("cudaMemcpy() failed: %s\n", cudaGetErrorString(cuda_status)); exit(0); }
   if (path->features.piggy_back_message_supported) {
@@ -127,10 +127,10 @@ void hello(const bool is_endpointA, const char *interconnect, const uint32_t ite
 
   // Create the memory buffers used with transfering data
   //   - The first 2 are for the sender, and the 3rd is for the receiver
-  TakyonBuffer buffers[NUM_BUFFERS];
-  for (uint32_t i=0; i<NUM_BUFFERS; i++) {
+  TakyonBuffer buffers[NUM_TAKYON_BUFFERS];
+  for (uint32_t i=0; i<NUM_TAKYON_BUFFERS; i++) {
     TakyonBuffer *buffer = &buffers[i];
-    buffer->bytes = TRANSPORT_BYTES;
+    buffer->bytes = MAX_MESSAGE_BYTES;
     buffer->app_data = NULL;
 #ifdef ENABLE_CUDA
     cudaError_t cuda_status = cudaMalloc(&buffer->addr, buffer->bytes);
@@ -151,14 +151,6 @@ void hello(const bool is_endpointA, const char *interconnect, const uint32_t ite
 #endif
   }
 
-  // Setup the receive request and it's sub buffer
-  //   - This is done before the path is setup in the case the receiver needs the recieves posted before sending can start
-  TakyonSubBuffer recver_sub_buffer = { .buffer = &buffers[2], .bytes = TRANSPORT_BYTES, .offset = 0 };
-  TakyonRecvRequest recv_request = { .sub_buffer_count = 1,
-                                     .sub_buffers = &recver_sub_buffer,
-                                     .use_polling_completion = false,
-                                     .usec_sleep_between_poll_attempts = 0 };
-
   // Define the path attributes
   //   - Can't be changed after path creation
   TakyonPathAttributes attrs;
@@ -166,19 +158,27 @@ void hello(const bool is_endpointA, const char *interconnect, const uint32_t ite
   attrs.is_endpointA                            = is_endpointA;
   attrs.failure_mode                            = TAKYON_EXIT_ON_ERROR;
   attrs.verbosity                               = TAKYON_VERBOSITY_ERRORS;
-  attrs.buffer_count                            = NUM_BUFFERS;
+  attrs.buffer_count                            = NUM_TAKYON_BUFFERS;
   attrs.buffers                                 = buffers;
   attrs.max_pending_send_and_one_sided_requests = 1;
   attrs.max_pending_recv_requests               = 1;
   attrs.max_sub_buffers_per_send_request        = 2; // Will send two blocks if supported, otherwise one block.
-  attrs.max_sub_buffers_per_recv_request        = 1; // Recevier will always get a single block
+  attrs.max_sub_buffers_per_recv_request        = 1; // Receiver will always get a single block
+
+  // Setup the receive request and it's sub buffer
+  //   - This is done before the path is setup in the case the receiver needs the recieves posted before sending can start
+  TakyonSubBuffer recver_sub_buffer = { .buffer = &buffers[2], .bytes = MAX_MESSAGE_BYTES, .offset = 0 };
+  TakyonRecvRequest recv_request = { .sub_buffer_count = 1,
+                                     .sub_buffers = &recver_sub_buffer,
+                                     .use_polling_completion = false,
+                                     .usec_sleep_between_poll_attempts = 0 };
 
   // Create one side of the path
   //   - The other side will be created in a different thread/process
   TakyonPath *path;
   (void)takyonCreate(&attrs, 1, &recv_request, TAKYON_WAIT_FOREVER, &path);
 
-  // Take turns sending the greeing multiple times
+  // Take turns sending the greeting multiple times
   //  - If this is a connection oriented communication, then messages are sent in both directions and are self synchronizing to avoid race conditions
   //  - If this is NOT a connection oriented communication, then messages are only sent from A to B and will be dropped if B is not running before the sender
   for (uint32_t i=0; i<iterations; i++) {
@@ -199,7 +199,7 @@ void hello(const bool is_endpointA, const char *interconnect, const uint32_t ite
   takyonDestroy(path, TAKYON_WAIT_FOREVER);
 
   // Free the takyon buffers
-  for (uint32_t i=0; i<NUM_BUFFERS; i++) {
+  for (uint32_t i=0; i<NUM_TAKYON_BUFFERS; i++) {
     TakyonBuffer *buffer = &buffers[i];
 #ifdef ENABLE_CUDA
     cudaFree(buffer->addr);

@@ -64,6 +64,8 @@ typedef struct {
   bool connection_failed;
 } PrivateTakyonPath;
 
+/*+ see if non blocking can be properly supported: fnctl(fd, F_SETFL, O_NONBLOCK); how to know when done */
+
 bool tcpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *recv_requests, double timeout_seconds) {
   (void)post_recv_count; // Quiet compiler checking
   (void)recv_requests; // Quiet compiler checking
@@ -296,7 +298,7 @@ bool tcpSocketSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_
     uint64_t src_bytes = sub_buffer->bytes;
     if (src_bytes > (src_buffer->bytes - sub_buffer->offset)) {
       private_path->connection_failed = true;
-      TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju exceeds src buffer\n", src_bytes);
+      TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju, offset = %ju exceeds src buffer (bytes = %ju)\n", src_bytes, sub_buffer->offset, src_buffer->bytes);
       return false;
     }
     total_bytes_to_send += src_bytes;
@@ -399,9 +401,9 @@ bool tcpSocketIsRecved(TakyonPath *path, TakyonRecvRequest *request, double time
         return false;
       }
       uint64_t max_bytes = sub_buffer->bytes;
-      if (max_bytes < (buffer->bytes - sub_buffer->offset)) {
+      if (max_bytes > (buffer->bytes - sub_buffer->offset)) {
         private_path->connection_failed = true;
-        TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju and exceeds buffer\n", max_bytes);
+        TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju, offset = %ju exceeds dest buffer (bytes = %ju)\n", max_bytes, sub_buffer->offset, buffer->bytes);
         return false;
       }
       total_available_recv_bytes += max_bytes;

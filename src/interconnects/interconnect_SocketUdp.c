@@ -322,7 +322,7 @@ bool udpSocketSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_
   uint64_t src_bytes = sub_buffer->bytes;
   if (src_bytes > (src_buffer->bytes - sub_buffer->offset)) {
     private_path->connection_failed = true;
-    TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju exceeds src buffer\n", src_bytes);
+    TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju, offset = %ju exceeds src buffer (bytes = %ju)\n", src_bytes, sub_buffer->offset, src_buffer->bytes);
     return false;
   }
   if (src_bytes == 0) {
@@ -389,9 +389,9 @@ bool udpSocketIsRecved(TakyonPath *path, TakyonRecvRequest *request, double time
     return false;
   }
   uint64_t max_bytes = sub_buffer->bytes;
-  if (max_bytes < (buffer->bytes - sub_buffer->offset)) {
+  if (max_bytes > (buffer->bytes - sub_buffer->offset)) {
     private_path->connection_failed = true;
-    TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju and exceeds buffer\n", max_bytes);
+    TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju, offset = %ju exceeds dest buffer (bytes = %ju)\n", max_bytes, sub_buffer->offset, buffer->bytes);
     return false;
   }
   if (max_bytes == 0) {

@@ -9,23 +9,19 @@
 //     See the License for the specific language governing permissions and
 //     limitations under the License.
 
-#ifndef _utils_time_h_
-#define _utils_time_h_
+#include "throughput.h"
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 
-#include <stdint.h>
+int main(int argc, char **argv) {
+  if (argc != 4) { printf("usage: %s [A|B] \"<interconnect>\" <iterations>\n", argv[0]); return 1; }
+  const bool is_endpointA = (strlen(argv[1]) == 1 && argv[1][0] == 'A');
+  const char *interconnect = argv[2];
+  const uint32_t iterations = (uint32_t)atoi(argv[3]);
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
+  // Run one endpoint of the path
+  throughput(is_endpointA, interconnect, iterations);
 
-extern void clockSleep(int64_t microseconds);
-extern void clockSleepYield(int64_t microseconds);  // Goal is to force a context switch to give other threads time to process
-extern int64_t clockTimeNanoseconds();              // Since some base time
-extern double clockTimeSeconds();                   // Since some base time
-
-#ifdef __cplusplus
+  return 0;
 }
-#endif
-
-#endif

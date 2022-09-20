@@ -77,7 +77,7 @@ typedef struct {
 
 // Only used with multi buffer transfers
 typedef struct {
-  TakyonBuffer *buffer;
+  TakyonBuffer *buffer; /*+ use index instead? */
   uint64_t bytes;       // Receiver can make this more than what is actually sent, takyonIsRecved() will report that actual bytes received
   uint64_t offset;      // In bytes
   // Do not modify the following fields
@@ -136,6 +136,7 @@ typedef struct {
 
 typedef struct {
   bool is_endpointA;                                 // True: side A of the path. False: side B of the path.
+  /*+ rename to "provider" */
   char interconnect[TAKYON_MAX_INTERCONNECT_CHARS];  // Text string the describes the endpoint's interconnect specification.
   uint64_t verbosity;                                // 'Or' the bits of the TAKYON_VERBOSITY_* mask values to define what is printed to stdout and stderr.
   TakyonFailureMode failure_mode;                    // Determine what happens when an error is detected
@@ -161,7 +162,7 @@ typedef struct {
   bool piggy_back_message_supported;      // True if comm allows sending a 32bit message piggy backed on the primary message
   bool multi_sub_buffers_supported;       // True if more than one sub buffer can be in a single transfer
   bool zero_byte_message_supported;       // True if can send zero byte messages
-} TakyonPathFeatures;
+} TakyonPathFeatures; /*+ rename to TakyonPathCapabilities */
 
 typedef struct {
   // IMPORTANT: do not modify any fields in this structure

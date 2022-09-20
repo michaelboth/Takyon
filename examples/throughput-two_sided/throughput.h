@@ -9,9 +9,10 @@
 //     See the License for the specific language governing permissions and
 //     limitations under the License.
 
-#ifndef _utils_time_h_
-#define _utils_time_h_
+#ifndef _throughput_h_
+#define _throughput_h_
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -19,10 +20,7 @@ extern "C"
 {
 #endif
 
-extern void clockSleep(int64_t microseconds);
-extern void clockSleepYield(int64_t microseconds);  // Goal is to force a context switch to give other threads time to process
-extern int64_t clockTimeNanoseconds();              // Since some base time
-extern double clockTimeSeconds();                   // Since some base time
+extern void throughput(const bool is_endpointA, const char *interconnect, const uint32_t iterations);
 
 #ifdef __cplusplus
 }
