@@ -67,7 +67,7 @@ fi
 if [ "$cuda" == "yes" ]; then
     options+=" CUDA=Yes"
 fi
-echo "options = $options"
+echo "extra compile flags = $options"
 
 # Takyon library
 cleanFolder ../lib
