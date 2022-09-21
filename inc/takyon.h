@@ -134,6 +134,7 @@ typedef struct {
   void *private;                             // Used internally; e.g. track the completion between takyonSend() and takyonIsSent()
 } TakyonRecvRequest;
 
+// takyonCreate() will make a copy of this but the 'buffers' must be application allocated and persistant for the life of the app
 typedef struct {
   bool is_endpointA;                                 // True: side A of the path. False: side B of the path.
   char provider[TAKYON_MAX_PROVIDER_CHARS];          // Text string the describes the endpoint's provider specification.
