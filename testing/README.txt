@@ -1,9 +1,15 @@
 Linux & Mac
   Build
-    > ./buildExamples.bash debug mmap cuda
+    > ./buildExamples.bash [debug] [mmap] [cuda]
   Run
     > ./runInterThread.bash
-    A> ./runInterProcess.bash A mmap socket ephemeral
-    B> ./runInterProcess.bash B mmap socket ephemeral
+    A> ./runInterProcess.bash A [mmap] [socket] [ephemeral]
+    B> ./runInterProcess.bash B [mmap] [socket] [ephemeral]
+  Clean
+    > ./buildExamples.bash clean
+
+Windows
+  Build
+    > buildExamples.bat [debug] [mmap] [cuda]
   Clean
     > ./buildExamples.bash clean
