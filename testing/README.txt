@@ -11,5 +11,9 @@ Linux & Mac
 Windows
   Build
     > buildExamples.bat [debug] [mmap] [cuda]
+  Run
+    > runInterThread.bat
+    A> runInterProcess.bat A [mmap] [socket] [ephemeral]
+    B> runInterProcess.bat B [mmap] [socket] [ephemeral]
   Clean
-    > ./buildExamples.bash clean
+    > ./buildExamples.bat clean
