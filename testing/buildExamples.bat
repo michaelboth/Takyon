@@ -104,19 +104,19 @@ echo Running: %make_command%
 %make_command%
 if ERRORLEVEL 1 ( echo "Failed to build hello-two_sided" & GOTO:done )
 
-rem throughput-one_sided
-cd ..\throughput-one_sided
-if ERRORLEVEL 1 ( echo "Failed to cd ..\examples\throughput-one_sided" & GOTO:done )
+rem throughput-two_sided
+cd ..\throughput-two_sided
+if ERRORLEVEL 1 ( echo "Failed to cd ..\examples\throughput-two_sided" & GOTO:done )
 echo Cleaning first
 nmake -f windows.Makefile clean
-if ERRORLEVEL 1 ( echo "Failed to clean throughput-one_sided" & GOTO:done )
+if ERRORLEVEL 1 ( echo "Failed to clean throughput-two_sided" & GOTO:done )
 set make_command=nmake -f windows.Makefile %options%
 if %mmap% == yes (
     set make_command=%make_command% MMAP=Yes
 )
 echo Running: %make_command%
 %make_command%
-if ERRORLEVEL 1 ( echo "Failed to build throughput-one_sided" & GOTO:done )
+if ERRORLEVEL 1 ( echo "Failed to build throughput-two_sided" & GOTO:done )
 
 GOTO:done
 

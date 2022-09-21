@@ -31,22 +31,22 @@ CUDA_C_LIBS = "$(CUDA_HOME)\lib\x64\cudart.lib"
 C_FLAGS = $(OPTIMIZATION_C_FLAGS) -nologo -WX -W3 -D_CRT_SECURE_NO_WARNINGS -I. -I../../inc $(MMAP_C_FLAGS) $(CUDA_C_FLAGS) $(THREAD_C_FLAGS)
 LINK_FLAGS = -nologo -incremental:no -manifest:embed -subsystem:console
 C_LIBS = ../../lib/takyon.lib $(CUDA_C_LIBS) $(THREAD_C_LIBS) Ws2_32.lib
-TARGET_MT = hello_mt.exe
-TARGET_MP = hello_mp.exe
+TARGET_MT = throughput_mt.exe
+TARGET_MP = throughput_mp.exe
 
 .SUFFIXES: .c
 
 all: $(TARGET_MT) $(TARGET_MP)
 
-$(TARGET_MT): hello.c main_inter_thread.c
-	cl -c $(C_FLAGS) -Fohello_mt.obj hello.c
+$(TARGET_MT): throughput.c main_inter_thread.c
+	cl -c $(C_FLAGS) -Fothroughput_mt.obj throughput.c
 	cl -c $(C_FLAGS) -Fo main_inter_thread.c
-	link $(LINK_FLAGS) hello_mt.obj main_inter_thread.obj $(C_LIBS) -out:$(TARGET_MT)
+	link $(LINK_FLAGS) throughput_mt.obj main_inter_thread.obj $(C_LIBS) -out:$(TARGET_MT)
 
-$(TARGET_MP): hello.c main_inter_processor.c
-	cl -c $(C_FLAGS) -Fohello_mp.obj hello.c
+$(TARGET_MP): throughput.c main_inter_processor.c
+	cl -c $(C_FLAGS) -Fothroughput_mp.obj throughput.c
 	cl -c $(C_FLAGS) -Fo main_inter_processor.c
-	link $(LINK_FLAGS) hello_mp.obj main_inter_processor.obj $(C_LIBS) -out:$(TARGET_MP)
+	link $(LINK_FLAGS) throughput_mp.obj main_inter_processor.obj $(C_LIBS) -out:$(TARGET_MP)
 
 clean:
 	-del $(TARGET_MT)
