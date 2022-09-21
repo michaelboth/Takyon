@@ -21,6 +21,7 @@ View this presentation to learn the about Takyon
 - Supports one-sided (read or write) and two-sided transfers (send -> recv)
 - Designed for zero-copy one-way (can't get any faster than that)
 - Designed to allow your app to be fault tolerant (via timeouts, disconnect detection, and dynamic path creation)
+- Supports GPU memory via CUDA's cudaMemcpy, CUDA IPC, and GPUDirect
 - Tested on Windows, Mac, & Linux
 
 ## Takyon's Currently Supported Providers
@@ -46,7 +47,7 @@ Mac | xCode
 Windows | Visual Studio<br><br> Takyon requires Posix threads (not supported in Visual Studio). To download and build it:<br> 1. Get the source code from: https://sourceforge.net/projects/pthreads4w/ <br> 2. Unzip, rename to 'pthreads4w' and put in the C:\ folder <br> 3. Start a Visual Studio x64 native shell <br> ```> cd c:\pthreads4w``` <br> ```> nmake VC VC-debug VC-static VC-static-debug install DESTROOT=.\install```
 
 ## Examples
-To help you get started, some examples are provided. Each example has a ```README.txt``` to know how to build and run the example
+To help you get started, some examples are provided. Each example has a ```README.txt``` to know how to build and run the example. The examples cover most of Takyon's features.
 Example | Description
 --------|------------
 hello-two_sided | Transfer a simple greeting between two endpoints using send() and recv()

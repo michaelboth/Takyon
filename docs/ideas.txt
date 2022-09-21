@@ -2,10 +2,11 @@ To DO
   - Windows CUDA
   - Windows testing scripts
   - BUG: OSX ephemeral sockets (seems the multicast packets are being blocked)
-  - Ask OFA if they no longer support Verbs implementations anymore. Do they still support the API spec? How is Intel and Mellanox supported with implementations?
   - Ask Mellanox if Verbs is also on Windows
+  - Provide a way to get capabilities before path is created? Add funtion in supported_providers.h?
+  - Non blocking sokcets?
   - Examples
-    - throughput: show Gb/sec & GB/sec
+    - throughput-one_sided
 
 Promote To
   - Khronos, as a new proposal
@@ -19,6 +20,7 @@ Promote To
   - Abaco
 
 Future Ideas
+  - Atomics
   - Collectives: base on Takyon 1.x graph extension
     - Also create GUI to make graph design easy
   - Strided (maybe)
