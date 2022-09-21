@@ -12,17 +12,18 @@ View this presentation to learn the about Takyon
 <br>
 
 # Takyon's Key Features
-- Point-to-point message passing communication API
+- Point-to-point message passing communication API (reliable and unreliable)
 - Heterogeneous: unifies RDMA, sockets, and many other communication interconnects
 - Only 8 functions... can learn in a few days
 - Supports connect and unconnected (unicast & multicast)
 - Supports blocking and non-blocking transfers
 - Supports one-sided and two-sided transfers
 - Designed for zero-copy one-way
-- Designed to allow for fault tolerance
+- Designed to allow your app to be fault tolerant
 - Tested on Windows, Mac, & Linux
 
 ## Takyon's Currently Supported Providers
+A provider gives access to a specific communication interconnect
 Provider      | Type                   | Max Message Bytes | Non-Blocking | Supports One-Sided | Zero Byte Messages | GPU
 --------------|------------------------|-------------------|--------------|--------------------|--------------------|----
 InterThread   | Reliable-Connected     | >4 GB             | No           | Yes                | Yes                | Yes
