@@ -23,7 +23,7 @@ MMAP_C_FLAGS = -DENABLE_MMAP -I../../src/utils
 
 # CUDA
 !IF "$(CUDA)" == "Yes"
-CUDA_HOME = "c:\cuda"
+CUDA_HOME = C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.7
 CUDA_C_FLAGS = -DENABLE_CUDA -I"$(CUDA_HOME)\include"
 CUDA_C_LIBS = "$(CUDA_HOME)\lib\x64\cudart.lib"
 !ENDIF

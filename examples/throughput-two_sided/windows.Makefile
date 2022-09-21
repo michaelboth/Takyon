@@ -18,17 +18,17 @@ TAKYON_C_LIBS = ../../lib/takyon.lib
 
 # MMAP
 !IF "$(MMAP)" == "Yes"
-MMAP_C_FLAGS = -DENABLE_MMAP -I../../src/utils
+MMAP_C_FLAGS = -DENABLE_MMAP
 !ENDIF
 
 # CUDA
 !IF "$(CUDA)" == "Yes"
-CUDA_HOME = "c:\cuda"
+CUDA_HOME = C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.7
 CUDA_C_FLAGS = -DENABLE_CUDA -I"$(CUDA_HOME)\include"
 CUDA_C_LIBS = "$(CUDA_HOME)\lib\x64\cudart.lib"
 !ENDIF
 
-C_FLAGS = $(OPTIMIZATION_C_FLAGS) -nologo -WX -W3 -D_CRT_SECURE_NO_WARNINGS -I. -I../../inc $(MMAP_C_FLAGS) $(CUDA_C_FLAGS) $(THREAD_C_FLAGS)
+C_FLAGS = $(OPTIMIZATION_C_FLAGS) -nologo -WX -W3 -D_CRT_SECURE_NO_WARNINGS -I. -I../../inc -I../../src/utils $(MMAP_C_FLAGS) $(CUDA_C_FLAGS) $(THREAD_C_FLAGS)
 LINK_FLAGS = -nologo -incremental:no -manifest:embed -subsystem:console
 C_LIBS = ../../lib/takyon.lib $(CUDA_C_LIBS) $(THREAD_C_LIBS) Ws2_32.lib
 TARGET_MT = throughput_mt.exe

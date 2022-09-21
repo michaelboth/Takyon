@@ -68,7 +68,7 @@ utils_time_C_OBJS = utils_time_windows.obj
 !IF "$(NEED_utils_ipc)" == "Yes"
 utils_ipc_C_OBJS = utils_ipc_windows.obj
 !IF "$(CUDA)" == "Yes"
-utils_ipc_C_OBJS = utils_ipc_cuda.obj
+utils_ipc_C_OBJS = utils_ipc_windows.obj utils_ipc_cuda.obj
 !ENDIF
 !ENDIF
 
@@ -87,7 +87,7 @@ utils_ephemeral_port_manager_C_OBJS = utils_socket_ephemeral_port_manager.obj
 !ENDIF
 
 !IF "$(CUDA)" == "Yes"
-CUDA_HOME = "c:\cuda"
+CUDA_HOME = C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.7
 CUDA_C_FLAGS = -DENABLE_CUDA -I"$(CUDA_HOME)\include"
 !ENDIF
 

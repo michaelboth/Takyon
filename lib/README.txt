@@ -2,6 +2,10 @@ This folder and makefiles are just a convenience for creating the Takyon library
 instead of directly compiling the Takyon source code into your application.
 
 Linux and Mac
+  Required:
+    - gcc and make
+  Extras:
+    - CUDA Toolkit: https://developer.nvidia.com/cuda-toolkit
   Build:
     > cd takyon/lib
     Specification
@@ -22,6 +26,8 @@ Windows
       3. Start a Visual Studio x64 native shell
       > cd c:\pthreads4w
       > nmake VC VC-debug VC-static VC-static-debug install DESTROOT=.\install
+  Extras:
+    - CUDA Toolkit: https://developer.nvidia.com/cuda-toolkit
   Build:
     > cd takyon\lib
     Specification
