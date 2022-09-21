@@ -15,11 +15,11 @@ View this presentation to learn the about Takyon
 - Point-to-point message passing communication API (reliable and unreliable)
 - Heterogeneous: unifies RDMA, sockets, and many other communication interconnects
 - Only 8 functions... can learn in a few days
-- Supports connect and unconnected (unicast & multicast)
+- Supports connected and unconnected (unicast & multicast)
 - Supports blocking and non-blocking transfers
-- Supports one-sided and two-sided transfers
-- Designed for zero-copy one-way
-- Designed to allow your app to be fault tolerant
+- Supports one-sided (read or write) and two-sided transfers (send -> recv)
+- Designed for zero-copy one-way (can't get any faster than that)
+- Designed to allow your app to be fault tolerant (via timeouts, disconnect detection, and dynamic path creation)
 - Tested on Windows, Mac, & Linux
 
 ## Takyon's Currently Supported Providers
