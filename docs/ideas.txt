@@ -1,10 +1,8 @@
 To DO
-  - Windows CUDA
-  - Windows testing scripts
   - BUG: OSX ephemeral sockets (seems the multicast packets are being blocked)
   - Ask Mellanox if Verbs is also on Windows
   - Provide a way to get capabilities before path is created? Add funtion in supported_providers.h?
-  - Non blocking sokcets?
+  - Non blocking sockets?
   - Examples
     - throughput-one_sided
 
