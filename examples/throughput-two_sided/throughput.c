@@ -95,9 +95,6 @@ static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, const
     L_detected_drops += data_cpu[0] - (previous_start_value+1);
     previous_start_value = data_cpu[0];
   }
-
-  // If the provider supports pre-posting, then need to post the recv to be ready for the next send, before the send starts
-  if (path->capabilities.PostRecvs_supported) takyonPostRecvs(path, 1, recv_request);
 }
 
 static void sendSignal(TakyonPath *path, const bool use_polling_completion) {
@@ -218,19 +215,32 @@ void throughput(const bool is_endpointA, const char *provider, const uint64_t it
   double start_time = clockTimeSeconds();
   int64_t bytes_transferred = 0;
   double last_print_time = start_time - 1.0;
+  uint64_t messages_transferred = 0;
   for (uint64_t i=0; i<iterations; i++) {
+    // Transfer message
     if (path->attrs.is_endpointA) {
       // Send message
       sendMessage(path, message_bytes, use_polling_completion, validate, i+1);
-      // Wait for the message to arrive (will reuse the recv_request that was already prepared)
-      if (path->capabilities.IsRecved_supported) recvSignal(path, &repost_recv_request);
     } else {
       // Wait for the message to arrive (will reuse the recv_request that was already prepared)
       recvMessage(path, &recv_requests[recv_request_index], validate, i+1);
       recv_request_index = (recv_request_index + 1) % max_recv_requests;
-      /*+ re-post in bulk */
-      // Send a zero byte message to endpoint A to let it know it can send more messages
-      if (path->capabilities.Send_supported) sendSignal(path, use_polling_completion);
+    }
+
+    // See if time to repost recvs (this is more efficient then posting a single recv after a message is received
+    messages_transferred++;
+    if (messages_transferred == max_recv_requests) {
+      // Used up all the posted recvs. Need to repost
+      if (path->attrs.is_endpointA) {
+        // Wait for the recvs to be posted
+        if (path->capabilities.IsRecved_supported) recvSignal(path, &repost_recv_request);
+      } else {
+        // If the provider supports pre-posting, then do it
+        if (path->capabilities.PostRecvs_supported) takyonPostRecvs(path, max_recv_requests, recv_requests);
+        // Let the send know the recvs are posted
+        if (path->capabilities.Send_supported) sendSignal(path, use_polling_completion);
+      }
+      messages_transferred = 0;
     }
 
     // Print the current throughput
