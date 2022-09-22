@@ -350,7 +350,7 @@ static void oneSideThroughput(const bool is_endpointA, const char *provider, con
     if (path->attrs.is_endpointA) {
       double curr_time = clockTimeSeconds();
       double elapsed_time = curr_time - start_time;
-      bytes_transferred += message_bytes;
+      bytes_transferred += message_bytes*2;
       double GB_per_sec = (bytes_transferred / 1000000000.0) / elapsed_time;
       double Gb_per_sec = GB_per_sec * 8;
       double elapsed_print_time = curr_time - last_print_time;
