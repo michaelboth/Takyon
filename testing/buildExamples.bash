@@ -51,7 +51,7 @@ if [ "$clean" == "yes" ]; then
     cleanFolder ../lib
     cleanFolder ../examples/hello-one_sided
     cleanFolder ../hello-two_sided
-    cleanFolder ../throughput-two_sided
+    cleanFolder ../throughput
     exit 0
 fi
 
@@ -93,8 +93,8 @@ if [ "$mmap" == "yes" ]; then
 fi
 build "$command"
 
-# throughput-two_sided
-cleanFolder ../throughput-two_sided
+# throughput
+cleanFolder ../throughput
 command="make $options"
 if [ "$mmap" == "yes" ]; then
     command+=" MMAP=Yes"

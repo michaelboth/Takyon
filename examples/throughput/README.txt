@@ -1,4 +1,7 @@
-Show the max sustained throughput of a Takyon two-sided provider; i.e. a combination of send/recv.
+Show the max sustained throughput of a Takyon provider; supports both one-sided and two-sided.
+  Usage:
+    throughput_mt "<provider>" [-h] [-n=<uint32>] [-b=<uint64>] [-r=<uint32>] [-e] [-v]
+    throughput_mp <A|B> "<provider>" [-h] [-n=<uint32>] [-b=<uint64>] [-r=<uint32>] [-e] [-v]
 
 Mac and Linux
   First build the Takyon library: see lib/README.txt

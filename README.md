@@ -52,4 +52,4 @@ Example | Description
 --------|------------
 hello-two_sided | Transfer a simple greeting between two endpoints using send() and recv()
 hello-one_sided | Transfer a simple greeting between two endpoints using a one-sided read/write
-throughput-two_sided | Determine transfer speed between two endpoints using send() and recv()
+throughput | Determine transfer speed of a provider; send/recv or write & read
