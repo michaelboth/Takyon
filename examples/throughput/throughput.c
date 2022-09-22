@@ -117,7 +117,7 @@ static void writeMessage(TakyonPath *path, const uint64_t message_bytes, const b
   // Setup the one-sided write request
   TakyonOneSidedRequest request = {
                                    .is_write_request = true,
-                                   .local_buffer = &path->attrs.buffers[0],
+                                   .local_buffer_index = 0,
                                    .local_offset = 0,
                                    .remote_buffer_index = 1,
                                    .remote_offset = 0,
@@ -136,11 +136,10 @@ static void writeMessage(TakyonPath *path, const uint64_t message_bytes, const b
 
 static void readMessage(TakyonPath *path, const uint64_t message_bytes, const bool use_polling_completion, const bool validate, const uint64_t message_count) {
   // Setup the one-sided write request
-  TakyonBuffer *buffer = &path->attrs.buffers[0];
   uint64_t message_offset = message_bytes;
   TakyonOneSidedRequest request = {
                                    .is_write_request = false,
-                                   .local_buffer = buffer,
+                                   .local_buffer_index = 0,
                                    .local_offset = message_offset, /*+ make sure have space for two messages */
                                    .remote_buffer_index = 1,
                                    .remote_offset = 0,
@@ -158,6 +157,7 @@ static void readMessage(TakyonPath *path, const uint64_t message_bytes, const bo
 
   if (validate) {
     static uint64_t previous_start_value = 0;
+    TakyonBuffer *buffer = &path->attrs.buffers[0];
     validateMessage(buffer, message_bytes, message_bytes, message_offset, message_count, &previous_start_value);
   }
 }

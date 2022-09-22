@@ -45,7 +45,7 @@ static void writeMessage(TakyonPath *path, uint32_t i) {
 
   // Setup the one-sided write request
   TakyonOneSidedRequest write_request = { .is_write_request = true,
-                                          .local_buffer = &path->attrs.buffers[0],
+                                          .local_buffer_index = 0,
                                           .local_offset = 0,
                                           .remote_buffer_index = 1,
                                           .remote_offset = 0,
@@ -65,7 +65,7 @@ static void writeMessage(TakyonPath *path, uint32_t i) {
 static void readMessage(TakyonPath *path) {
   // Setup the one-sided write request
   TakyonOneSidedRequest read_request = { .is_write_request = false,
-                                         .local_buffer = &path->attrs.buffers[2],
+                                         .local_buffer_index = 2,
                                          .local_offset = 0,
                                          .remote_buffer_index = 1,
                                          .remote_offset = 0,

@@ -250,12 +250,13 @@ bool takyonOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double tim
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
-  if (request->local_buffer == NULL) {
-    TAKYON_RECORD_ERROR(path->error_message, "'request->local_buffer' is NULL\n");
+  if (request->local_buffer_index <= path->attrs.buffer_count) {
+    TAKYON_RECORD_ERROR(path->error_message, "'request->local_buffer_index' is out of range\n");
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
-  if ((request->local_buffer->bytes - request->local_offset) < request->bytes) {
+  TakyonBuffer *buffer = &path->attrs.buffers[request->local_buffer_index];
+  if ((buffer->bytes - request->local_offset) < request->bytes) {
     TAKYON_RECORD_ERROR(path->error_message, "'request->bytes' exceeds request->local_buffer range\n");
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
@@ -302,12 +303,13 @@ bool takyonIsOneSidedDone(TakyonPath *path, TakyonOneSidedRequest *request, doub
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
-  if (request->local_buffer == NULL) {
-    TAKYON_RECORD_ERROR(path->error_message, "'request->local_buffer' is NULL\n");
+  if (request->local_buffer_index <= path->attrs.buffer_count) {
+    TAKYON_RECORD_ERROR(path->error_message, "'request->local_buffer_index' is NULL\n");
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
-  if ((request->local_buffer->bytes - request->local_offset) < request->bytes) {
+  TakyonBuffer *buffer = &path->attrs.buffers[request->local_buffer_index];
+  if ((buffer->bytes - request->local_offset) < request->bytes) {
     TAKYON_RECORD_ERROR(path->error_message, "'request->bytes' exceeds request->local_buffer range\n");
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;

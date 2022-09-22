@@ -88,8 +88,7 @@ typedef struct {
 typedef struct {
   bool is_write_request;                     // True: is one sided write. False: is one sided read. Either way, the remote CPU is not involved in the transfer
   // Transfer info fields
-  /*+ use index instead */
-  TakyonBuffer *local_buffer;                // The local memory buffer
+  uint32_t local_buffer_index;               // Index of the local memory buffer
   uint64_t local_offset;                     // Offset in bytes into the local buffer addr
   uint32_t remote_buffer_index;              // Index into the remote buffer list
   uint64_t remote_offset;                    // Offset in bytes into the buffer addr

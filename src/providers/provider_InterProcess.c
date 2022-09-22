@@ -701,7 +701,7 @@ bool interProcessOneSided(TakyonPath *path, TakyonOneSidedRequest *request, doub
   }
 
   // Source info
-  TakyonBuffer *local_buffer = request->local_buffer;
+  TakyonBuffer *local_buffer = &path->attrs.buffers[request->local_buffer_index];
   PrivateTakyonBuffer *local_private_buffer = (PrivateTakyonBuffer *)local_buffer->private;
   if (local_private_buffer->path != path) {
     TAKYON_RECORD_ERROR(path->error_message, "'request->local_buffer is not from this Takyon path\n");

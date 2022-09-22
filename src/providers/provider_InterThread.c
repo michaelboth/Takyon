@@ -316,7 +316,7 @@ static bool doOneWayTransfer(TakyonPath *path, TakyonPath *remote_path, TakyonOn
   // IMPORTANT: mutex is locked at this point
 
   // Source info
-  TakyonBuffer *local_buffer = request->local_buffer;
+  TakyonBuffer *local_buffer = &path->attrs.buffers[request->local_buffer_index];
   if (local_buffer->private != path) {
     TAKYON_RECORD_ERROR(path->error_message, "'local_buffer is not from this Takyon path\n");
     return false;
