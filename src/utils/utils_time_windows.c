@@ -33,7 +33,14 @@
 #include <sys/timeb.h>
 #include <stdint.h>
 
-void clockSleep(int64_t microseconds) {
+void clockSleepSeconds(double seconds) {
+  int milliseconds = (int)(seconds * 1000);
+  if (milliseconds > 0) {
+    Sleep(milliseconds);
+  }
+}
+
+void clockSleepUsecs(int64_t microseconds) {
   if (microseconds >= 0) {
     int milliseconds = (int)(microseconds / 1000);
     Sleep(milliseconds);

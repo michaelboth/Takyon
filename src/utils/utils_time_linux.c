@@ -33,7 +33,18 @@
 #include <sched.h>
 #include <time.h>
 
-void clockSleep(int64_t microseconds) {
+void clockSleepSeconds(double seconds) {
+  int int_seconds = (int)seconds;
+  int nanosecs = (int)((seconds - int_seconds) * 1000000000);
+  if (int_seconds > 0 || nanosecs > 0) {
+    struct timespec rqtp;
+    rqtp.tv_sec = int_seconds;
+    rqtp.tv_nsec = nanosecs;
+    nanosleep(&rqtp, NULL);
+  }
+}
+
+void clockSleepUsecs(int64_t microseconds) {
   if (microseconds >= 0) {
     usleep(microseconds);
   }

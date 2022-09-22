@@ -499,7 +499,7 @@ bool interThreadIsRecved(TakyonPath *path, TakyonRecvRequest *request, double ti
         }
       }
       // Data not ready. In polling mode, so sleep a little to avoid buring up CPU core
-      if (request->usec_sleep_between_poll_attempts > 0) clockSleep(request->usec_sleep_between_poll_attempts);
+      if (request->usec_sleep_between_poll_attempts > 0) clockSleepUsecs(request->usec_sleep_between_poll_attempts);
     } else {
       // Sleep while waiting for data
       bool timed_out;

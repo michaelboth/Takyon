@@ -970,10 +970,10 @@ bool interProcessIsRecved(TakyonPath *path, TakyonRecvRequest *request, double t
     }
     // Data not ready. In polling mode, so sleep a little to avoid buring up CPU core
     if (request->use_polling_completion) {
-      if (request->usec_sleep_between_poll_attempts > 0) clockSleep(request->usec_sleep_between_poll_attempts);
+      if (request->usec_sleep_between_poll_attempts > 0) clockSleepUsecs(request->usec_sleep_between_poll_attempts);
     } else {
       // KLUDGE: This is event driven so don't want polling to be intrusive, but still need to be pretty resposive
-      clockSleep(KLUDGE_USEC_SLEEP_BETWEEN_POLL_ATTEMPTS);
+      clockSleepUsecs(KLUDGE_USEC_SLEEP_BETWEEN_POLL_ATTEMPTS);
     }
   }
 

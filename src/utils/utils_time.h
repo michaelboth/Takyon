@@ -19,8 +19,8 @@ extern "C"
 {
 #endif
 
-/*+ clockSleepSeconds(double) */
-extern void clockSleep(int64_t microseconds);
+extern void clockSleepSeconds(double seconds);
+extern void clockSleepUsecs(int64_t microseconds);
 extern void clockSleepYield(int64_t microseconds);  // Goal is to force a context switch to give other threads time to process
 extern int64_t clockTimeNanoseconds();              // Since some base time
 extern double clockTimeSeconds();                   // Since some base time
