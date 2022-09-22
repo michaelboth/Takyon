@@ -135,6 +135,12 @@ if [ "$mmap" == "yes" ]; then
     echo ""
     ./throughput_mp $endpoint "InterProcess -pathID=2" -n=100000 -b=32768
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+    echo ""
+    ./throughput_mp $endpoint "InterProcess -pathID=1" -n=100000 -b=32768 -v -o
+    if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+    echo ""
+    ./throughput_mp $endpoint "InterProcess -pathID=2" -n=100000 -b=32768 -o
+    if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
 fi
 if [ "$socket" == "yes" ]; then
     echo ""

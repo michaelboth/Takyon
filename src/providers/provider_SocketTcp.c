@@ -275,7 +275,7 @@ bool tcpSocketSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_
   }
 
   // Make sure socket is in correct polling or event driven mode
-  if (private_path->socket_is_in_polling_mode && request->use_polling_completion) {
+  if (private_path->socket_is_in_polling_mode != request->use_polling_completion) {
     private_path->socket_is_in_polling_mode = request->use_polling_completion;
     if (!socketSetBlocking(private_path->socket_fd, !request->use_polling_completion, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Could not set the socket to '%s' mode: %s\n", request->use_polling_completion ? "polling" : "event driven", error_message);
@@ -362,7 +362,7 @@ bool tcpSocketIsRecved(TakyonPath *path, TakyonRecvRequest *request, double time
   }
 
   // Make sure socket is in correct polling or event driven mode
-  if (private_path->socket_is_in_polling_mode && request->use_polling_completion) {
+  if (private_path->socket_is_in_polling_mode != request->use_polling_completion) {
     private_path->socket_is_in_polling_mode = request->use_polling_completion;
     if (!socketSetBlocking(private_path->socket_fd, !request->use_polling_completion, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Could not set the socket to '%s' mode: %s\n", request->use_polling_completion ? "polling" : "event driven", error_message);
