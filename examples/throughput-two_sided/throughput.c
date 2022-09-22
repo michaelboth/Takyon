@@ -29,6 +29,9 @@
 #endif
 
 #define NUM_TAKYON_BUFFERS 2
+#define RECV_TIMEOUT_SECONDS 5.0
+
+static uint64_t L_detected_drops = 0;
 
 static void sendMessage(TakyonPath *path, const uint64_t message_bytes, const bool use_polling_completion, const bool validate, const uint64_t message_count) {
   if (validate) {
@@ -66,8 +69,9 @@ static void sendMessage(TakyonPath *path, const uint64_t message_bytes, const bo
 static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, const bool validate, const uint64_t message_count) {
   // Wait for data to arrive
   uint64_t bytes_received;
-  /*+ timeout for unconnected: then exit with failure */
-  takyonIsRecved(path, recv_request, TAKYON_WAIT_FOREVER, NULL, &bytes_received, NULL);
+  bool timed_out;
+  takyonIsRecved(path, recv_request, RECV_TIMEOUT_SECONDS, &timed_out, &bytes_received, NULL);
+  if (timed_out)  { printf("Timed out waiting for a message\n"); exit(EXIT_FAILURE); }
   assert(bytes_received == recv_request->sub_buffers[0].bytes);
 
   if (validate) {
@@ -87,7 +91,8 @@ static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, const
     for (uint64_t i=1; i<elements; i++) {
       if ((data_cpu[i-1]+1) != data_cpu[i]) { printf("Message " UINT64_FORMAT ": data[" UINT64_FORMAT "]=" UINT64_FORMAT " and data[" UINT64_FORMAT "]=" UINT64_FORMAT " did not increase by 1\n", message_count, i-1, data_cpu[i-1], i, data_cpu[i]); exit(EXIT_FAILURE); }
     }
-    /*+ count drops */
+    // Count drops
+    L_detected_drops += data_cpu[0] - (previous_start_value+1);
     previous_start_value = data_cpu[0];
   }
 
@@ -114,7 +119,9 @@ static void sendSignal(TakyonPath *path, const bool use_polling_completion) {
 static void recvSignal(TakyonPath *path, TakyonRecvRequest *recv_request) {
   // Wait for data to arrive
   uint64_t bytes_received;
-  takyonIsRecved(path, recv_request, TAKYON_WAIT_FOREVER, NULL, &bytes_received, NULL);
+  bool timed_out;
+  takyonIsRecved(path, recv_request, RECV_TIMEOUT_SECONDS, &timed_out, &bytes_received, NULL);
+  if (timed_out)  { printf("Timed out waiting for a message\n"); exit(EXIT_FAILURE); }
   assert(bytes_received == 0);
 
   // If the provider supports pre-posting, then need to post the recv to be ready for the next send, before the send starts
@@ -234,10 +241,14 @@ void throughput(const bool is_endpointA, const char *provider, const uint64_t it
     double Gb_per_sec = GB_per_sec * 8;
     double elapsed_print_time = curr_time - last_print_time;
     if (i == (iterations-1) || elapsed_print_time > 0.05) {
-      if (!is_multi_threaded || !path->attrs.is_endpointA) {
-        printf("\r%s: " UINT64_FORMAT " transfers, %0.3f GB/sec, %0.3f Gb/sec", path->attrs.is_endpointA ? "Sender" : "Recver", i+1, GB_per_sec, Gb_per_sec);
-        fflush(stdout);
+      if (path->attrs.is_endpointA) {
+        if (!is_multi_threaded) {
+          printf("\r%s: " UINT64_FORMAT " transfers, %0.3f GB/sec, %0.3f Gb/sec", path->attrs.is_endpointA ? "Sender" : "Recver", i+1, GB_per_sec, Gb_per_sec);
+        }
+      } else {
+        printf("\r%s: " UINT64_FORMAT " transfers, %0.3f GB/sec, %0.3f Gb/sec, dropped messages: " UINT64_FORMAT, path->attrs.is_endpointA ? "Sender" : "Recver", i+1, GB_per_sec, Gb_per_sec, L_detected_drops);
       }
+      fflush(stdout);
       last_print_time = curr_time;
     }
     if (elapsed_time >= 3.0) {
