@@ -30,6 +30,11 @@
 
 #define NUM_TAKYON_BUFFERS 2
 #define RECV_TIMEOUT_SECONDS 5.0
+#ifdef ENABLE_CUDA
+  static const char *MEMORY_TYPE = "CUDA";
+#else
+  static const char *MEMORY_TYPE = "CPU";
+#endif
 
 static uint64_t L_detected_drops = 0;
 
@@ -280,17 +285,12 @@ static void twoSideThroughput(const bool is_endpointA, const char *provider, con
     double Gb_per_sec = GB_per_sec * 8;
     double elapsed_print_time = curr_time - last_print_time;
     if (i == (iterations-1) || elapsed_print_time > 0.05) {
-#ifdef ENABLE_CUDA
-      const char *memory_type = "CUDA";
-#else
-      const char *memory_type = "CPU";
-#endif
       if (path->attrs.is_endpointA) {
         if (!is_multi_threaded) {
-          printf("\r%s (two-sided): " UINT64_FORMAT " %s transfers, %0.3f GB/sec, %0.3f Gb/sec", path->attrs.is_endpointA ? "Sender" : "Recver", i+1, memory_type, GB_per_sec, Gb_per_sec);
+          printf("\r%s (two-sided): " UINT64_FORMAT " %s transfers, %0.3f GB/sec, %0.3f Gb/sec", path->attrs.is_endpointA ? "Sender" : "Recver", i+1, MEMORY_TYPE, GB_per_sec, Gb_per_sec);
         }
       } else {
-        printf("\r%s (two-sided): " UINT64_FORMAT " %s transfers, %0.3f GB/sec, %0.3f Gb/sec, dropped messages: " UINT64_FORMAT, path->attrs.is_endpointA ? "Sender" : "Recver", i+1, memory_type, GB_per_sec, Gb_per_sec, L_detected_drops);
+        printf("\r%s (two-sided): " UINT64_FORMAT " %s transfers, %0.3f GB/sec, %0.3f Gb/sec, dropped messages: " UINT64_FORMAT, path->attrs.is_endpointA ? "Sender" : "Recver", i+1, MEMORY_TYPE, GB_per_sec, Gb_per_sec, L_detected_drops);
       }
       fflush(stdout);
       last_print_time = curr_time;
@@ -355,7 +355,7 @@ static void oneSideThroughput(const bool is_endpointA, const char *provider, con
       double Gb_per_sec = GB_per_sec * 8;
       double elapsed_print_time = curr_time - last_print_time;
       if (i == (iterations-1) || elapsed_print_time > 0.05) {
-        printf("\rReader & Writer (one-sided): " UINT64_FORMAT " transfers, %0.3f GB/sec, %0.3f Gb/sec", i+1, GB_per_sec, Gb_per_sec);
+        printf("\rReader & Writer (one-sided): " UINT64_FORMAT " %s transfers, %0.3f GB/sec, %0.3f Gb/sec", i+1, MEMORY_TYPE, GB_per_sec, Gb_per_sec);
         fflush(stdout);
         last_print_time = curr_time;
       }
