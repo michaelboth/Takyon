@@ -23,6 +23,18 @@ if ERRORLEVEL 1 ( echo "Failed to run hello-one_sided" & GOTO:done )
 hello_mt "InterThread -pathID=1" 10
 if ERRORLEVEL 1 ( echo "Failed to run hello-one_sided" & GOTO:done )
 
+rem throughput
+cd ..\throughput
+if ERRORLEVEL 1 ( echo "Failed to cd ..\examples\throughput" & GOTO:done )
+throughput_mt "InterThread -pathID=1" -b=32768 -v
+if ERRORLEVEL 1 ( echo "Failed to run throughput_mt" & GOTO:done )
+throughput_mt "InterThread -pathID=1" -b=32768
+if ERRORLEVEL 1 ( echo "Failed to run throughput_mt" & GOTO:done )
+throughput_mt "InterThread -pathID=1" -b=32768 -v -o
+if ERRORLEVEL 1 ( echo "Failed to run throughput_mt" & GOTO:done )
+throughput_mt "InterThread -pathID=1" -b=32768 -o
+if ERRORLEVEL 1 ( echo "Failed to run throughput_mt" & GOTO:done )
+
 GOTO:done
 
 :done
