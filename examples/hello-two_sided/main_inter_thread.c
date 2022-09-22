@@ -24,7 +24,7 @@ static void *helloThread(void *user_data) {
 }
 
 int main(int argc, char **argv) {
-  if (argc != 3) { printf("usage: %s \"<provider>\" <iterations>\n", argv[0]); return 1; }
+  if (argc != 3) { printf("usage: %s \"<provider>\" <iterations>\n", argv[0]); return EXIT_FAILURE; }
   L_provider = argv[1];
   L_iterations = (uint32_t)atoi(argv[2]);
 
@@ -37,5 +37,5 @@ int main(int argc, char **argv) {
   // Wait for threads to complete processing
   pthread_join(endpointA_thread_id, NULL);
   pthread_join(endpointB_thread_id, NULL);
-  return 0;
+  return EXIT_SUCCESS;
 }

@@ -13,15 +13,58 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <assert.h>
+
+static uint64_t L_iterations = 1000000;
+static uint64_t L_message_bytes = 1024;
+static uint32_t L_max_recv_requests = 10;
+static bool L_use_polling_completion = true;
+static bool L_validate = false;
+
+static void printUsageAndExit(const char *program) {
+  printf("usage: %s <A|B> \"<provider>\" [-h] [-n=<uint32>] [-b=<uint64>] [-r=<uint32>] [-e] [-v]\n", program);
+  printf("   -h          : Print this message and exit\n");
+  printf("   -n=<uint32> : Number of messages to send. Default is %ju\n", L_iterations);
+  printf("   -b=<uint64> : Bytes per message. Default is %ju\n", L_message_bytes);
+  printf("   -r=<uint32> : Recv request count. Default is %u\n", L_max_recv_requests);
+  printf("   -e          : Event driven completion notification. Default is polling\n");
+  printf("   -v          : Validate the messages. Default is '%s'\n", L_validate ? "yes" : "no");
+  exit(EXIT_FAILURE);
+}
 
 int main(int argc, char **argv) {
-  if (argc != 4) { printf("usage: %s [A|B] \"<provider>\" <iterations>\n", argv[0]); return 1; }
-  const bool is_endpointA = (strlen(argv[1]) == 1 && argv[1][0] == 'A');
+  if (argc < 3) {
+    printUsageAndExit(argv[0]);
+  }
+
+  // Process the arguments
+  assert(strlen(argv[1]) == 1 && (argv[1][0] == 'A' || argv[1][0] == 'B'));
+  const bool is_endpointA = (argv[1][0] == 'A');
   const char *provider = argv[2];
-  const uint32_t iterations = (uint32_t)atoi(argv[3]);
+  for (int i=3; i<argc; i++) {
+    if (strcmp(argv[i], "-e") == 0) {
+      L_use_polling_completion = false;
+    } else if (strcmp(argv[i], "-v") == 0) {
+      L_validate = true;
+    } else if (strncmp(argv[i], "-n=", 3) == 0) {
+      int tokens = sscanf(argv[i], "-n=%ju", &L_iterations);
+      assert(tokens == 1);
+      assert(L_iterations > 0);
+    } else if (strncmp(argv[i], "-r=", 3) == 0) {
+      int tokens = sscanf(argv[i], "-r=%u", &L_max_recv_requests);
+      assert(tokens == 1);
+      assert(L_max_recv_requests > 0);
+    } else if (strncmp(argv[i], "-b=", 3) == 0) {
+      int tokens = sscanf(argv[i], "-b=%ju", &L_message_bytes);
+      assert(tokens == 1);
+      assert(L_message_bytes > 0);
+    } else {
+      printUsageAndExit(argv[0]);
+    }
+  }
 
   // Run one endpoint of the path
-  throughput(is_endpointA, provider, iterations);
+  throughput(is_endpointA, provider, L_iterations, L_message_bytes, L_max_recv_requests, L_use_polling_completion, L_validate);
 
-  return 0;
+  return EXIT_SUCCESS;
 }

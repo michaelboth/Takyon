@@ -37,7 +37,7 @@ static void writeMessage(TakyonPath *path, uint32_t i) {
   snprintf(message_addr_cpu, MAX_MESSAGE_BYTES, "--- Iteration %u: Hello (CUDA) ---", i+1);
   uint64_t message_bytes = strlen(message_addr_cpu) + 1;
   cudaError_t cuda_status = cudaMemcpy(message_addr, message_addr_cpu, message_bytes, cudaMemcpyDefault);
-  if (cuda_status != cudaSuccess) { printf("cudaMemcpy() failed: %s\n", cudaGetErrorString(cuda_status)); exit(0); }
+  if (cuda_status != cudaSuccess) { printf("cudaMemcpy() failed: %s\n", cudaGetErrorString(cuda_status)); exit(EXIT_FAILURE); }
 #else
   snprintf(message_addr, MAX_MESSAGE_BYTES, "--- Iteration %u: Hello (CPU) ---", i+1);
   uint64_t message_bytes = strlen(message_addr) + 1;
@@ -85,7 +85,7 @@ static void readMessage(TakyonPath *path) {
 #ifdef ENABLE_CUDA
   char message_addr_cpu[MAX_MESSAGE_BYTES];
   cudaError_t cuda_status = cudaMemcpy(message_addr_cpu, message_addr, MAX_MESSAGE_BYTES, cudaMemcpyDefault);
-  if (cuda_status != cudaSuccess) { printf("cudaMemcpy() failed: %s\n", cudaGetErrorString(cuda_status)); exit(0); }
+  if (cuda_status != cudaSuccess) { printf("cudaMemcpy() failed: %s\n", cudaGetErrorString(cuda_status)); exit(EXIT_FAILURE); }
   printf("(CUDA): Read message '%s'\n", message_addr_cpu);
 #else
   printf("(CPU): Read message '%s'\n", message_addr);
@@ -105,14 +105,14 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
     buffer->app_data = NULL;
 #ifdef ENABLE_CUDA
     cudaError_t cuda_status = cudaMalloc(&buffer->addr, buffer->bytes);
-    if (cuda_status != cudaSuccess) { printf("cudaMalloc() failed: %s\n", cudaGetErrorString(cuda_status)); exit(0); }
+    if (cuda_status != cudaSuccess) { printf("cudaMalloc() failed: %s\n", cudaGetErrorString(cuda_status)); exit(EXIT_FAILURE); }
 #else
 #ifdef ENABLE_MMAP
     if (strncmp(provider, "InterProcess ", 13) == 0) {
       snprintf(buffer->name, TAKYON_MAX_BUFFER_NAME_CHARS, "%s_hello_buffer_%d_" UINT64_FORMAT, is_endpointA ? "A" : "B", i, buffer->bytes);
       char error_message[300];
       bool ok = mmapAlloc(buffer->name, buffer->bytes, &buffer->addr, &buffer->app_data, error_message, 300);
-      if (!ok) { printf("mmapAlloc() failed: %s\n", error_message); exit(0); }
+      if (!ok) { printf("mmapAlloc() failed: %s\n", error_message); exit(EXIT_FAILURE); }
     } else {
       buffer->addr = malloc(buffer->bytes);
     }
@@ -165,7 +165,7 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
     if (buffer->app_data != NULL) {
       char error_message[300];
       bool ok = mmapFree(buffer->app_data, error_message, 300);
-      if (!ok) { printf("mmapFree() failed: %s\n", error_message); exit(0); }
+      if (!ok) { printf("mmapFree() failed: %s\n", error_message); exit(EXIT_FAILURE); }
     } else {
       free(buffer->addr);
     }

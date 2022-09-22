@@ -15,7 +15,7 @@
 #include <stdlib.h>
 
 int main(int argc, char **argv) {
-  if (argc != 4) { printf("usage: %s [A|B] \"<provider>\" <iterations>\n", argv[0]); return 1; }
+  if (argc != 4) { printf("usage: %s [A|B] \"<provider>\" <iterations>\n", argv[0]); return EXIT_FAILURE; }
   const bool is_endpointA = (strlen(argv[1]) == 1 && argv[1][0] == 'A');
   const char *provider = argv[2];
   const uint32_t iterations = (uint32_t)atoi(argv[3]);
@@ -23,5 +23,5 @@ int main(int argc, char **argv) {
   // Run one endpoint of the path
   hello(is_endpointA, provider, iterations);
 
-  return 0;
+  return EXIT_SUCCESS;
 }
