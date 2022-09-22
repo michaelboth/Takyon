@@ -23,7 +23,7 @@
   #include "utils_ipc.h"
 #endif
 #if defined(__APPLE__)
-  #define UINT64_FORMAT "%llu" /*+ ju */
+  #define UINT64_FORMAT "%llu"
 #else
   #define UINT64_FORMAT "%ju"
 #endif
@@ -81,11 +81,11 @@ static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, const
 #else
     uint64_t *data_cpu = (uint64_t *)((uint8_t *)path->attrs.buffers[recv_request->sub_buffers[0].buffer_index].addr + recv_request->sub_buffers[0].offset);
 #endif
-    if (bytes_received != message_bytes) { printf("Message %ju: Received %ju bytes, but expect %ju bytes\n", message_count, bytes_received, message_bytes); exit(EXIT_FAILURE); }
-    if (previous_start_value >= data_cpu[0]) { printf("Message %ju: Message start value=%ju did not increase from previous message value=%ju. Problem with provider?\n", message_count, data_cpu[0], previous_start_value); exit(EXIT_FAILURE); }
+    if (bytes_received != message_bytes) { printf("Message " UINT64_FORMAT ": Received " UINT64_FORMAT " bytes, but expect " UINT64_FORMAT " bytes\n", message_count, bytes_received, message_bytes); exit(EXIT_FAILURE); }
+    if (previous_start_value >= data_cpu[0]) { printf("Message " UINT64_FORMAT ": Message start value=" UINT64_FORMAT " did not increase from previous message value=" UINT64_FORMAT ". Problem with provider?\n", message_count, data_cpu[0], previous_start_value); exit(EXIT_FAILURE); }
     uint64_t elements = message_bytes / sizeof(uint64_t);
     for (uint64_t i=1; i<elements; i++) {
-      if ((data_cpu[i-1]+1) != data_cpu[i]) { printf("Message %ju: data[%ju]=%ju and data[%ju]=%ju did not increase by 1\n", message_count, i-1, data_cpu[i-1], i, data_cpu[i]); exit(EXIT_FAILURE); }
+      if ((data_cpu[i-1]+1) != data_cpu[i]) { printf("Message " UINT64_FORMAT ": data[" UINT64_FORMAT "]=" UINT64_FORMAT " and data[" UINT64_FORMAT "]=" UINT64_FORMAT " did not increase by 1\n", message_count, i-1, data_cpu[i-1], i, data_cpu[i]); exit(EXIT_FAILURE); }
     }
     /*+ count drops */
     previous_start_value = data_cpu[0];
@@ -125,8 +125,8 @@ void throughput(const bool is_endpointA, const char *provider, const uint64_t it
   bool is_multi_threaded = (strncmp(provider, "InterThread ", 12) == 0);
   printf("Takyon Throughput (two-sided): endpoint %s: provider '%s'\n", is_endpointA ? "A" : "B", provider);
   if (!is_multi_threaded || is_endpointA) {
-    printf("  Message Count:           %ju\n", iterations);
-    printf("  Message Bytes:           %ju\n", message_bytes);
+    printf("  Message Count:           " UINT64_FORMAT "\n", iterations);
+    printf("  Message Bytes:           " UINT64_FORMAT "\n", message_bytes);
     printf("  Max Recv Requests:       %u\n", max_recv_requests);
     printf("  Completion Notification: %s\n", use_polling_completion ? "polling" : "event driven");
     printf("  Data Validation Enabled: %s\n", validate ? "yes" : "no");
@@ -235,7 +235,7 @@ void throughput(const bool is_endpointA, const char *provider, const uint64_t it
     double elapsed_print_time = curr_time - last_print_time;
     if (i == (iterations-1) || elapsed_print_time > 0.05) {
       if (!is_multi_threaded || !path->attrs.is_endpointA) {
-        printf("\r%s: %ju transfers, %0.3f GB/sec, %0.3f Gb/sec", path->attrs.is_endpointA ? "Sender" : "Recver", i+1, GB_per_sec, Gb_per_sec);
+        printf("\r%s: " UINT64_FORMAT " transfers, %0.3f GB/sec, %0.3f Gb/sec", path->attrs.is_endpointA ? "Sender" : "Recver", i+1, GB_per_sec, Gb_per_sec);
         fflush(stdout);
       }
       last_print_time = curr_time;

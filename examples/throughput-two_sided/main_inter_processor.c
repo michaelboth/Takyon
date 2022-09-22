@@ -14,6 +14,11 @@
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
+#if defined(__APPLE__)
+  #define UINT64_FORMAT "%llu"
+#else
+  #define UINT64_FORMAT "%ju"
+#endif
 
 static uint64_t L_iterations = 1000000;
 static uint64_t L_message_bytes = 1024;
@@ -24,8 +29,8 @@ static bool L_validate = false;
 static void printUsageAndExit(const char *program) {
   printf("usage: %s <A|B> \"<provider>\" [-h] [-n=<uint32>] [-b=<uint64>] [-r=<uint32>] [-e] [-v]\n", program);
   printf("   -h          : Print this message and exit\n");
-  printf("   -n=<uint32> : Number of messages to send. Default is %ju\n", L_iterations);
-  printf("   -b=<uint64> : Bytes per message. Default is %ju\n", L_message_bytes);
+  printf("   -n=<uint32> : Number of messages to send. Default is " UINT64_FORMAT "\n", L_iterations);
+  printf("   -b=<uint64> : Bytes per message. Default is " UINT64_FORMAT "\n", L_message_bytes);
   printf("   -r=<uint32> : Recv request count. Default is %u\n", L_max_recv_requests);
   printf("   -e          : Event driven completion notification. Default is polling\n");
   printf("   -v          : Validate the messages. Default is '%s'\n", L_validate ? "yes" : "no");
@@ -47,7 +52,7 @@ int main(int argc, char **argv) {
     } else if (strcmp(argv[i], "-v") == 0) {
       L_validate = true;
     } else if (strncmp(argv[i], "-n=", 3) == 0) {
-      int tokens = sscanf(argv[i], "-n=%ju", &L_iterations);
+      int tokens = sscanf(argv[i], "-n=" UINT64_FORMAT, &L_iterations);
       assert(tokens == 1);
       assert(L_iterations > 0);
     } else if (strncmp(argv[i], "-r=", 3) == 0) {
@@ -55,7 +60,7 @@ int main(int argc, char **argv) {
       assert(tokens == 1);
       assert(L_max_recv_requests > 0);
     } else if (strncmp(argv[i], "-b=", 3) == 0) {
-      int tokens = sscanf(argv[i], "-b=%ju", &L_message_bytes);
+      int tokens = sscanf(argv[i], "-b=" UINT64_FORMAT, &L_message_bytes);
       assert(tokens == 1);
       assert(L_message_bytes > 0);
     } else {

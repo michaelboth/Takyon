@@ -249,7 +249,6 @@ static bool doTwoSidedTransfer(TakyonPath *path, TakyonPath *remote_path, Takyon
     }
     uint64_t remote_max_bytes = remote_sub_buffer->bytes;
     if (remote_max_bytes > (remote_buffer->bytes - remote_sub_buffer->offset)) {
-      /*+ how is %ju working on Apple with this? */
       TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju, offset = %ju exceeds remote buffer (bytes = %ju)\n", remote_max_bytes, remote_sub_buffer->offset, remote_buffer->bytes);
       return false;
     }
