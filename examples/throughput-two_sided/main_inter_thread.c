@@ -26,11 +26,12 @@ static uint64_t L_iterations = 1000000;
 static uint64_t L_message_bytes = 1024;
 static uint32_t L_max_recv_requests = 10;
 static bool L_use_polling_completion = true;
+static bool L_two_sided = true;
 static bool L_validate = false;
 
 static void *throughputThread(void *user_data) {
   bool is_endpointA = (user_data != NULL);
-  throughput(is_endpointA, L_provider, L_iterations, L_message_bytes, L_max_recv_requests, L_use_polling_completion, L_validate);
+  throughput(is_endpointA, L_provider, L_iterations, L_message_bytes, L_max_recv_requests, L_use_polling_completion, L_two_sided, L_validate);
   return NULL;
 }
 
@@ -39,8 +40,9 @@ static void printUsageAndExit(const char *program) {
   printf("   -h          : Print this message and exit\n");
   printf("   -n=<uint64> : Number of messages to send. Default is " UINT64_FORMAT "\n", L_iterations);
   printf("   -b=<uint64> : Bytes per message. Default is " UINT64_FORMAT "\n", L_message_bytes);
-  printf("   -r=<uint32> : Recv request count. Default is %u\n", L_max_recv_requests);
+  printf("   -r=<uint32> : Recv request count (only for two-sided transfers). Default is %u\n", L_max_recv_requests);
   printf("   -e          : Event driven completion notification. Default is polling\n");
+  printf("   -o          : Switch to one-sided (endpoint B not involved in transfers). Default is '%s'\n", L_two_sided ? "two-sided" : "one-sided");
   printf("   -v          : Validate the messages. Default is '%s'\n", L_validate ? "yes" : "no");
   exit(EXIT_FAILURE);
 }
@@ -57,6 +59,8 @@ int main(int argc, char **argv) {
       L_use_polling_completion = false;
     } else if (strcmp(argv[i], "-v") == 0) {
       L_validate = true;
+    } else if (strcmp(argv[i], "-o") == 0) {
+      L_two_sided = false;
     } else if (strncmp(argv[i], "-n=", 3) == 0) {
       int tokens = sscanf(argv[i], "-n=" UINT64_FORMAT, &L_iterations);
       assert(tokens == 1);

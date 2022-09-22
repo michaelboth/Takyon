@@ -1,11 +1,8 @@
 To DO
   - BUG: OSX ephemeral sockets (seems the multicast packets are being blocked)
   - Ask Mellanox if Verbs is also on Windows
-  - Provide a way to get capabilities before path is created? Add funtion in supported_providers.h?
+  - Provide a way to get capabilities before path is created? Add function in supported_providers.h?
   - Non blocking sockets?
-  - Examples
-    - throughput-two_sided
-    - throughput-one_sided
   - Presentation:
     - Takyon does not allocate transport memory. Better to have app allocate in case the address needs to be shared between Takyon path's and also other comm and processing APIs
     - Show images for HPC and eHPC

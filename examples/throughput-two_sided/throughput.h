@@ -20,7 +20,7 @@ extern "C"
 {
 #endif
 
-extern void throughput(const bool is_endpointA, const char *provider, const uint64_t iterations, const uint64_t message_bytes, const uint32_t max_recv_requests, const bool use_polling_completion, const bool validate);
+extern void throughput(const bool is_endpointA, const char *provider, const uint64_t iterations, const uint64_t message_bytes, const uint32_t max_recv_requests, const bool use_polling_completion, const bool two_sided, const bool validate);
 
 #ifdef __cplusplus
 }
