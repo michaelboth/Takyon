@@ -41,6 +41,7 @@ echo "mmap  = $mmap"
 echo "socket  = $socket"
 echo "ephemeral  = $ephemeral"
 
+# hello-two_sided
 toFolder ../examples/hello-two_sided
 if [ "$mmap" == "yes" ]; then
     echo ""
@@ -114,6 +115,7 @@ if [ "$socket" == "yes" ]; then
     fi
 fi
 
+# hello-one_sided
 toFolder ../hello-one_sided
 if [ "$mmap" == "yes" ]; then
     echo ""
@@ -127,6 +129,7 @@ if [ "$mmap" == "yes" ]; then
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
 fi
 
+# throughput
 toFolder ../throughput
 if [ "$mmap" == "yes" ]; then
     echo ""

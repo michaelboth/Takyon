@@ -7,6 +7,8 @@ Linux & Mac
     usage: ./runInterProcess.bash <A|B> [mmap] [socket] [ephemeral]
     A> ./runInterProcess.bash A mmap socket ephemeral
     B> ./runInterProcess.bash B mmap socket ephemeral
+    A> ./runInterProcess.bash A mmap cuda
+    B> ./runInterProcess.bash B mmap cuda
   Clean
     > ./buildExamples.bash clean
 
@@ -19,5 +21,7 @@ Windows
     usage: runInterProcess.bat <A|B> [mmap] [socket] [ephemeral]
     A> runInterProcess.bat A mmap socket ephemeral
     B> runInterProcess.bat B mmap socket ephemeral
+    A> runInterProcess.bat A mmap cuda
+    B> runInterProcess.bat B mmap cuda
   Clean
     > ./buildExamples.bat clean
