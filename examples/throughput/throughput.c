@@ -145,7 +145,7 @@ static void readMessage(TakyonPath *path, const uint64_t message_bytes, const bo
   TakyonOneSidedRequest request = {
                                    .is_write_request = false,
                                    .local_buffer_index = 0,
-                                   .local_offset = message_offset, /*+ make sure have space for two messages */
+                                   .local_offset = message_offset,
                                    .remote_buffer_index = 1,
                                    .remote_offset = 0,
                                    .bytes = message_bytes,

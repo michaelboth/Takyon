@@ -64,8 +64,6 @@ typedef struct {
   bool connection_failed;
 } PrivateTakyonPath;
 
-/*+ see if non blocking can be properly supported: fnctl(fd, F_SETFL, O_NONBLOCK); how to know when done */
-
 bool tcpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *recv_requests, double timeout_seconds) {
   (void)post_recv_count; // Quiet compiler checking
   (void)recv_requests; // Quiet compiler checking
