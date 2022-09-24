@@ -25,6 +25,7 @@
 */
 
 /*+ valgrind */
+/*+ test zero-byte messages with UD */
 
 static struct rdma_event_channel *createConnectionManagerEventChannel(char *error_message, int max_error_message_chars) {
   struct rdma_event_channel *ch = rdma_create_event_channel();

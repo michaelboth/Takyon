@@ -174,7 +174,7 @@ bool udpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReque
   }
   num_modes = (is_a_send ? 1 : 0) + (is_a_recv ? 1 : 0);
   if (num_modes != 1) {
-    TAKYON_RECORD_ERROR(path->error_message, "SocketUdp must ne one of SocketUdpSend or SocketUdpRecv\n");
+    TAKYON_RECORD_ERROR(path->error_message, "SocketUdp must be one of SocketUdpSend or SocketUdpRecv\n");
     return false;
   }
   if (is_unicast && is_a_send && (!remote_ip_addr_found || !port_number_found)) {
@@ -184,10 +184,10 @@ bool udpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReque
     TAKYON_RECORD_ERROR(path->error_message, "-unicastRecv needs the following arguments: -localIP=<ip_addr>|<hostname>|Any -port=<port_number>\n");
     return false;
   } else if (is_multicast && is_a_send && (!local_ip_addr_found || !group_ip_addr_found || !port_number_found)) {
-    TAKYON_RECORD_ERROR(path->error_message, "-multicastSend needs the following arguments: -localIP=<ip_addr>|<hostname> -groupIP=<multicast_ip_addr> -port=<port_number>\n");
+    TAKYON_RECORD_ERROR(path->error_message, "SocketUdpSend -multicast needs the following arguments: -localIP=<ip_addr>|<hostname> -groupIP=<multicast_ip_addr> -port=<port_number>\n");
     return false;
   } else if (is_multicast && is_a_recv && (!local_ip_addr_found || !group_ip_addr_found || !port_number_found)) {
-    TAKYON_RECORD_ERROR(path->error_message, "-multicastRecv needs the following arguments: -localIP=<ip_addr>|<hostname> -groupIP=<multicast_ip_addr> -port=<port_number>\n");
+    TAKYON_RECORD_ERROR(path->error_message, "SocketUdpRecv -multicast needs the following arguments: -localIP=<ip_addr>|<hostname> -groupIP=<multicast_ip_addr> -port=<port_number>\n");
     return false;
   }
 

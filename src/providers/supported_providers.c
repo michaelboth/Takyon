@@ -23,6 +23,9 @@
 #ifdef ENABLE_SocketUdp
   #include "provider_SocketUdp.h"
 #endif
+#ifdef ENABLE_RdmaUDMulticast
+  #include "provider_RdmaUDMulticast.h"
+#endif
 
 typedef struct {
   // Name
@@ -60,6 +63,7 @@ static CommInterface L_interfaces[] = {
                                          .zero_byte_message_supported = true
                                        },
 #endif
+
 #ifdef ENABLE_InterProcess
                                        { .name = "InterProcess",
                                          .create = interProcessCreate,
@@ -75,6 +79,7 @@ static CommInterface L_interfaces[] = {
                                          .zero_byte_message_supported = true
                                        },
 #endif
+
 #ifdef ENABLE_SocketTcp
                                        { .name = "SocketTcp",
                                          .create = tcpSocketCreate,
@@ -90,6 +95,7 @@ static CommInterface L_interfaces[] = {
                                          .zero_byte_message_supported = true
                                        },
 #endif
+
 #ifdef ENABLE_SocketUdp
                                        { .name = "SocketUdpSend",
                                          .create = udpSocketCreate,
@@ -116,6 +122,35 @@ static CommInterface L_interfaces[] = {
                                          .piggy_back_message_supported = false,
                                          .multi_sub_buffers_supported = false,
                                          .zero_byte_message_supported = false
+                                       },
+#endif
+
+#ifdef ENABLE_RdmaUDMulticast
+                                       { .name = "RdmaUDMulticastSend",
+                                         .create = rdmaUDMulticastCreate,
+                                         .destroy = rdmaUDMulticastDestroy,
+                                         .oneSided = NULL,
+                                         .isOneSidedDone = NULL,
+                                         .send = rdmaUDMulticastSend,
+                                         .isSent = rdmaUDMulticastIsSent,
+                                         .postRecvs = NULL,
+                                         .isRecved = NULL,
+                                         .piggy_back_message_supported = true,
+                                         .multi_sub_buffers_supported = true,
+                                         .zero_byte_message_supported = true
+                                       },
+                                       { .name = "RdmaUDMulticastRecv",
+                                         .create = rdmaUDMulticastCreate,
+                                         .destroy = rdmaUDMulticastDestroy,
+                                         .oneSided = NULL,
+                                         .isOneSidedDone = NULL,
+                                         .send = NULL,
+                                         .isSent = NULL,
+                                         .postRecvs = rdmaUDMulticastPostRecvs,
+                                         .isRecved = rdmaUDMulticastIsRecved,
+                                         .piggy_back_message_supported = true,
+                                         .multi_sub_buffers_supported = true,
+                                         .zero_byte_message_supported = true
                                        },
 #endif
 };

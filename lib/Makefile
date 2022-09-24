@@ -28,6 +28,7 @@ NEED_utils_ipc := No
 NEED_utils_socket := No
 NEED_utils_thread_cond_timed_wait := No
 NEED_utils_ephemeral_port_manager := No
+NEED_utils_rdma := No
 
 #---------------------------------------------
 # InterThread
@@ -80,6 +81,17 @@ ifeq ($(SocketUdp),Yes)
 endif
 
 #---------------------------------------------
+# RdmaUDMulticast
+#---------------------------------------------
+ifeq ($(RdmaUDMulticast),Yes)
+    C_FLAGS      += -ENABLE_RdmaUDMulticast
+    NEED_utils_time := Yes
+    NEED_utils_rdma := Yes
+    C_OBJS       += provider_RdmaUDMulticast.o
+    HEADER_FILES += provider_RdmaUDMulticast.h
+endif
+
+#---------------------------------------------
 # Various utilities
 #---------------------------------------------
 ifeq ($(NEED_utils_time),Yes)
@@ -109,6 +121,11 @@ endif
 ifeq ($(NEED_utils_ephemeral_port_manager),Yes)
     C_FLAGS      += -DENABLE_EPHEMERAL_PORT_MANAGER
     C_OBJS       += utils_socket_ephemeral_port_manager.o
+endif
+
+ifeq ($(NEED_utils_rdma),Yes)
+    HEADER_FILES += utils_rdma_verbs.h
+    C_OBJS       += utils_rdma_verbs.o
 endif
 
 ifeq ($(CUDA),Yes)
