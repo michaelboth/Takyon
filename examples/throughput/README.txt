@@ -1,7 +1,7 @@
 Show the max sustained throughput of a Takyon provider; supports both one-sided and two-sided.
   Usage:
-    throughput_mt "<provider>" [-h] [-n=<uint32>] [-b=<uint64>] [-r=<uint32>] [-e] [-v]
-    throughput_mp <A|B> "<provider>" [-h] [-n=<uint32>] [-b=<uint64>] [-r=<uint32>] [-e] [-v]
+    throughput_mt       "<provider>" [-h] [-n=<uint32>] [-b=<uint64>] [-s=<uint32>] [-r=<uint32>] [-e] [-o] [-v]
+    throughput_mp <A|B> "<provider>" [-h] [-n=<uint32>] [-b=<uint64>] [-s=<uint32>] [-r=<uint32>] [-e] [-o] [-v]
 
 Mac and Linux
   First build the Takyon library: see lib/README.txt
@@ -28,6 +28,9 @@ Mac and Linux
     SocketUdp (multicast)
       A> ./throughput_mp A "SocketUdpSend -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23456"
       B> ./throughput_mp B "SocketUdpRecv -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23456 -reuse"
+    RDMA UD (multicast)
+      A> ./throughput_mp A "RdmaUDMulticastSend -localIP=192.168.50.234 -groupIP=233.23.33.56" -n=1000000 -b=4096
+      B> ./throughput_mp B "RdmaUDMulticastRecv -localIP=192.168.50.234 -groupIP=233.23.33.56" -n=1000000 -b=4136       # Need 40 extra bytes for the RDMA GRH
   Clean:
     > make clean
 

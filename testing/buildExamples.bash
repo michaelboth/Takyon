@@ -76,7 +76,7 @@ echo "extra compile flags = $options"
 
 # Takyon library
 cleanFolder ../lib
-command="make $options InterThread=Yes SocketTcp=Yes SocketUdp=Yes"
+command="make -j4 $options InterThread=Yes SocketTcp=Yes SocketUdp=Yes"
 if [ "$mmap" == "yes" ]; then
     command+=" InterProcess=Yes"
 fi
@@ -87,7 +87,7 @@ build "$command"
 
 # hello-one_sided
 cleanFolder ../examples/hello-one_sided
-command="make $options"
+command="make -j4 $options"
 if [ "$mmap" == "yes" ]; then
     command+=" MMAP=Yes"
 fi
@@ -98,7 +98,7 @@ build "$command"
 
 # hello-two_sided
 cleanFolder ../hello-two_sided
-command="make $options"
+command="make -j4 $options"
 if [ "$mmap" == "yes" ]; then
     command+=" MMAP=Yes"
 fi
@@ -109,7 +109,7 @@ build "$command"
 
 # throughput
 cleanFolder ../throughput
-command="make $options"
+command="make -j4 $options"
 if [ "$mmap" == "yes" ]; then
     command+=" MMAP=Yes"
 fi

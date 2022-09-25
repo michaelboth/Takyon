@@ -1,6 +1,6 @@
 C_FLAGS := -std=gnu99
 ifeq ($(DEBUG),Yes)
-    C_FLAGS += -g -O0
+    C_FLAGS += -g -O0 -DDEBUG_BUILD
 else
     C_FLAGS += -O2
 endif

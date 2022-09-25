@@ -268,7 +268,7 @@ bool takyonOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double tim
   }
 
   // Verbosity
-  if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFER) {
+  if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS) {
     printf("%-15s (%s:%s) %s message\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider, request->is_write_request ? "Writing" : "Reading");
   }
 
@@ -280,7 +280,7 @@ bool takyonOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double tim
   }
 
   // Verbosity
-  if (comm->isOneSidedDone == NULL && timed_out_ret != NULL && !(*timed_out_ret) && path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFER) {
+  if (comm->isOneSidedDone == NULL && timed_out_ret != NULL && !(*timed_out_ret) && path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS) {
     printf("%-15s (%s:%s) Message transferred\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider);
   }
 
@@ -321,7 +321,7 @@ bool takyonIsOneSidedDone(TakyonPath *path, TakyonOneSidedRequest *request, doub
   }
 
   // Verbosity
-  if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFER) {
+  if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS) {
     printf("%-15s (%s:%s) Waiting '%s message' to complete\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider, request->is_write_request ? "write" : "read");
   }
 
@@ -333,7 +333,7 @@ bool takyonIsOneSidedDone(TakyonPath *path, TakyonOneSidedRequest *request, doub
   }
 
   // Verbosity
-  if (timed_out_ret != NULL && !(*timed_out_ret) && path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFER) {
+  if (timed_out_ret != NULL && !(*timed_out_ret) && path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS) {
     printf("%-15s (%s:%s) Message transferred\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider);
   }
 
@@ -346,7 +346,7 @@ bool takyonSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_bac
   if (timed_out_ret != NULL) *timed_out_ret = false;
 
   // Verbosity
-  if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFER) {
+  if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS) {
     printf("%-15s (%s:%s) Sending message\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider);
   }
 
@@ -396,7 +396,7 @@ bool takyonSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_bac
   }
 
   // Verbosity
-  if (comm->isSent == NULL && timed_out_ret != NULL && !(*timed_out_ret) && path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFER) {
+  if (comm->isSent == NULL && timed_out_ret != NULL && !(*timed_out_ret) && path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS) {
     printf("%-15s (%s:%s) Message sent\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider);
   }
 
@@ -409,7 +409,7 @@ bool takyonIsSent(TakyonPath *path, TakyonSendRequest *request, double timeout_s
   if (timed_out_ret != NULL) *timed_out_ret = false;
 
   // Verbosity
-  if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFER) {
+  if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS) {
     printf("%-15s (%s:%s) Waiting for message to be sent\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider);
   }
 
@@ -438,7 +438,7 @@ bool takyonIsSent(TakyonPath *path, TakyonSendRequest *request, double timeout_s
   }
 
   // Verbosity
-  if (timed_out_ret != NULL && !(*timed_out_ret) && path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFER) {
+  if (timed_out_ret != NULL && !(*timed_out_ret) && path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS) {
     printf("%-15s (%s:%s) Message sent\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider);
   }
 
@@ -450,7 +450,7 @@ bool takyonPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvRequest
   clearErrorMessage(path->error_message);
 
   // Verbosity
-  if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFER) {
+  if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS) {
     printf("%-15s (%s:%s) Posting %d receive(s)\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider, request_count);
   }
 
@@ -505,7 +505,7 @@ bool takyonIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout
   if (timed_out_ret != NULL) *timed_out_ret = false;
 
   // Verbosity
-  if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFER) {
+  if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS) {
     printf("%-15s (%s:%s) Waiting for message\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider);
   }
 
@@ -551,7 +551,7 @@ bool takyonIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout
   }
 
   // Verbosity
-  if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFER) {
+  if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS) {
     if (path->capabilities.piggy_back_message_supported) {
       printf("%-15s (%s:%s) Got message: " UINT64_FORMAT " bytes, piggy_back_message=0x%x\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider, bytes_received, piggy_back_message);
     } else {

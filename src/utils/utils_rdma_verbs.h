@@ -56,7 +56,7 @@ extern "C"
 #endif
 
 extern RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *local_NIC_ip_addr, const char *multicast_group_ip_addr, bool is_sender,
-                                          uint32_t max_send_wr, uint32_t max_recv_wr, uint32_t max_send_sge, uint32_t max_recv_sge,
+                                          uint32_t max_send_wr, uint32_t max_recv_wr, uint32_t max_send_sges, uint32_t max_recv_sges,
                                           uint32_t recv_request_count, TakyonRecvRequest *recv_requests,
                                           double timeout_seconds, char *error_message, int max_error_message_chars);
 extern bool rdmaDestroyEndpoint(TakyonPath *path, RdmaEndpoint *endpoint, double timeout_seconds, char *error_message, int max_error_message_chars);

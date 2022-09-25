@@ -24,10 +24,18 @@
     - UC:           CM doesn't support UC so using raw verbs with an external TCP socket to do the init handshake and lifetime disconnect detection
     - RC:           ? 
   - Avoiding use of inline byte when sending since it only works with CPU memory, and adds complixity to track memory type
+  - Posted UD recv requests need to have an extra sizeof(struct ibv_grh) bytes (40 bytes), which is the IB's Global Routing Header placed at the beginning of any UD received message
 */
 
 /*+ design ideas:
   - For bidirectional, the QP could have two different CQs and CCs to avoid send/recv completion detection complexity
+*/
+
+/*+
+  When testing two processes on a single node:
+    - UD multicast can send up to 10,000 bytes message without getting IBV_WC_LOC_LEN_ERR.
+    - Recv can get 8960 bytes.
+  How is this posible?
 */
 
 /*+ valgrind */
@@ -310,7 +318,7 @@ bool rdmaPostRecvs(TakyonPath *path, RdmaEndpoint *endpoint, uint32_t request_co
       TakyonBuffer *buffer = &path->attrs.buffers[sub_buffer->buffer_index];
       RdmaBuffer *rdma_buffer = (RdmaBuffer *)buffer->private;
       struct ibv_sge *sge = &curr_wr->sg_list[j];
-      sge->addr = (uint64_t)buffer + sub_buffer->offset;
+      sge->addr = (uint64_t)buffer->addr + sub_buffer->offset;
       sge->length = sub_buffer->bytes;
       sge->lkey = rdma_buffer->mr->lkey;
     }
@@ -328,7 +336,7 @@ bool rdmaPostRecvs(TakyonPath *path, RdmaEndpoint *endpoint, uint32_t request_co
 }
 
 RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *local_NIC_ip_addr, const char *multicast_group_ip_addr, bool is_sender,
-                                          uint32_t max_send_wr, uint32_t max_recv_wr, uint32_t max_send_sge, uint32_t max_recv_sge,
+                                          uint32_t max_send_wr, uint32_t max_recv_wr, uint32_t max_send_sges, uint32_t max_recv_sges,
                                           uint32_t recv_request_count, TakyonRecvRequest *recv_requests,
                                           double timeout_seconds, char *error_message, int max_error_message_chars) {
   struct rdma_event_channel *event_ch = NULL;
@@ -341,6 +349,8 @@ RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *local_NI
   uint32_t multicast_qp_num;
   uint32_t multicast_qkey;
   RdmaEndpoint *endpoint = NULL;
+
+  if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) printf("  Create RDMA multicast %s, max_send_wr=%u, max_recv_wr=%u, max_send_sges=%u, max_recv_sges=%u\n", is_sender ? "sender" : "recver", max_send_wr, max_recv_wr, max_send_sges, max_recv_sges);
 
   // Event channel
   event_ch = createConnectionManagerEventChannel(error_message, max_error_message_chars);
@@ -358,9 +368,7 @@ RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *local_NI
   // RDMA MTU bytes
   uint32_t mtu_bytes = getRdmaMTU(id->verbs, id->port_num, error_message, max_error_message_chars);
   if (mtu_bytes == 0) goto failed;
-  if (true/*+path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE*/) {
-    printf("%-15s (%s:%s) RDMA Multicast MTU bytes=%d\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider, mtu_bytes);
-  }
+  if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) printf("  RDMA Multicast MTU bytes=%d on RDMA port %d\n", mtu_bytes, id->port_num);
 
   // IMPORTANT: Transfers might be event driven so create the completion channel just in case
   // Completion channel
@@ -375,15 +383,16 @@ RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *local_NI
 
   // Queue pair
   enum ibv_qp_type qp_type = IBV_QPT_UD;
-  if (!createConnectionManagerQueuePair(id, id->pd, cq, qp_type, max_send_wr, max_recv_wr, max_send_sge, max_recv_sge, error_message, max_error_message_chars)) goto failed;
+  if (!createConnectionManagerQueuePair(id, id->pd, cq, qp_type, max_send_wr, max_recv_wr, max_send_sges, max_recv_sges, error_message, max_error_message_chars)) goto failed;
   qp_created = true;
 
   // Register buffers
-  enum ibv_access_flags access = is_sender ? 0 : IBV_ACCESS_LOCAL_WRITE;
+  enum ibv_access_flags access = is_sender ? 0 : IBV_ACCESS_LOCAL_WRITE /*+ BUG: not working for CUDA recv memory */;
   for (uint32_t i=0; i<path->attrs.buffer_count; i++) {
     TakyonBuffer *takyon_buffer = &path->attrs.buffers[i];
     RdmaBuffer *rdma_buffer = (RdmaBuffer *)takyon_buffer->private;
     // IMPORTANT: assuming buffers are zeroed at init
+    if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) printf("  Registering memory region: addr=0x%jx, bytes=%ju\n", (uint64_t)takyon_buffer->addr, takyon_buffer->bytes);
     rdma_buffer->mr = registerMemoryRegion(id->pd, takyon_buffer->addr, takyon_buffer->bytes, access, error_message, max_error_message_chars);
     if (rdma_buffer->mr == NULL) goto failed;
   }
@@ -397,10 +406,7 @@ RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *local_NI
   endpoint->id = id;
   endpoint->comp_ch = comp_ch;
   endpoint->cq = cq;
-  endpoint->multicast_ah = multicast_ah;
   endpoint->multicast_addr = multicast_addr;
-  endpoint->multicast_qp_num = multicast_qp_num;
-  endpoint->multicast_qkey = multicast_qkey;
 
   // Post recvs
   if (!is_sender) {
@@ -410,6 +416,10 @@ RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *local_NI
   // Join multicast group
   multicast_ah = joinMulticastGroup(id, event_ch, &multicast_addr, error_message, max_error_message_chars, &multicast_qp_num, &multicast_qkey);
   if (multicast_ah == NULL) goto failed;
+  if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) printf("  Joined RDMA Multicast group: qpn=%u, qkey=%u\n", multicast_qp_num, multicast_qkey);
+  endpoint->multicast_ah = multicast_ah;
+  endpoint->multicast_qp_num = multicast_qp_num;
+  endpoint->multicast_qkey = multicast_qkey;
 
   // Return details
   return endpoint;
@@ -434,7 +444,7 @@ RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *local_NI
 }
 
 bool rdmaDestroyEndpoint(TakyonPath *path, RdmaEndpoint *endpoint, double timeout_seconds, char *error_message, int max_error_message_chars) {
-  (void)timeout_seconds; // Ignore arg   /*+ will this get used with RC? If not, remove from arg list */
+  (void)timeout_seconds; // Quiet the compiler   /*+ will this get used with RC? If not, remove from arg list */
 
   // Ack events to avoid deadlocking the destructions of the QP
   if (endpoint->nevents_to_ack > 0) {
@@ -459,7 +469,7 @@ bool rdmaDestroyEndpoint(TakyonPath *path, RdmaEndpoint *endpoint, double timeou
   if (endpoint->protocol == RDMA_PROTOCOL_UD_MULTICAST) {
     rdma_destroy_qp(endpoint->id);
   }
-  //*+*/endpoint->qp
+  //*+ free if created directly */endpoint->qp
   if (endpoint->cq != NULL) {
     int rc = ibv_destroy_cq(endpoint->cq);
     if (rc != 0) {
@@ -548,7 +558,6 @@ static bool eventDrivenCompletionWait(RdmaEndpoint *endpoint, double timeout_sec
   }
 
   // Need to re-arm the CQ so completion events can be detected
-  /*+ Even if the path only uses polling, since the completion channel was created, does this need to be called? If so, maybe create a different CQ for polling? */
   if (!armCompletionQueue(/*endpoint->*/cq, error_message, max_error_message_chars)) return false;
 
   return true;
@@ -581,6 +590,7 @@ static const char *wcErrorToText(enum ibv_wc_status status) {
   }
 }
 
+#ifdef DEBUG_BUILD
 static const char *wcOpcodeToText(enum ibv_wc_opcode opcode_val) {
   switch (opcode_val) {
   case IBV_WC_SEND : return "IBV_WC_SEND";
@@ -594,8 +604,10 @@ static const char *wcOpcodeToText(enum ibv_wc_opcode opcode_val) {
   default : return "Unknown IBV_WC opcode";
   }
 }
+#endif
 
 static bool waitForCompletion(bool is_send, RdmaEndpoint *endpoint, uint64_t expected_wr_id, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret) {
+  (void)expected_wr_id; // Quiet the compiler
   bool got_start_time = false;
   double start_time = 0;
   struct ibv_wc wc;
@@ -645,6 +657,7 @@ static bool waitForCompletion(bool is_send, RdmaEndpoint *endpoint, uint64_t exp
     snprintf(error_message, max_error_message_chars, "ibv_poll_cq() has work complete error: '%s'", wcErrorToText(wc.status));
     return false;
   }
+#ifdef DEBUG_BUILD
   if (wc.wr_id != expected_wr_id) {
     if (is_send) {
       snprintf(error_message, max_error_message_chars, "Work completion does not match expected send_request. Was takyonIsSent() called in a different order from takyonSend()?");
@@ -668,6 +681,7 @@ static bool waitForCompletion(bool is_send, RdmaEndpoint *endpoint, uint64_t exp
       return false;
     }
   }
+#endif
 
   // Success: return info
   if (!is_send) {
@@ -692,18 +706,27 @@ bool rdmaStartSend(TakyonPath *path, RdmaEndpoint *endpoint, TakyonSendRequest *
   send_wr.sg_list = rdma_request->sges;
   send_wr.opcode = IBV_WR_SEND_WITH_IMM;
   send_wr.imm_data = htonl(piggy_back_message);
+#ifdef DEBUG_BUILD
+  if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Posting send: IMM=%u, nSGEs=%d\n", piggy_back_message, send_wr.num_sge);
+#endif
   for (uint32_t j=0; j<request->sub_buffer_count; j++) {
     TakyonSubBuffer *sub_buffer = &request->sub_buffers[j];
     TakyonBuffer *buffer = &path->attrs.buffers[sub_buffer->buffer_index];
     RdmaBuffer *rdma_buffer = (RdmaBuffer *)buffer->private;
     struct ibv_sge *sge = &send_wr.sg_list[j];
-    sge->addr = (uint64_t)buffer + sub_buffer->offset;
+    sge->addr = (uint64_t)buffer->addr + sub_buffer->offset;
     sge->length = sub_buffer->bytes;
     sge->lkey = rdma_buffer->mr->lkey;
+#ifdef DEBUG_BUILD
+    if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("    SGE[%d]: addr=0x%jx, bytes=%u, lkey=%u\n", j, (uint64_t)sge->addr, sge->length, sge->lkey);
+#endif
   }
 
   // Protocal specific stuff
   if (endpoint->protocol == RDMA_PROTOCOL_UD_MULTICAST) {
+#ifdef DEBUG_BUILD
+    if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Send to multicast addr: qpn=%u, qkey=%u\n", endpoint->multicast_qp_num, endpoint->multicast_qkey);
+#endif
     send_wr.wr.ud.ah = endpoint->multicast_ah;
     send_wr.wr.ud.remote_qpn = endpoint->multicast_qp_num;
     send_wr.wr.ud.remote_qkey = endpoint->multicast_qkey;
@@ -712,7 +735,10 @@ bool rdmaStartSend(TakyonPath *path, RdmaEndpoint *endpoint, TakyonSendRequest *
   // Signaling
   send_wr.send_flags = 0;
   if (request->use_is_sent_notification) {
-    send_wr.send_flags |= IBV_SEND_SIGNALED; /*+ does signaling need to eventually occur? */
+#ifdef DEBUG_BUILD
+    if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Send signaled\n");
+#endif
+    send_wr.send_flags |= IBV_SEND_SIGNALED; // Can only do this for the QP's max number of pending send requests before a signal is needed to avoid overrunning the request buffer
   }
 
   // Start the send transfer

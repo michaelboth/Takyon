@@ -52,8 +52,8 @@
 #define TAKYON_VERBOSITY_ERRORS              0x01  // If enabled, print all errors to strerr (otherwise error printing is suppressed)
 #define TAKYON_VERBOSITY_CREATE_DESTROY      0x02  // Minimal stdout messages about path creation/destroying
 #define TAKYON_VERBOSITY_CREATE_DESTROY_MORE 0x04  // Additional stdout messages about path creation/destroying
-#define TAKYON_VERBOSITY_TRANSFER            0x08  // Minimal stdout messages about active transfers
-#define TAKYON_VERBOSITY_TRANSFER_MORE       0x10  // Additional stdout messages about active transfers
+#define TAKYON_VERBOSITY_TRANSFERS           0x08  // Minimal stdout messages about active transfers
+#define TAKYON_VERBOSITY_TRANSFERS_MORE      0x10  // Additional stdout messages about active transfers
 
 // Error handling modes
 typedef enum {

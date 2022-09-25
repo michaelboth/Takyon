@@ -2,7 +2,7 @@ LIBRARY = takyon.lib
 
 # Check if release distribution is enabled
 !IF "$(DEBUG)" == "Yes"
-OPTIMIZATION_C_FLAGS  = -Zi -MDd # Debug: -MTd or -MDd
+OPTIMIZATION_C_FLAGS  = -Zi -MDd -DDEBUG_BUILD    # Debug: -MTd or -MDd
 !ELSE
 OPTIMIZATION_C_FLAGS  = -O2 -MD # Release: -MT means static linking, and -MD means dynamic linking.
 !ENDIF

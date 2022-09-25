@@ -28,7 +28,7 @@ Mac and Linux
       B> ./hello_mp B "SocketUdpRecv -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23456 -reuse" 10
     RDMA UD (multicast)
       A> ./hello_mp A "RdmaUDMulticastSend -localIP=192.168.50.234 -groupIP=233.23.33.56" 10
-      B> ./hello_mp B "RdmaUDMulticastRecv -localIP=127.0.0.1 -groupIP=233.23.33.56" 10
+      B> ./hello_mp B "RdmaUDMulticastRecv -localIP=192.168.50.234 -groupIP=233.23.33.56" 10
   Clean:
     > make clean
 

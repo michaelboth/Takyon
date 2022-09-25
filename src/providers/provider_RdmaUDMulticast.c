@@ -104,6 +104,7 @@ bool rdmaUDMulticastCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRec
 
   // Create the RDMA structures that will hold the SGE list and any other needed info
   if (is_a_send) {
+    if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) printf("  Sender: Max send requests=%d, sub buffers per request=%d\n", path->attrs.max_pending_send_and_one_sided_requests, path->attrs.max_sub_buffers_per_send_request);
     if (path->attrs.max_pending_send_and_one_sided_requests == 0) {
       TAKYON_RECORD_ERROR(path->error_message, "path->attrs.max_pending_send_and_one_sided_requests must be > 0 for RdmaUDMulticastSend\n");
       goto failed;
@@ -125,6 +126,7 @@ bool rdmaUDMulticastCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRec
       }
     }
   } else {
+    if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) printf("  Recver: Max recv requests=%d, sub buffers per request=%d\n", path->attrs.max_pending_recv_requests, path->attrs.max_sub_buffers_per_recv_request);
     if (path->attrs.max_pending_recv_requests == 0) {
       TAKYON_RECORD_ERROR(path->error_message, "path->attrs.max_pending_recv_requests must be > 0 for RdmaUDMulticastRecv\n");
       goto failed;
@@ -169,13 +171,13 @@ bool rdmaUDMulticastCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRec
   // Create the one-sided socket
   RdmaEndpoint *endpoint;
   if (is_a_send) {
-    endpoint = rdmaCreateMulticastEndpoint(path, local_ip_addr, group_ip_addr, is_a_send, path->attrs.max_pending_send_and_one_sided_requests, 0, path->attrs.max_sub_buffers_per_send_request, 0, 0, NULL, timeout_seconds, error_message, MAX_ERROR_MESSAGE_CHARS);
+    endpoint = rdmaCreateMulticastEndpoint(path, local_ip_addr, group_ip_addr, true, path->attrs.max_pending_send_and_one_sided_requests, 0, path->attrs.max_sub_buffers_per_send_request, 0, 0, NULL, timeout_seconds, error_message, MAX_ERROR_MESSAGE_CHARS);
     if (endpoint == NULL) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to create RDMA multicast sender: %s\n", error_message);
       goto failed;
     }
   } else {
-    endpoint = rdmaCreateMulticastEndpoint(path, local_ip_addr, group_ip_addr, is_a_recv, 0, path->attrs.max_pending_recv_requests, 0, path->attrs.max_sub_buffers_per_recv_request, post_recv_count, recv_requests, timeout_seconds, error_message, MAX_ERROR_MESSAGE_CHARS);
+    endpoint = rdmaCreateMulticastEndpoint(path, local_ip_addr, group_ip_addr, false, 0, path->attrs.max_pending_recv_requests, 0, path->attrs.max_sub_buffers_per_recv_request, post_recv_count, recv_requests, timeout_seconds, error_message, MAX_ERROR_MESSAGE_CHARS);
     if (endpoint == NULL) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to create RDMA multicast recver: %s\n", error_message);
       goto failed;
@@ -230,10 +232,12 @@ bool rdmaUDMulticastSend(TakyonPath *path, TakyonSendRequest *request, uint32_t 
   char error_message[MAX_ERROR_MESSAGE_CHARS];
 
   // Make sure sending is allowed
+#ifdef DEBUG_BUILD
   if (!endpoint->is_sender) {
     TAKYON_RECORD_ERROR(path->error_message, "This RDMA multicast endpoint can only be used for receiving.\n");
     return false;
   }
+#endif
 
   // Get the next unused rdma_request
   RdmaSendRequest *rdma_request = &private_path->rdma_send_request_list[private_path->curr_rdma_request_index];
@@ -241,6 +245,7 @@ bool rdmaUDMulticastSend(TakyonPath *path, TakyonSendRequest *request, uint32_t 
   request->private = rdma_request;
 
   // Validate message attributes
+#ifdef DEBUG_BUILD
   for (uint32_t i=0; i<request->sub_buffer_count; i++) {
     TakyonSubBuffer *sub_buffer = &request->sub_buffers[i];
     if (sub_buffer->buffer_index >= path->attrs.buffer_count) {
@@ -254,6 +259,7 @@ bool rdmaUDMulticastSend(TakyonPath *path, TakyonSendRequest *request, uint32_t 
       return false;
     }
   }
+#endif
 
   // Send the RDMA message
   if (!rdmaStartSend(path, endpoint, request, piggy_back_message, timeout_seconds, timed_out_ret, error_message, MAX_ERROR_MESSAGE_CHARS)) {
@@ -272,10 +278,12 @@ bool rdmaUDMulticastIsSent(TakyonPath *path, TakyonSendRequest *request, double 
   char error_message[MAX_ERROR_MESSAGE_CHARS];
 
   // Make sure sending is allowed
+#ifdef DEBUG_BUILD
   if (!endpoint->is_sender) {
     TAKYON_RECORD_ERROR(path->error_message, "This RDMA multicast endpoint can only be used for receiving.\n");
     return false;
   }
+#endif
 
   // See if the RDMA message is sent
   if (!rdmaIsSent(endpoint, request, timeout_seconds, timed_out_ret, error_message, MAX_ERROR_MESSAGE_CHARS)) {
@@ -300,27 +308,32 @@ bool rdmaUDMulticastPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRe
   }
 
   // Make sure recving is allowed
+#ifdef DEBUG_BUILD
   if (endpoint->is_sender) {
     TAKYON_RECORD_ERROR(path->error_message, "This RDMA multicast endpoint can only be used for sending.\n");
     return false;
   }
+#endif
 
   // Validate message attributes
-  /*+ compile out error checking if release mode */
+#ifdef DEBUG_BUILD
   for (uint32_t i=0; i<request_count; i++) {
     TakyonRecvRequest *request = &requests[i];
-    TakyonSubBuffer *sub_buffer = &request->sub_buffers[i];
-    if (sub_buffer->buffer_index >= path->attrs.buffer_count) {
-      TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer->buffer_index == %d out of range\n", sub_buffer->buffer_index);
-      return false;
-    }
-    TakyonBuffer *dest_buffer = &path->attrs.buffers[sub_buffer->buffer_index];
-    uint64_t dest_bytes = sub_buffer->bytes;
-    if (dest_bytes > (dest_buffer->bytes - sub_buffer->offset)) {
-      TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju, offset = %ju exceeds recv buffer (bytes = %ju)\n", dest_bytes, sub_buffer->offset, dest_buffer->bytes);
-      return false;
+    for (uint32_t j=0; j<request->sub_buffer_count; j++) {
+      TakyonSubBuffer *sub_buffer = &request->sub_buffers[j];
+      if (sub_buffer->buffer_index >= path->attrs.buffer_count) {
+	TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer->buffer_index == %d out of range\n", sub_buffer->buffer_index);
+	return false;
+      }
+      TakyonBuffer *dest_buffer = &path->attrs.buffers[sub_buffer->buffer_index];
+      uint64_t dest_bytes = sub_buffer->bytes;
+      if (dest_bytes > (dest_buffer->bytes - sub_buffer->offset)) {
+	TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju, offset = %ju exceeds recv buffer (bytes = %ju)\n", dest_bytes, sub_buffer->offset, dest_buffer->bytes);
+	return false;
+      }
     }
   }
+#endif
 
   // Post the recv requests
   if (!rdmaPostRecvs(path, endpoint, request_count, requests, error_message, MAX_ERROR_MESSAGE_CHARS)) {
@@ -339,10 +352,12 @@ bool rdmaUDMulticastIsRecved(TakyonPath *path, TakyonRecvRequest *request, doubl
   char error_message[MAX_ERROR_MESSAGE_CHARS];
 
   // Make sure recving is allowed
+#ifdef DEBUG_BUILD
   if (endpoint->is_sender) {
     TAKYON_RECORD_ERROR(path->error_message, "This RDMA multicast endpoint can only be used for sending.\n");
     return false;
   }
+#endif
 
   // Wait for the message
   if (!rdmaIsRecved(endpoint, request, timeout_seconds, timed_out_ret, error_message, MAX_ERROR_MESSAGE_CHARS, bytes_received_ret, piggy_back_message_ret)) {
