@@ -84,7 +84,7 @@ endif
 # RdmaUDMulticast
 #---------------------------------------------
 ifeq ($(RdmaUDMulticast),Yes)
-    C_FLAGS      += -ENABLE_RdmaUDMulticast
+    C_FLAGS      += -DENABLE_RdmaUDMulticast
     NEED_utils_time := Yes
     NEED_utils_rdma := Yes
     C_OBJS       += provider_RdmaUDMulticast.o

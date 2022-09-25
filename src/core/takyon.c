@@ -388,6 +388,7 @@ bool takyonSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_bac
   }
 
   // Initiate the send
+  /*+ bool timed_out; */
   bool ok = comm->send(path, request, piggy_back_message, timeout_seconds, timed_out_ret);
   if (!ok) {
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);

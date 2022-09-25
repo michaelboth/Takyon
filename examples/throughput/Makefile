@@ -10,22 +10,23 @@ endif
 C_FLAGS += -Wall -Werror -Wextra -pthread
 C_FLAGS += -I../../inc -I../../src/utils
 
-C_FLAGS_MT :=
+C_FLAGS_MP :=
 LDFLAGS := -std=gnu99 -Wall -Werror
 C_LIBS  := -L../../lib -ltakyon -pthread
 HEADER_FILES := throughput.h
 
 OS_TYPE := $(shell uname -s)
 ifeq ($(MMAP),Yes)
-    C_FLAGS_MT += -DENABLE_MMAP
+    C_FLAGS_MP += -DENABLE_MMAP
     ifeq ($(OS_TYPE),Linux)
         C_LIBS  += -lrt
     endif
 endif
 
 ifeq ($(RDMA),Yes)
-#+    C_FLAGS +=
-#+    C_LIBS  += -libverbs -lrdmacm
+    ifeq ($(OS_TYPE),Linux)
+        C_LIBS  += -lrdmacm -libverbs
+    endif
 endif
 
 ifeq ($(CUDA),Yes)
@@ -49,6 +50,6 @@ $(TARGET_MT): throughput.c main_inter_thread.c ../../lib/libtakyon.a
 	gcc $(LDFLAGS) -o $@ throughput_mt.o main_inter_thread.o $(C_LIBS)
 
 $(TARGET_MP): throughput.c main_inter_processor.c ../../lib/libtakyon.a
-	gcc $(C_FLAGS) $(C_FLAGS_MT) -c throughput.c -o throughput_mp.o
+	gcc $(C_FLAGS) $(C_FLAGS_MP) -c throughput.c -o throughput_mp.o
 	gcc $(C_FLAGS) -c main_inter_processor.c -o main_inter_processor.o
 	gcc $(LDFLAGS) -o $@ throughput_mp.o main_inter_processor.o $(C_LIBS)

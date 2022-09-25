@@ -136,7 +136,7 @@ bool rdmaUDMulticastCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRec
     }
     uint32_t num_sges = path->attrs.max_pending_recv_requests * path->attrs.max_sub_buffers_per_recv_request;
     if (num_sges > 0) {
-      private_path->sge_list = (struct ibv_sge *)malloc(num_sges * sizeof(struct ibv_sge));
+      private_path->sge_list = (struct ibv_sge *)calloc(num_sges, sizeof(struct ibv_sge));
       if (private_path->sge_list == NULL) {
         TAKYON_RECORD_ERROR(path->error_message, "Out of memory\n");
         goto failed;
@@ -148,13 +148,22 @@ bool rdmaUDMulticastCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRec
   }
 
   // Create the info need for RDMA buffer registrations
-  private_path->rdma_buffer_list = calloc(path->attrs.buffer_count * sizeof(RdmaBuffer));
+  private_path->rdma_buffer_list = calloc(path->attrs.buffer_count, sizeof(RdmaBuffer));
   if (private_path->rdma_buffer_list == NULL) {
     TAKYON_RECORD_ERROR(path->error_message, "Out of memory\n");
     goto failed;
   }
   for (uint32_t i=0; i<path->attrs.buffer_count; i++) {
     path->attrs.buffers[i].private = &private_path->rdma_buffer_list[i];
+  }
+
+  // Prepare for endpoint creation to post recvs
+  if (is_a_recv) {
+    for (uint32_t i=0; i<post_recv_count; i++) {
+      RdmaRecvRequest *rdma_request = &private_path->rdma_recv_request_list[private_path->curr_rdma_request_index];
+      private_path->curr_rdma_request_index = (private_path->curr_rdma_request_index + 1) % path->attrs.max_pending_recv_requests;
+      recv_requests[i].private = rdma_request;
+    }
   }
 
   // Create the one-sided socket
@@ -184,6 +193,7 @@ bool rdmaUDMulticastCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRec
   if (private_path->sge_list != NULL) free(private_path->sge_list);
   if (private_path->rdma_buffer_list != NULL) free(private_path->rdma_buffer_list);
   free(private_path);
+  return false;
 }
 
 bool rdmaUDMulticastDestroy(TakyonPath *path, double timeout_seconds) {
@@ -280,7 +290,6 @@ bool rdmaUDMulticastPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRe
   TakyonComm *comm = (TakyonComm *)path->private;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   RdmaEndpoint *endpoint = private_path->endpoint;
-  if (timed_out_ret != NULL) *timed_out_ret = false;
   char error_message[MAX_ERROR_MESSAGE_CHARS];
 
   // Get the next unused rdma_request
@@ -299,6 +308,7 @@ bool rdmaUDMulticastPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRe
   // Validate message attributes
   /*+ compile out error checking if release mode */
   for (uint32_t i=0; i<request_count; i++) {
+    TakyonRecvRequest *request = &requests[i];
     TakyonSubBuffer *sub_buffer = &request->sub_buffers[i];
     if (sub_buffer->buffer_index >= path->attrs.buffer_count) {
       TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer->buffer_index == %d out of range\n", sub_buffer->buffer_index);

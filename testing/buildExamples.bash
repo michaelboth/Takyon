@@ -27,6 +27,7 @@ function build {
 
 debug="no"
 mmap="no"
+rdma="no"
 cuda="no"
 clean="no"
 
@@ -37,6 +38,9 @@ do
     fi
     if [ "$arg" == "mmap" ]; then
         mmap="yes"
+    fi
+    if [ "$arg" == "rdma" ]; then
+        rdma="yes"
     fi
     if [ "$arg" == "cuda" ]; then
         cuda="yes"
@@ -57,6 +61,7 @@ fi
 
 echo "debug = $debug"
 echo "mmap  = $mmap"
+echo "rdma  = $rdma"
 echo "cuda  = $cuda"
 
 # Set the make options
@@ -75,6 +80,9 @@ command="make $options InterThread=Yes SocketTcp=Yes SocketUdp=Yes"
 if [ "$mmap" == "yes" ]; then
     command+=" InterProcess=Yes"
 fi
+if [ "$rdma" == "yes" ]; then
+    command+=" RdmaUDMulticast=Yes"
+fi
 build "$command"
 
 # hello-one_sided
@@ -82,6 +90,9 @@ cleanFolder ../examples/hello-one_sided
 command="make $options"
 if [ "$mmap" == "yes" ]; then
     command+=" MMAP=Yes"
+fi
+if [ "$rdma" == "yes" ]; then
+    command+=" RDMA=Yes"
 fi
 build "$command"
 
@@ -91,6 +102,9 @@ command="make $options"
 if [ "$mmap" == "yes" ]; then
     command+=" MMAP=Yes"
 fi
+if [ "$rdma" == "yes" ]; then
+    command+=" RDMA=Yes"
+fi
 build "$command"
 
 # throughput
@@ -98,5 +112,8 @@ cleanFolder ../throughput
 command="make $options"
 if [ "$mmap" == "yes" ]; then
     command+=" MMAP=Yes"
+fi
+if [ "$rdma" == "yes" ]; then
+    command+=" RDMA=Yes"
 fi
 build "$command"
