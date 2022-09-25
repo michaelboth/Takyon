@@ -15,9 +15,6 @@ echo ""
 ./hello_mt "InterThread -pathID=1" 0
 if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
 echo ""
-./hello_mt "InterThread -pathID=1" 0
-if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
-echo ""
 ./hello_mt "InterThread -pathID=1" 1
 if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
 echo ""
@@ -37,13 +34,13 @@ if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
 
 toFolder ../throughput
 echo ""
-./throughput_mt "InterThread -pathID=1" -n=100000 -b=32768 -v
+./throughput_mt "InterThread -pathID=1" -b=32768 -n=100000 -v
 if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
 echo ""
 ./throughput_mt "InterThread -pathID=1" -b=32768
 if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
 echo ""
-./throughput_mt "InterThread -pathID=1" -n=100000 -b=32768 -v -o
+./throughput_mt "InterThread -pathID=1" -b=32768 -n=100000 -v -o
 if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
 echo ""
 ./throughput_mt "InterThread -pathID=1" -b=32768 -o

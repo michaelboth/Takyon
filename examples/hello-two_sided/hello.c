@@ -81,7 +81,7 @@ static void sendMessage(TakyonPath *path, uint32_t i) {
                                      .usec_sleep_between_poll_attempts = 0 };
 
   // Start the send
-  uint32_t piggy_back_message = (path->capabilities.piggy_back_message_supported) ? i : 0;
+  uint32_t piggy_back_message = (path->capabilities.piggy_back_messages_supported) ? i : 0;
   takyonSend(path, &send_request, piggy_back_message, TAKYON_WAIT_FOREVER, NULL);
   if (!path->capabilities.IsRecved_supported) {
     printf("Message %d sent (one way, %d %s)\n", i+1, path->capabilities.multi_sub_buffers_supported ? 2 : 1, path->capabilities.multi_sub_buffers_supported ? "sub buffers" : "sub buffer");
@@ -105,13 +105,13 @@ static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request) {
   char message_addr_cpu[MAX_MESSAGE_BYTES];
   cudaError_t cuda_status = cudaMemcpy(message_addr_cpu, message_addr, bytes_received, cudaMemcpyDefault);
   if (cuda_status != cudaSuccess) { printf("cudaMemcpy() failed: %s\n", cudaGetErrorString(cuda_status)); exit(EXIT_FAILURE); }
-  if (path->capabilities.piggy_back_message_supported) {
+  if (path->capabilities.piggy_back_messages_supported) {
     printf("%s (CUDA): Got message '%s', bytes=" UINT64_FORMAT ", piggy_back_message=%u\n", path->attrs.is_endpointA ? "A" : "B", message_addr_cpu, bytes_received, piggy_back_message);
   } else {
     printf("%s (CUDA): Got message '%s', bytes=" UINT64_FORMAT ", piggy_back_message=NOT SUPPORTED\n", path->attrs.is_endpointA ? "A" : "B", message_addr_cpu, bytes_received);
   }
 #else
-  if (path->capabilities.piggy_back_message_supported) {
+  if (path->capabilities.piggy_back_messages_supported) {
     printf("%s (CPU): Got message '%s', bytes=" UINT64_FORMAT ", piggy_back_message=%u\n", path->attrs.is_endpointA ? "A" : "B", message_addr, bytes_received, piggy_back_message);
   } else {
     printf("%s (CPU): Got message '%s', bytes=" UINT64_FORMAT ", piggy_back_message=NOT SUPPORTED\n", path->attrs.is_endpointA ? "A" : "B", message_addr, bytes_received);

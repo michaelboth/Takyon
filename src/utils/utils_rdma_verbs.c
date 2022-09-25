@@ -38,9 +38,6 @@
   How is this posible?
 */
 
-/*+ valgrind */
-/*+ test zero-byte messages with UD */
-
 static struct rdma_event_channel *createConnectionManagerEventChannel(char *error_message, int max_error_message_chars) {
   struct rdma_event_channel *ch = rdma_create_event_channel();
   if (ch == NULL) {
@@ -505,11 +502,14 @@ bool rdmaDestroyEndpoint(TakyonPath *path, RdmaEndpoint *endpoint, double timeou
   if (endpoint->event_ch != NULL) {
     rdma_destroy_event_channel(endpoint->event_ch);
   }
+  free(endpoint);
 
   return true;
 }
 
-static bool eventDrivenCompletionWait(RdmaEndpoint *endpoint, double timeout_seconds, char *error_message, int max_error_message_chars) {
+static bool eventDrivenCompletionWait(RdmaEndpoint *endpoint, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
+  *timed_out_ret = false;
+
   if (timeout_seconds >= 0) {
     // Verbs does not have an API to do a timed wait, so need to use an underlying socket in the completion channel to do it
     struct pollfd poll_fd;
@@ -520,7 +520,12 @@ static bool eventDrivenCompletionWait(RdmaEndpoint *endpoint, double timeout_sec
     int timeout_ms = (int)(timeout_seconds * 1000);
     nfds_t fd_count = 1;    
     int count = poll(&poll_fd, fd_count, timeout_ms);
-    if (count <= 0) {
+    if (count == 0) {
+      // Timed out
+      if (timed_out_ret != NULL) *timed_out_ret = true;
+      return true;
+    }
+    if (count < 0) {
       // Failed
       if (count == -1 && errno == EINTR) {
         // Nothing is wrong, OS woke this process up due to some other signal, so try again
@@ -647,7 +652,13 @@ static bool waitForCompletion(bool is_send, RdmaEndpoint *endpoint, uint64_t exp
       if (usec_sleep_between_poll_attempts > 0) clockSleepUsecs(usec_sleep_between_poll_attempts);
     } else {
       // Use completion channel to sleep
-      if (!eventDrivenCompletionWait(endpoint, timeout_seconds, error_message, max_error_message_chars)) return false;
+      bool timed_out;
+      if (!eventDrivenCompletionWait(endpoint, timeout_seconds, &timed_out, error_message, max_error_message_chars)) return false;
+      if (timed_out) {
+	// Timed out
+	if (timed_out_ret != NULL) *timed_out_ret = true;
+	return true;
+      }
     }
     goto retry;
   }

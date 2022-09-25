@@ -42,9 +42,9 @@ typedef struct {
   bool (*isRecved)(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret);
 
   // Capabilities
-  bool piggy_back_message_supported;      // True if comm allows sending a 32bit message piggy backed on the primary message
-  bool multi_sub_buffers_supported;       // True if more than one sub buffer can be in a single transfer
-  bool zero_byte_message_supported;       // True if can send zero byte messages
+  bool piggy_back_messages_supported;  // True if comm allows sending a 32bit message piggy backed on the primary message
+  bool multi_sub_buffers_supported;    // True if more than one sub buffer can be in a single transfer
+  bool zero_byte_messages_supported;   // True if can send zero byte messages
 } CommInterface;
 
 static CommInterface L_interfaces[] = {
@@ -58,9 +58,9 @@ static CommInterface L_interfaces[] = {
                                          .isSent = NULL,
                                          .postRecvs = interThreadPostRecvs,
                                          .isRecved = interThreadIsRecved,
-                                         .piggy_back_message_supported = true,
+                                         .piggy_back_messages_supported = true,
                                          .multi_sub_buffers_supported = true,
-                                         .zero_byte_message_supported = true
+                                         .zero_byte_messages_supported = true
                                        },
 #endif
 
@@ -74,9 +74,9 @@ static CommInterface L_interfaces[] = {
                                          .isSent = NULL,
                                          .postRecvs = interProcessPostRecvs,
                                          .isRecved = interProcessIsRecved,
-                                         .piggy_back_message_supported = true,
+                                         .piggy_back_messages_supported = true,
                                          .multi_sub_buffers_supported = true,
-                                         .zero_byte_message_supported = true
+                                         .zero_byte_messages_supported = true
                                        },
 #endif
 
@@ -90,9 +90,9 @@ static CommInterface L_interfaces[] = {
                                          .isSent = NULL,
                                          .postRecvs = NULL,
                                          .isRecved = tcpSocketIsRecved,
-                                         .piggy_back_message_supported = true,
+                                         .piggy_back_messages_supported = true,
                                          .multi_sub_buffers_supported = true,
-                                         .zero_byte_message_supported = true
+                                         .zero_byte_messages_supported = true
                                        },
 #endif
 
@@ -106,9 +106,9 @@ static CommInterface L_interfaces[] = {
                                          .isSent = NULL,
                                          .postRecvs = NULL,
                                          .isRecved = NULL,
-                                         .piggy_back_message_supported = false,
+                                         .piggy_back_messages_supported = false,
                                          .multi_sub_buffers_supported = false,
-                                         .zero_byte_message_supported = false
+                                         .zero_byte_messages_supported = false
                                        },
                                        { .name = "SocketUdpRecv",
                                          .create = udpSocketCreate,
@@ -119,9 +119,9 @@ static CommInterface L_interfaces[] = {
                                          .isSent = NULL,
                                          .postRecvs = NULL,
                                          .isRecved = udpSocketIsRecved,
-                                         .piggy_back_message_supported = false,
+                                         .piggy_back_messages_supported = false,
                                          .multi_sub_buffers_supported = false,
-                                         .zero_byte_message_supported = false
+                                         .zero_byte_messages_supported = false
                                        },
 #endif
 
@@ -135,9 +135,9 @@ static CommInterface L_interfaces[] = {
                                          .isSent = rdmaUDMulticastIsSent,
                                          .postRecvs = NULL,
                                          .isRecved = NULL,
-                                         .piggy_back_message_supported = true,
+                                         .piggy_back_messages_supported = true,
                                          .multi_sub_buffers_supported = true,
-                                         .zero_byte_message_supported = true
+                                         .zero_byte_messages_supported = true
                                        },
                                        { .name = "RdmaUDMulticastRecv",
                                          .create = rdmaUDMulticastCreate,
@@ -148,9 +148,9 @@ static CommInterface L_interfaces[] = {
                                          .isSent = NULL,
                                          .postRecvs = rdmaUDMulticastPostRecvs,
                                          .isRecved = rdmaUDMulticastIsRecved,
-                                         .piggy_back_message_supported = true,
+                                         .piggy_back_messages_supported = true,
                                          .multi_sub_buffers_supported = true,
-                                         .zero_byte_message_supported = true
+                                         .zero_byte_messages_supported = true
                                        },
 #endif
 };
@@ -179,9 +179,9 @@ bool setProviderFunctionsAndCapabilities(const char *provider_name, TakyonComm *
       capabilities->IsSent_supported             = interface->isSent != NULL;
       capabilities->PostRecvs_supported          = interface->postRecvs != NULL;
       capabilities->IsRecved_supported           = interface->isRecved != NULL;
-      capabilities->piggy_back_message_supported = interface->piggy_back_message_supported;
+      capabilities->piggy_back_messages_supported = interface->piggy_back_messages_supported;
       capabilities->multi_sub_buffers_supported  = interface->multi_sub_buffers_supported;
-      capabilities->zero_byte_message_supported  = interface->zero_byte_message_supported;
+      capabilities->zero_byte_messages_supported  = interface->zero_byte_messages_supported;
 
       return true;
     }

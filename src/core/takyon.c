@@ -376,11 +376,13 @@ bool takyonSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_bac
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
-  if (piggy_back_message != 0 && !path->capabilities.piggy_back_message_supported) {
+  /*+
+  if (piggy_back_message != 0 && !path->capabilities.piggy_back_messages_supported) {
     TAKYON_RECORD_ERROR(path->error_message, "Piggy back messages are not supported with this provider, so piggy_back_message must be 0\n");
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
+  */
   if (timed_out_ret == NULL && timeout_seconds >= 0) {
     TAKYON_RECORD_ERROR(path->error_message, "If timeout_seconds >= 0 then 'timed_out_ret' must not be NULL.\n");
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
@@ -552,7 +554,7 @@ bool takyonIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout
 
   // Verbosity
   if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS) {
-    if (path->capabilities.piggy_back_message_supported) {
+    if (path->capabilities.piggy_back_messages_supported) {
       printf("%-15s (%s:%s) Got message: " UINT64_FORMAT " bytes, piggy_back_message=0x%x\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider, bytes_received, piggy_back_message);
     } else {
       printf("%-15s (%s:%s) Got message: " UINT64_FORMAT " bytes\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider, bytes_received);

@@ -29,8 +29,8 @@ Mac and Linux
       A> ./throughput_mp A "SocketUdpSend -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23456"
       B> ./throughput_mp B "SocketUdpRecv -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23456 -reuse"
     RDMA UD (multicast)
-      A> ./throughput_mp A "RdmaUDMulticastSend -localIP=192.168.50.234 -groupIP=233.23.33.56" -n=1000000 -b=4096
-      B> ./throughput_mp B "RdmaUDMulticastRecv -localIP=192.168.50.234 -groupIP=233.23.33.56" -n=1000000 -b=4136       # Need 40 extra bytes for the RDMA GRH
+      A> ./throughput_mp A "RdmaUDMulticastSend -localIP=192.168.50.234 -groupIP=233.23.33.56" -n=10000000 -b=4096 -s=100
+      B> ./throughput_mp B "RdmaUDMulticastRecv -localIP=192.168.50.234 -groupIP=233.23.33.56" -n=10000000 -b=4136 -r=100       # Need 40 extra bytes for the RDMA GRH
   Clean:
     > make clean
 

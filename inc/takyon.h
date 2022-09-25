@@ -159,9 +159,9 @@ typedef struct {
   bool PostRecvs_supported;
   bool IsRecved_supported;
   // Extra features
-  bool piggy_back_message_supported;      // True if comm allows sending a 32bit message piggy backed on the primary message
-  bool multi_sub_buffers_supported;       // True if more than one sub buffer can be in a single transfer
-  bool zero_byte_message_supported;       // True if can send zero byte messages
+  bool piggy_back_messages_supported;  // True if comm allows sending a 32bit message piggy backed on the primary message
+  bool multi_sub_buffers_supported;    // True if more than one sub buffer can be in a single transfer
+  bool zero_byte_messages_supported;   // True if can send zero byte messages
 } TakyonPathCapabilities;
 
 typedef struct {
