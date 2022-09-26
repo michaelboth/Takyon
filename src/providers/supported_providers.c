@@ -26,6 +26,9 @@
 #ifdef ENABLE_RdmaUDMulticast
   #include "provider_RdmaUDMulticast.h"
 #endif
+#ifdef ENABLE_RdmaUC
+  #include "provider_RdmaUC.h"
+#endif
 
 typedef struct {
   // Name
@@ -153,6 +156,22 @@ static CommInterface L_interfaces[] = {
                                          .zero_byte_messages_supported = true
                                        },
 #endif
+
+#ifdef ENABLE_RdmaUC
+                                       { .name = "RdmaUD",
+                                         .create = rdmaUCCreate,
+                                         .destroy = rdmaUCDestroy,
+                                         .oneSided = rdmaUCOneSided,
+                                         .isOneSidedDone = rdmaUCIsOneSidedDone,
+                                         .send = rdmaUCSend,
+                                         .isSent = rdmaUCIsSent,
+                                         .postRecvs = rdmaUCPostRecvs,
+                                         .isRecved = rdmaUCIsRecved,
+                                         .piggy_back_messages_supported = true,
+                                         .multi_sub_buffers_supported = true,
+                                         .zero_byte_messages_supported = true
+                                       },
+#endif
 };
 
 bool setProviderFunctionsAndCapabilities(const char *provider_name, TakyonComm *comm, TakyonPathCapabilities *capabilities) {
@@ -171,16 +190,16 @@ bool setProviderFunctionsAndCapabilities(const char *provider_name, TakyonComm *
       comm->isRecved       = interface->isRecved;
 
       // Supported functions and capabilities
-      capabilities->OneSided_supported           = interface->create != NULL;
-      capabilities->IsOneSidedDone_supported     = interface->destroy != NULL;
-      capabilities->OneSided_supported           = interface->oneSided != NULL;
-      capabilities->IsOneSidedDone_supported     = interface->isOneSidedDone != NULL;
-      capabilities->Send_supported               = interface->send != NULL;
-      capabilities->IsSent_supported             = interface->isSent != NULL;
-      capabilities->PostRecvs_supported          = interface->postRecvs != NULL;
-      capabilities->IsRecved_supported           = interface->isRecved != NULL;
+      capabilities->OneSided_supported            = interface->create != NULL;
+      capabilities->IsOneSidedDone_supported      = interface->destroy != NULL;
+      capabilities->OneSided_supported            = interface->oneSided != NULL;
+      capabilities->IsOneSidedDone_supported      = interface->isOneSidedDone != NULL;
+      capabilities->Send_supported                = interface->send != NULL;
+      capabilities->IsSent_supported              = interface->isSent != NULL;
+      capabilities->PostRecvs_supported           = interface->postRecvs != NULL;
+      capabilities->IsRecved_supported            = interface->isRecved != NULL;
       capabilities->piggy_back_messages_supported = interface->piggy_back_messages_supported;
-      capabilities->multi_sub_buffers_supported  = interface->multi_sub_buffers_supported;
+      capabilities->multi_sub_buffers_supported   = interface->multi_sub_buffers_supported;
       capabilities->zero_byte_messages_supported  = interface->zero_byte_messages_supported;
 
       return true;

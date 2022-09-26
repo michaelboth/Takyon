@@ -82,6 +82,7 @@ if [ "$mmap" == "yes" ]; then
 fi
 if [ "$rdma" == "yes" ]; then
     command+=" RdmaUDMulticast=Yes"
+#+    command+=" RdmaUDMulticast=Yes RdmaUC=Yes"
 fi
 build "$command"
 

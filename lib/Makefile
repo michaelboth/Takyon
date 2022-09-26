@@ -92,6 +92,18 @@ ifeq ($(RdmaUDMulticast),Yes)
 endif
 
 #---------------------------------------------
+# RdmaUC
+#---------------------------------------------
+ifeq ($(RdmaUC),Yes)
+    C_FLAGS      += -DENABLE_RdmaUC
+    NEED_utils_time := Yes
+    NEED_utils_rdma := Yes
+    NEED_utils_socket := Yes
+    C_OBJS       += provider_RdmaUC.o
+    HEADER_FILES += provider_RdmaUC.h
+endif
+
+#---------------------------------------------
 # Various utilities
 #---------------------------------------------
 ifeq ($(NEED_utils_time),Yes)
