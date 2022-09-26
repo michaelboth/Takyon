@@ -625,7 +625,7 @@ bool interProcessDestroy(TakyonPath *path, double timeout_seconds) {
     }
   }
 
-  // Socket barrier
+  // Socket barrier: to make sure pending transactions are complete
   bool barrier_ok = !private_path->connection_failed;
   if (barrier_ok) {
     if (path->attrs.is_endpointA) {
@@ -694,51 +694,62 @@ bool interProcessOneSided(TakyonPath *path, TakyonOneSidedRequest *request, doub
   if (timed_out_ret != NULL) *timed_out_ret = false;
 
   // Verify connection is good
-  // IMPORTANT: if the app does no use the send()/recv() inteface, it's will be unknown if the application disconnected because shared memory will likely continue to be valid since it's an OS resources, not an app resource.
   if (private_path->connection_failed) {
     TAKYON_RECORD_ERROR(path->error_message, "Connection is broken\n");
     return false;
   }
 
-  // Source info
-  TakyonBuffer *local_buffer = &path->attrs.buffers[request->local_buffer_index];
-  PrivateTakyonBuffer *local_private_buffer = (PrivateTakyonBuffer *)local_buffer->private;
-  if (local_private_buffer->path != path) {
-    TAKYON_RECORD_ERROR(path->error_message, "'request->local_buffer is not from this Takyon path\n");
-    return false;
+  // Get total bytes to transfer
+  uint64_t total_local_bytes_to_transfer = 0;
+  for (uint32_t i=0; i<request->sub_buffer_count; i++) {
+    // Source info
+    TakyonSubBuffer *sub_buffer = &request->sub_buffers[i];
+    if (sub_buffer->buffer_index >= path->attrs.buffer_count) {
+      TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer->buffer_index == %d out of range\n", sub_buffer->buffer_index);
+      return false;
+    }
+    TakyonBuffer *local_buffer = &path->attrs.buffers[sub_buffer->buffer_index];
+    PrivateTakyonBuffer *local_private_buffer = (PrivateTakyonBuffer *)local_buffer->private;
+    if (local_private_buffer->path != path) {
+      TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer[%d].buffer_index is not from this Takyon path\n", i);
+      return false;
+    }
+    uint64_t local_bytes = sub_buffer->bytes;
+    if (local_bytes > (local_buffer->bytes - sub_buffer->offset)) {
+      TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju, offset = %ju exceeds local buffer (bytes = %ju)\n", local_bytes, sub_buffer->offset, local_buffer->bytes);
+      return false;
+    }
+    total_local_bytes_to_transfer += local_bytes;
   }
-  void *local_addr = (void *)((uint64_t)local_buffer->addr + request->local_offset);
 
-  // Dest info
+  // Remote info
   if (request->remote_buffer_index >= private_path->remote_buffer_count) {
     TAKYON_RECORD_ERROR(path->error_message, "Remote buffer index = %d is out of range\n", request->remote_buffer_index);
     return false;
   }
-  RemoteTakyonBuffer *dest_buffer = &private_path->remote_buffers[request->remote_buffer_index];
-  void *dest_addr = (void *)((uint64_t)dest_buffer->mmap_addr + request->remote_offset);
+  RemoteTakyonBuffer *remote_buffer = &private_path->remote_buffers[request->remote_buffer_index];
+  void *remote_addr = (void *)((uint64_t)remote_buffer->mmap_addr + request->remote_offset);
+  uint64_t remote_max_bytes = remote_buffer->bytes - request->remote_offset;
 
-  // Bytes
-  uint64_t bytes = request->bytes;
-  if (bytes > (local_buffer->bytes - request->local_offset)) {
-    TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju, offset = %ju exceeds local buffer (bytes = %ju)\n", bytes, request->local_offset, local_buffer->bytes);
-    return false;
-  }
-  if (bytes > (dest_buffer->bytes - request->remote_offset)) {
-    TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju, offset = %ju exceeds remote buffer (bytes = %ju)\n", bytes, request->remote_offset, dest_buffer->bytes);
+  // Verify enough space in remote request
+  if (total_local_bytes_to_transfer > remote_max_bytes) {
+    TAKYON_RECORD_ERROR(path->error_message, "Not enough available remote bytes\n");
     return false;
   }
 
-  // See if push or pull
-  if (!request->is_write_request) {
-    // It's a read: swap source and and dest
-    void *temp_addr = local_addr;
-    local_addr = dest_addr;
-    dest_addr = temp_addr;
-  }
-
-  // Transfer
-  if (!transferData(dest_addr, local_addr, bytes, path->error_message)) {
-    return false;
+  // Copy the data to the remote side
+  for (uint32_t i=0; i<request->sub_buffer_count; i++) {
+    // Source info
+    TakyonSubBuffer *sub_buffer = &request->sub_buffers[i];
+    TakyonBuffer *local_buffer = &path->attrs.buffers[sub_buffer->buffer_index];
+    void *local_addr = (void *)((uint64_t)local_buffer->addr + sub_buffer->offset);
+    uint64_t bytes = sub_buffer->bytes;
+    if (request->is_write_request) {
+      if (!transferData(remote_addr, local_addr, bytes, path->error_message)) return false;
+    } else {
+      if (!transferData(local_addr, remote_addr, bytes, path->error_message)) return false;
+    }
+    remote_addr = (void *)((uint64_t)remote_addr + bytes);
   }
 
   // NOTES:
@@ -772,7 +783,7 @@ bool interProcessSend(TakyonPath *path, TakyonSendRequest *request, uint32_t pig
     TakyonBuffer *src_buffer = &path->attrs.buffers[sub_buffer->buffer_index];
     PrivateTakyonBuffer *src_private_buffer = (PrivateTakyonBuffer *)src_buffer->private;
     if (src_private_buffer->path != path) {
-      TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer[%d] is not from this Takyon path\n", i);
+      TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer[%d].buffer_index is not from this Takyon path\n", i);
       return false;
     }
     uint64_t src_bytes = sub_buffer->bytes;

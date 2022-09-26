@@ -87,12 +87,12 @@ typedef struct {
 // App must maintain this structure for the life of the transfer
 typedef struct {
   bool is_write_request;                     // True: is one sided write. False: is one sided read. Either way, the remote CPU is not involved in the transfer
-  // Transfer info fields
-  uint32_t local_buffer_index;               // Index of the local memory buffer
-  uint64_t local_offset;                     // Offset in bytes into the local buffer addr
+  // Local memory info
+  uint32_t sub_buffer_count;                 // Some comms will support > 1 (e.g. a mix of CUDA and CPU memory blocks)
+  TakyonSubBuffer *sub_buffers;              // Local memory
+  // Remote memory info
   uint32_t remote_buffer_index;              // Index into the remote buffer list
   uint64_t remote_offset;                    // Offset in bytes into the buffer addr
-  uint64_t bytes;                            // Byte to send from the buffer
   // Non blocking options
   bool use_is_done_notification;             // If true and takyonIsOneSidedDone() is supported, then must call takyonIsOneSidedDone()
   // Completion fields
@@ -107,7 +107,7 @@ typedef struct {
 // App must maintain this structure for the life of the transfer
 typedef struct {
   // Transfer info fields
-  uint32_t sub_buffer_count;                 // Most comms will only support 0 or 1, but some will support > 1 (e.g. a mix of CUDA and CPU memory blocks)
+  uint32_t sub_buffer_count;                 // Some comms will support > 1 (e.g. a mix of CUDA and CPU memory blocks)
   TakyonSubBuffer *sub_buffers;
   // Non blocking options
   bool use_is_sent_notification;             // If true and takyonIsSent() is supported, then must call takyonIsSent()
@@ -123,7 +123,7 @@ typedef struct {
 // App must maintain this structure for the life of the transfer
 typedef struct {
   // Transfer info fields
-  uint32_t sub_buffer_count;                 // Most comms will only support 0 or 1, but some will support > 1 (e.g. a mix of CUDA and CPU memory blocks)
+  uint32_t sub_buffer_count;                 // Some comms will support > 1 (e.g. a mix of CUDA and CPU memory blocks)
   TakyonSubBuffer *sub_buffers;
   // Completion fields
   bool use_polling_completion;               // True: use CPU polling to detect transfer completion. False: use event driven (allows CPU to sleep) to passively detect completion.
@@ -160,6 +160,7 @@ typedef struct {
   bool IsRecved_supported;
   // Extra features
   bool piggy_back_messages_supported;  // True if comm allows sending a 32bit message piggy backed on the primary message
+  /*+ maybe convey max sub buffers? can also be 0 for a purely signaling comm */
   bool multi_sub_buffers_supported;    // True if more than one sub buffer can be in a single transfer
   bool zero_byte_messages_supported;   // True if can send zero byte messages
 } TakyonPathCapabilities;

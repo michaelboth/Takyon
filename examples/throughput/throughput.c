@@ -150,17 +150,15 @@ static void writeMessage(TakyonPath *path, const uint64_t message_bytes, const b
 
   // Setup the one-sided write request
   bool use_done_notification = (message_count % path->attrs.max_pending_send_and_one_sided_requests) == 0; // Need to get done notification before all internal transfer buffers are used up
-  TakyonOneSidedRequest request = {
-                                   .is_write_request = true,
-                                   .local_buffer_index = 0,
-                                   .local_offset = message_offset,
-                                   .remote_buffer_index = 0,
-                                   .remote_offset = message_offset,
-                                   .bytes = message_bytes,
-                                   .use_is_done_notification = use_done_notification,
-                                   .use_polling_completion = use_polling_completion,
-                                   .usec_sleep_between_poll_attempts = 0
-  };
+  TakyonSubBuffer sub_buffer = { .buffer_index = 0, .bytes = message_bytes, .offset = message_offset };
+  TakyonOneSidedRequest request = { .is_write_request = true,
+                                    .sub_buffer_count = 1,
+                                    .sub_buffers = &sub_buffer,
+                                    .remote_buffer_index = 0,
+                                    .remote_offset = message_offset,
+                                    .use_is_done_notification = use_done_notification,
+                                    .use_polling_completion = use_polling_completion,
+                                    .usec_sleep_between_poll_attempts = 0 };
 
   // Start the write
   takyonOneSided(path, &request, TAKYON_WAIT_FOREVER, NULL);
@@ -173,17 +171,15 @@ static void readMessage(TakyonPath *path, const uint64_t message_bytes, const bo
   // Setup the one-sided write request
   uint32_t message_index = (message_count-1) % path->attrs.max_pending_send_and_one_sided_requests;
   uint64_t message_offset = message_index * message_bytes;
-  TakyonOneSidedRequest request = {
-                                   .is_write_request = false,
-                                   .local_buffer_index = 0,
-                                   .local_offset = path->attrs.max_pending_send_and_one_sided_requests * message_bytes + message_offset,
-                                   .remote_buffer_index = 0,
-                                   .remote_offset = message_offset,
-                                   .bytes = message_bytes,
-                                   .use_is_done_notification = true,
-                                   .use_polling_completion = use_polling_completion,
-                                   .usec_sleep_between_poll_attempts = 0
-  };
+  TakyonSubBuffer sub_buffer = { .buffer_index = 0, .bytes = message_bytes, .offset = path->attrs.max_pending_send_and_one_sided_requests * message_bytes + message_offset };
+  TakyonOneSidedRequest request = { .is_write_request = false,
+                                    .sub_buffer_count = 1,
+                                    .sub_buffers = &sub_buffer,
+                                    .remote_buffer_index = 0,
+                                    .remote_offset = message_offset,
+                                    .use_is_done_notification = true,
+                                    .use_polling_completion = use_polling_completion,
+                                    .usec_sleep_between_poll_attempts = 0 };
 
   // Start the write
   takyonOneSided(path, &request, TAKYON_WAIT_FOREVER, NULL);

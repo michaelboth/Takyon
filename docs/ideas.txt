@@ -5,6 +5,7 @@ To DO
   - Provide a way to get capabilities before path is created? Add function in supported_providers.h?
   - Compile out error checking if in release mode
   - Allow InterThread and InterProcess to have unreliable modes; i.e. if recv not posted, data is dropped.
+  - DOC: sent bytes can be less posted recv request
 
 Promote To
   - Khronos, as a new proposal

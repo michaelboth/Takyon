@@ -250,14 +250,18 @@ bool takyonOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double tim
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
-  if (request->local_buffer_index >= path->attrs.buffer_count) {
-    TAKYON_RECORD_ERROR(path->error_message, "'request->local_buffer_index' is out of range\n");
+  if (request->sub_buffer_count > 1 && !path->capabilities.multi_sub_buffers_supported) {
+    TAKYON_RECORD_ERROR(path->error_message, "This provider does not support request->sub_buffer_count > 1.\n");
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
-  TakyonBuffer *buffer = &path->attrs.buffers[request->local_buffer_index];
-  if ((buffer->bytes - request->local_offset) < request->bytes) {
-    TAKYON_RECORD_ERROR(path->error_message, "'request->bytes' exceeds request->local_buffer range\n");
+  if (request->sub_buffer_count >= 1 && request->sub_buffers == NULL) {
+    TAKYON_RECORD_ERROR(path->error_message, "request->sub_buffer_count >= 1 but request->sub_buffers == NULL\n");
+    handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
+    return false;
+  }
+  if (request->sub_buffer_count == 0 && request->sub_buffers != NULL) {
+    TAKYON_RECORD_ERROR(path->error_message, "request->sub_buffer_count == 0 but request->sub_buffers != NULL\n");
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
@@ -300,17 +304,6 @@ bool takyonIsOneSidedDone(TakyonPath *path, TakyonOneSidedRequest *request, doub
   }
   if (request == NULL) {
     TAKYON_RECORD_ERROR(path->error_message, "'request' is NULL.\n");
-    handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
-    return false;
-  }
-  if (request->local_buffer_index >= path->attrs.buffer_count) {
-    TAKYON_RECORD_ERROR(path->error_message, "'request->local_buffer_index' is NULL\n");
-    handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
-    return false;
-  }
-  TakyonBuffer *buffer = &path->attrs.buffers[request->local_buffer_index];
-  if ((buffer->bytes - request->local_offset) < request->bytes) {
-    TAKYON_RECORD_ERROR(path->error_message, "'request->bytes' exceeds request->local_buffer range\n");
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
@@ -535,13 +528,6 @@ bool takyonIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
-  /*+ use this
-  if (piggy_back_message_ret != NULL && !path->capabilities.piggy_back_messages_supported) {
-    TAKYON_RECORD_ERROR(path->error_message, "Piggy back messages are not supported with this provider, so piggy_back_message_ret must be NULL\n");
-    handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
-    return false;
-  }
-  */
 
   // Wait for the message to arrive
   uint64_t bytes_received;

@@ -134,7 +134,7 @@ bool tcpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReque
   // Validate arguments
   int num_modes = (is_local ? 1 : 0) + (is_client ? 1 : 0) + (is_server ? 1 : 0);
   if (num_modes != 1) {
-    TAKYON_RECORD_ERROR(path->error_message, "Provider must specifiy one of -local -client or -server\n");
+    TAKYON_RECORD_ERROR(path->error_message, "Provider must specify one of -local -client or -server\n");
     return false;
   }
   if (is_local) {

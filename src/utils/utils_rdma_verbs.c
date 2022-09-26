@@ -703,25 +703,21 @@ static bool waitForCompletion(bool is_send, RdmaEndpoint *endpoint, uint64_t exp
   return true;
 }
 
-bool rdmaStartSend(TakyonPath *path, RdmaEndpoint *endpoint, TakyonSendRequest *request, uint32_t piggy_back_message, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
-  (void)timeout_seconds; // Ignore arg
-  if (timed_out_ret != NULL) *timed_out_ret = false;
-
-  RdmaSendRequest *rdma_request = (RdmaSendRequest *)request->private;
+bool rdmaStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr_opcode transfer_mode, uint64_t transfer_id, uint32_t sub_buffer_count, TakyonSubBuffer *sub_buffers, struct ibv_sge *sge_list, uint32_t piggy_back_message, bool use_is_sent_notification, char *error_message, int max_error_message_chars) {
   struct ibv_send_wr send_wr;
 
   // Fill in message to be sent
   send_wr.next = NULL;
-  send_wr.wr_id = (uint64_t)request;
-  send_wr.num_sge = request->sub_buffer_count;
-  send_wr.sg_list = rdma_request->sges;
+  send_wr.wr_id = transfer_id;
+  send_wr.num_sge = sub_buffer_count;
+  send_wr.sg_list = sge_list;
   send_wr.opcode = IBV_WR_SEND_WITH_IMM;
   send_wr.imm_data = htonl(piggy_back_message);
 #ifdef DEBUG_BUILD
   if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Posting send: IMM=%u, nSGEs=%d\n", piggy_back_message, send_wr.num_sge);
 #endif
-  for (uint32_t j=0; j<request->sub_buffer_count; j++) {
-    TakyonSubBuffer *sub_buffer = &request->sub_buffers[j];
+  for (uint32_t j=0; j<sub_buffer_count; j++) {
+    TakyonSubBuffer *sub_buffer = &sub_buffers[j];
     TakyonBuffer *buffer = &path->attrs.buffers[sub_buffer->buffer_index];
     RdmaBuffer *rdma_buffer = (RdmaBuffer *)buffer->private;
     struct ibv_sge *sge = &send_wr.sg_list[j];
@@ -745,7 +741,7 @@ bool rdmaStartSend(TakyonPath *path, RdmaEndpoint *endpoint, TakyonSendRequest *
 
   // Signaling
   send_wr.send_flags = 0;
-  if (request->use_is_sent_notification) {
+  if (use_is_sent_notification) {
 #ifdef DEBUG_BUILD
     if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Send signaled\n");
 #endif
@@ -763,12 +759,12 @@ bool rdmaStartSend(TakyonPath *path, RdmaEndpoint *endpoint, TakyonSendRequest *
   return true;
 }
 
-bool rdmaIsRecved(RdmaEndpoint *endpoint, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret) {
+bool rdmaIsRecved(RdmaEndpoint *endpoint, uint64_t expected_transfer_id, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret) {
   bool is_send = false;
-  return waitForCompletion(is_send, endpoint, (uint64_t)request, request->use_polling_completion, request->usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, max_error_message_chars, bytes_received_ret, piggy_back_message_ret);
+  return waitForCompletion(is_send, endpoint, expected_transfer_id, use_polling_completion, usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, max_error_message_chars, bytes_received_ret, piggy_back_message_ret);
 }
 
-bool rdmaIsSent(RdmaEndpoint *endpoint, TakyonSendRequest *request, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
+bool rdmaIsSent(RdmaEndpoint *endpoint, uint64_t expected_transfer_id, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
   bool is_send = true;
-  return waitForCompletion(is_send, endpoint, (uint64_t)request, request->use_polling_completion, request->usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, max_error_message_chars, NULL, NULL);
+  return waitForCompletion(is_send, endpoint, expected_transfer_id, use_polling_completion, usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, max_error_message_chars, NULL, NULL);
 }

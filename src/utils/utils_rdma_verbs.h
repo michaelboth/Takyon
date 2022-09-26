@@ -62,10 +62,10 @@ extern RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *l
 extern bool rdmaDestroyEndpoint(TakyonPath *path, RdmaEndpoint *endpoint, double timeout_seconds, char *error_message, int max_error_message_chars);
 
 extern bool rdmaPostRecvs(TakyonPath *path, RdmaEndpoint *endpoint, uint32_t request_count, TakyonRecvRequest *requests, char *error_message, int max_error_message_chars);
-extern bool rdmaIsRecved(RdmaEndpoint *endpoint, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret);
+extern bool rdmaIsRecved(RdmaEndpoint *endpoint, uint64_t expected_transfer_id, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret);
 
-extern bool rdmaStartSend(TakyonPath *path, RdmaEndpoint *endpoint, TakyonSendRequest *request, uint32_t piggy_back_message, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars);
-extern bool rdmaIsSent(RdmaEndpoint *endpoint, TakyonSendRequest *request, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars);
+extern bool rdmaStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr_opcode transfer_mode, uint64_t transfer_id, uint32_t sub_buffer_count, TakyonSubBuffer *sub_buffers, struct ibv_sge *sge_list, uint32_t piggy_back_message, bool use_is_sent_notification, char *error_message, int max_error_message_chars);
+extern bool rdmaIsSent(RdmaEndpoint *endpoint, uint64_t expected_transfer_id, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars);
 
 #ifdef __cplusplus
 }
