@@ -699,6 +699,12 @@ bool interProcessOneSided(TakyonPath *path, TakyonOneSidedRequest *request, doub
     return false;
   }
 
+  // Make sure at least one buffer
+  if (request->sub_buffer_count == 0) {
+    TAKYON_RECORD_ERROR(path->error_message, "One sided requests must have at least one sub buffer\n");
+    return false;
+  }
+
   // Get total bytes to transfer
   uint64_t total_local_bytes_to_transfer = 0;
   for (uint32_t i=0; i<request->sub_buffer_count; i++) {

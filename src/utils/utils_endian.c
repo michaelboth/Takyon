@@ -40,17 +40,29 @@ bool endianIsBig() {
   }
 }
 
-void endianSwapUInt16(uint16_t *data, uint64_t num_elements) {
+void endianSwap2Byte(void *data, uint64_t num_elements) {
+  uint16_t *data2 = (uint16_t *)data;
   for (uint64_t i=0; i<num_elements; i++) {
-    uint16_t value = data[i];
-    data[i] = (uint16_t)((value>>8) | (value<<8));
+    uint16_t value = data2[i];
+    data2[i] = (uint16_t)((value>>8) | (value<<8));
   }
 }
 
-void endianSwapUInt32(uint32_t *data, uint64_t num_elements) {
+void endianSwap4Byte(void *data, uint64_t num_elements) {
+  uint32_t *data2 = (uint32_t *)data;
   for (uint64_t i=0; i<num_elements; i++) {
-    uint32_t value = data[i];
+    uint32_t value = data2[i];
     value = ((value << 8) & 0xFF00FF00) | ((value >> 8) & 0xFF00FF);
-    data[i] = (value << 16) | (value >> 16);
+    data2[i] = (value << 16) | (value >> 16);
+  }
+}
+
+void endianSwap8Byte(void *data, uint64_t num_elements) {
+  uint64_t *data2 = (uint64_t *)data;
+  for (uint64_t i=0; i<num_elements; i++) {
+    uint64_t value = data2[i];
+    value = ((value << 8) & 0xFF00FF00FF00FF00ULL ) | ((value >> 8) & 0x00FF00FF00FF00FFULL );
+    value = ((value << 16) & 0xFFFF0000FFFF0000ULL ) | ((value >> 16) & 0x0000FFFF0000FFFFULL );
+    data2[i] = (value << 32) | (value >> 32);
   }
 }

@@ -94,6 +94,11 @@ bool rdmaUDMulticastCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRec
     return false;
   }
 
+  // Make sure each buffer knows it's for this path: need for verifications later on
+  for (uint32_t i=0; i<path->attrs.buffer_count; i++) {
+    path->attrs.buffers[i].private = path;
+  }
+
   // Allocate the private data
   PrivateTakyonPath *private_path = calloc(1, sizeof(PrivateTakyonPath));
   if (private_path == NULL) {
@@ -248,6 +253,10 @@ bool rdmaUDMulticastSend(TakyonPath *path, TakyonSendRequest *request, uint32_t 
       return false;
     }
     TakyonBuffer *src_buffer = &path->attrs.buffers[sub_buffer->buffer_index];
+    if (src_buffer->private != path) {
+      TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer[%d].buffer_index is not from this Takyon path\n", i);
+      return false;
+    }
     uint64_t src_bytes = sub_buffer->bytes;
     if (src_bytes > (src_buffer->bytes - sub_buffer->offset)) {
       TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju, offset = %ju exceeds src buffer (bytes = %ju)\n", src_bytes, sub_buffer->offset, src_buffer->bytes);
@@ -264,7 +273,9 @@ bool rdmaUDMulticastSend(TakyonPath *path, TakyonSendRequest *request, uint32_t 
   enum ibv_wr_opcode transfer_mode = IBV_WR_SEND_WITH_IMM;
   uint64_t transfer_id = (uint64_t)request;
   struct ibv_sge *sge_list = rdma_request->sge_list;
-  if (!rdmaStartSend(path, endpoint, transfer_mode, transfer_id, request->sub_buffer_count, request->sub_buffers, sge_list, piggy_back_message, request->use_is_sent_notification, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+  uint64_t remote_addr = 0;
+  uint32_t rkey = 0;
+  if (!rdmaStartSend(path, endpoint, transfer_mode, transfer_id, request->sub_buffer_count, request->sub_buffers, sge_list, remote_addr, rkey, piggy_back_message, request->use_is_sent_notification, error_message, MAX_ERROR_MESSAGE_CHARS)) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to start the RDMA send: %s\n", error_message);
     return false;
   }
@@ -322,6 +333,10 @@ bool rdmaUDMulticastPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRe
 	return false;
       }
       TakyonBuffer *dest_buffer = &path->attrs.buffers[sub_buffer->buffer_index];
+      if (dest_buffer->private != path) {
+        TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer[%d].buffer_index is not from this Takyon path\n", i);
+        return false;
+      }
       uint64_t dest_bytes = sub_buffer->bytes;
       if (dest_bytes > (dest_buffer->bytes - sub_buffer->offset)) {
 	TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju, offset = %ju exceeds recv buffer (bytes = %ju)\n", dest_bytes, sub_buffer->offset, dest_buffer->bytes);

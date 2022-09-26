@@ -56,6 +56,10 @@ extern "C"
 #endif
 
 extern RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *local_NIC_ip_addr, const char *multicast_group_ip_addr, bool is_sender,
+                                                 uint32_t max_send_wr, uint32_t max_recv_wr, uint32_t max_send_sges, uint32_t max_recv_sges,
+                                                 uint32_t recv_request_count, TakyonRecvRequest *recv_requests,
+                                                 double timeout_seconds, char *error_message, int max_error_message_chars);
+extern RdmaEndpoint *rdmaCreateUCEndpoint(TakyonPath *path, bool is_endpointA, int socket_fd,
                                           uint32_t max_send_wr, uint32_t max_recv_wr, uint32_t max_send_sges, uint32_t max_recv_sges,
                                           uint32_t recv_request_count, TakyonRecvRequest *recv_requests,
                                           double timeout_seconds, char *error_message, int max_error_message_chars);
@@ -64,7 +68,7 @@ extern bool rdmaDestroyEndpoint(TakyonPath *path, RdmaEndpoint *endpoint, double
 extern bool rdmaPostRecvs(TakyonPath *path, RdmaEndpoint *endpoint, uint32_t request_count, TakyonRecvRequest *requests, char *error_message, int max_error_message_chars);
 extern bool rdmaIsRecved(RdmaEndpoint *endpoint, uint64_t expected_transfer_id, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret);
 
-extern bool rdmaStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr_opcode transfer_mode, uint64_t transfer_id, uint32_t sub_buffer_count, TakyonSubBuffer *sub_buffers, struct ibv_sge *sge_list, uint32_t piggy_back_message, bool use_is_sent_notification, char *error_message, int max_error_message_chars);
+extern bool rdmaStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr_opcode transfer_mode, uint64_t transfer_id, uint32_t sub_buffer_count, TakyonSubBuffer *sub_buffers, struct ibv_sge *sge_list, uint64_t remote_addr, uint32_t rkey, uint32_t piggy_back_message, bool use_is_sent_notification, char *error_message, int max_error_message_chars);
 extern bool rdmaIsSent(RdmaEndpoint *endpoint, uint64_t expected_transfer_id, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars);
 
 #ifdef __cplusplus

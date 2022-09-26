@@ -440,6 +440,14 @@ RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *local_NI
   return NULL;
 }
 
+RdmaEndpoint *rdmaCreateUCEndpoint(TakyonPath *path, bool is_endpointA, int socket_fd,
+                                   uint32_t max_send_wr, uint32_t max_recv_wr, uint32_t max_send_sges, uint32_t max_recv_sges,
+                                   uint32_t recv_request_count, TakyonRecvRequest *recv_requests,
+                                   double timeout_seconds, char *error_message, int max_error_message_chars) {
+  /*+*/
+  return NULL;
+}
+
 bool rdmaDestroyEndpoint(TakyonPath *path, RdmaEndpoint *endpoint, double timeout_seconds, char *error_message, int max_error_message_chars) {
   (void)timeout_seconds; // Quiet the compiler   /*+ will this get used with RC? If not, remove from arg list */
 
@@ -703,7 +711,7 @@ static bool waitForCompletion(bool is_send, RdmaEndpoint *endpoint, uint64_t exp
   return true;
 }
 
-bool rdmaStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr_opcode transfer_mode, uint64_t transfer_id, uint32_t sub_buffer_count, TakyonSubBuffer *sub_buffers, struct ibv_sge *sge_list, uint32_t piggy_back_message, bool use_is_sent_notification, char *error_message, int max_error_message_chars) {
+bool rdmaStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr_opcode transfer_mode, uint64_t transfer_id, uint32_t sub_buffer_count, TakyonSubBuffer *sub_buffers, struct ibv_sge *sge_list, uint64_t remote_addr, uint32_t rkey, uint32_t piggy_back_message, bool use_is_sent_notification, char *error_message, int max_error_message_chars) {
   struct ibv_send_wr send_wr;
 
   // Fill in message to be sent
@@ -711,11 +719,17 @@ bool rdmaStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr_opcode 
   send_wr.wr_id = transfer_id;
   send_wr.num_sge = sub_buffer_count;
   send_wr.sg_list = sge_list;
-  send_wr.opcode = IBV_WR_SEND_WITH_IMM;
-  send_wr.imm_data = htonl(piggy_back_message);
+  send_wr.opcode = transfer_mode;
+  if (transfer_mode == IBV_WR_SEND_WITH_IMM) {
+    send_wr.imm_data = htonl(piggy_back_message);
 #ifdef DEBUG_BUILD
-  if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Posting send: IMM=%u, nSGEs=%d\n", piggy_back_message, send_wr.num_sge);
+    if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Posting send: IMM=%u, nSGEs=%d\n", piggy_back_message, send_wr.num_sge);
 #endif
+  } else if (transfer_mode == IBV_WR_RDMA_WRITE || transfer_mode == IBV_WR_RDMA_READ) {
+#ifdef DEBUG_BUILD
+    if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Posting %s: nSGEs=%d\n", (transfer_mode == IBV_WR_RDMA_WRITE) ? "write" : "read", send_wr.num_sge);
+#endif
+  }
   for (uint32_t j=0; j<sub_buffer_count; j++) {
     TakyonSubBuffer *sub_buffer = &sub_buffers[j];
     TakyonBuffer *buffer = &path->attrs.buffers[sub_buffer->buffer_index];
@@ -737,6 +751,9 @@ bool rdmaStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr_opcode 
     send_wr.wr.ud.ah = endpoint->multicast_ah;
     send_wr.wr.ud.remote_qpn = endpoint->multicast_qp_num;
     send_wr.wr.ud.remote_qkey = endpoint->multicast_qkey;
+  } else if (endpoint->protocol == RDMA_PROTOCOL_UC || endpoint->protocol == RDMA_PROTOCOL_RC) {
+    send_wr.wr.rdma.rkey = rkey;
+    send_wr.wr.rdma.remote_addr = remote_addr;
   }
 
   // Signaling

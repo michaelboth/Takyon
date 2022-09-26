@@ -21,8 +21,9 @@ extern "C"
 #endif
 
 extern bool endianIsBig();
-extern void endianSwapUInt16(uint16_t *data, uint64_t num_elements);
-extern void endianSwapUInt32(uint32_t *data, uint64_t num_elements);
+extern void endianSwap2Byte(void *data, uint64_t num_elements);
+extern void endianSwap4Byte(void *data, uint64_t num_elements);
+extern void endianSwap8Byte(void *data, uint64_t num_elements);
 
 #ifdef __cplusplus
 }

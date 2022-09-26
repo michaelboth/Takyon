@@ -257,8 +257,8 @@ static void *ephemeralPortMonitoringThread(void *user_arg) {
     }
     if (this_is_big_endian != message.is_big_endian) {
       // Endian swap the port number and path ID
-      endianSwapUInt16(&message.ephemeral_port_number, 1);
-      endianSwapUInt32(&message.path_id, 1);
+      endianSwap2Byte(&message.ephemeral_port_number, 1);
+      endianSwap4Byte(&message.path_id, 1);
     }
     if (message.command == NEW_EPHEMERAL_PORT) {
       // Record the info and wake up any threads waiting for it
