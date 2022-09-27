@@ -214,7 +214,7 @@ bool rdmaUDMulticastDestroy(TakyonPath *path, double timeout_seconds) {
 
   // Disconnect
   char error_message[MAX_ERROR_MESSAGE_CHARS];
-  if (!rdmaDestroyEndpoint(path, endpoint, timeout_seconds, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+  if (!rdmaDestroyEndpoint(path, endpoint, error_message, MAX_ERROR_MESSAGE_CHARS)) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to destroy RDMA endpoint: %s\n", error_message);
     return false;
   }

@@ -68,7 +68,7 @@ extern RdmaEndpoint *rdmaCreateUCEndpoint(TakyonPath *path, bool is_endpointA, i
                                           uint32_t max_send_wr, uint32_t max_recv_wr, uint32_t max_send_sges, uint32_t max_recv_sges,
                                           uint32_t recv_request_count, TakyonRecvRequest *recv_requests,
                                           double timeout_seconds, char *error_message, int max_error_message_chars);
-extern bool rdmaDestroyEndpoint(TakyonPath *path, RdmaEndpoint *endpoint, double timeout_seconds, char *error_message, int max_error_message_chars);
+extern bool rdmaDestroyEndpoint(TakyonPath *path, RdmaEndpoint *endpoint, char *error_message, int max_error_message_chars);
 
 extern bool rdmaPostRecvs(TakyonPath *path, RdmaEndpoint *endpoint, uint32_t request_count, TakyonRecvRequest *requests, char *error_message, int max_error_message_chars);
 extern bool rdmaIsRecved(RdmaEndpoint *endpoint, uint64_t expected_transfer_id, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret);

@@ -21,9 +21,9 @@
   - RDMA Protocols:
     - UD Multicast: Using the CM (connection manager) since it's convenient and no hand shake information is needed
     - UD Unicast:   ? use TCP socket to handshake and detect disconnect, pass socket to rdmaCreateUnicast
-    - UC:           CM doesn't support UC so using raw verbs with an external TCP socket to do the init handshake and lifetime disconnect detection
+    - UC:           CM doesn't support UC so using raw verbs with an external TCP socket to do the 'create' handshake and lifetime disconnect detection
     - RC:           ? 
-  - Avoiding use of inline byte when sending since it only works with CPU memory, and adds complixity to track memory type
+  - Avoiding use of inline bytes when sending since it only works with CPU memory, and adds complexity to track memory type
   - Posted UD recv requests need to have an extra sizeof(struct ibv_grh) bytes (40 bytes), which is the IB's Global Routing Header placed at the beginning of any UD received message
 */
 
@@ -41,12 +41,12 @@
 #define PORT_INFO_TEXT_BYTES 100
 
 typedef struct  {
-  int lid;  // For infiniband
+  int lid;           // For infiniband
   int qpn;
   int psn;
-  union ibv_gid gid;
-  char gid_text[33];
-  char socket_data[PORT_INFO_TEXT_BYTES]; /*+ is this the only field that needs to remain persistant? */
+  union ibv_gid gid; // For infiniband
+  char gid_text[33]; // For infiniband
+  char socket_data[PORT_INFO_TEXT_BYTES]; // Use for transferring to remote side regardless of endian
 } PortInfo;
 
 static struct ibv_context *getRdmaContextFromNamedDevice(const char *rdma_device_name, uint32_t rdma_port_id, char *error_message, int max_error_message_chars) {
@@ -59,7 +59,7 @@ static struct ibv_context *getRdmaContextFromNamedDevice(const char *rdma_device
   while (dev_list[index] != NULL) {
     if (strcmp(ibv_get_device_name(dev_list[index]), rdma_device_name) == 0) {
       // Found the device, so open it
-      struct ibv_context *context = ibv_open_device(dev_list[index]); /*+ will need to close this: int ibv_close_device(context) : check errno */
+      struct ibv_context *context = ibv_open_device(dev_list[index]);
       if (context == NULL) {
         snprintf(error_message, max_error_message_chars, "ibv_open_device() failed for device '%s': errno=%d", rdma_device_name, errno);
         return NULL;
@@ -96,6 +96,38 @@ static void textToGid(const char *gid_text, union ibv_gid *gid) {
   memcpy(gid, gid_int_array, sizeof(*gid));
 }
 
+static const char *portStateToText(enum ibv_port_state state) {
+  switch (state) {
+  case IBV_PORT_NOP : return "IBV_PORT_NOP";
+  case IBV_PORT_DOWN : return "IBV_PORT_DOWN";
+  case IBV_PORT_INIT : return "IBV_PORT_INIT";
+  case IBV_PORT_ARMED : return "IBV_PORT_ARMED";
+  case IBV_PORT_ACTIVE : return "IBV_PORT_ACTIVE";
+  case IBV_PORT_ACTIVE_DEFER : return "IBV_PORT_ACTIVE_DEFER";
+  default : return "unknown";
+  }
+}
+
+static const char *mtuModeToText(enum ibv_mtu mtu_mode) {
+  switch (mtu_mode) {
+  case IBV_MTU_256 : return "IBV_MTU_256";
+  case IBV_MTU_512 : return "IBV_MTU_512";
+  case IBV_MTU_1024 : return "IBV_MTU_1024";
+  case IBV_MTU_2048 : return "IBV_MTU_2048";
+  case IBV_MTU_4096 : return "IBV_MTU_4096";
+  default : return "unknown";
+  }
+}
+
+static const char *linkLayerToText(uint8_t link_layer) {
+  switch (link_layer) {
+  case IBV_LINK_LAYER_ETHERNET : return "IBV_LINK_LAYER_ETHERNET";
+  case IBV_LINK_LAYER_INFINIBAND : return "IBV_LINK_LAYER_INFINIBAND";
+  case IBV_LINK_LAYER_UNSPECIFIED : return "IBV_LINK_LAYER_UNSPECIFIED";
+  default : return "unknown";
+  }
+}
+
 static bool getLocalPortInfo(struct ibv_context *context, struct ibv_qp *qp, uint32_t rdma_port_id, int gid_index, PortInfo *port_info_ret, char *error_message, int max_error_message_chars) {
   PortInfo port_info = {}; // Zero the structure
 
@@ -106,6 +138,16 @@ static bool getLocalPortInfo(struct ibv_context *context, struct ibv_qp *qp, uin
     return false;
   }
 
+  // Provide some info
+  if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) {
+    printf("  RDMA Port %d Info:\n");
+    printf("    State:            %s\n", portStateToText(port_attrs.state));
+    printf("    Max MTU:          %s\n", mtuModeToText(port_attrs.max_mtu)); /*+ use this to auto set max MTU? Put in remote info and get max? */
+    printf("    Active MTU:       %s\n", mtuModeToText(port_attrs.active_mtu));
+    printf("    Max message size: %u\n", port_attrs.max_msg_sz);
+    printf("    Link Layer:       %s\n", linkLayerToText(port_attrs.link_layer));
+  }
+
   port_info.qpn = qp->qp_num;
   port_info.psn = lrand48() & 0xffffff;
   port_info.lid = port_attrs.lid;
@@ -113,7 +155,6 @@ static bool getLocalPortInfo(struct ibv_context *context, struct ibv_qp *qp, uin
     snprintf(error_message, max_error_message_chars, "Could not determine the RDMA port's LID value");
     return false;
   }
-  /*+ verbosity: port_attrs.link_layer */
 
   if (gid_index >= 0) {
     rc = ibv_query_gid(context, rdma_port_id, gid_index, &port_info.gid);
@@ -127,7 +168,9 @@ static bool getLocalPortInfo(struct ibv_context *context, struct ibv_qp *qp, uin
     snprintf(error_message, max_error_message_chars, "inet_ntop() failed, need to get the RDMA port's GID info: errno=%d", errno);
     return false;
   }
-  /*+*/printf("  local port info: LID 0x%04x, QPN 0x%06x, PSN 0x%06x, GID '%s'\n", port_info.lid, port_info.qpn, port_info.psn, port_info.gid_text);
+  if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) {
+    printf("  Local connection info: LID 0x%04x, QPN 0x%06x, PSN 0x%06x, GID '%s'\n", port_info.lid, port_info.qpn, port_info.psn, port_info.gid_text);
+  }
 
   gidToText(&port_info.gid, port_info.gid_text);
   sprintf(port_info.socket_data, "%04x:%06x:%06x:%s", port_info.lid, port_info.qpn, port_info.psn, port_info.gid_text);
@@ -200,7 +243,7 @@ static bool armCompletionQueue(struct ibv_cq *cq, char *error_message, int max_e
   return true;
 }
 
-static struct ibv_qp *createQueuePair(struct ibv_pd *pd, struct ibv_cq *send_cq, struct ibv_cq *recv_cq, enum ibv_qp_type qp_type,
+static struct ibv_qp *createQueuePair(struct ibv_pd *pd, struct ibv_cq *send_cq, struct ibv_cq *recv_cq, enum ibv_qp_type qp_type, uint32_t rdma_port_id,
                                       uint32_t max_send_wr, uint32_t max_recv_wr, uint32_t max_send_sge, uint32_t max_recv_sge, char *error_message, int max_error_message_chars) {
   struct ibv_qp_init_attr init_attrs = {}; // Zero structure
   init_attrs.qp_context = NULL; // app_data
@@ -221,7 +264,7 @@ static struct ibv_qp *createQueuePair(struct ibv_pd *pd, struct ibv_cq *send_cq,
   }
 
   // Ask for the max inline byte size
-  {
+  if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) {
     struct ibv_qp_attr attrs;
     int rc = ibv_query_qp(qp, &attrs, IBV_QP_CAP, &init_attrs);
     if (rc != 0) {
@@ -229,13 +272,13 @@ static struct ibv_qp *createQueuePair(struct ibv_pd *pd, struct ibv_cq *send_cq,
       ibv_destroy_qp(qp);
       return false;
     }
-    /*+*/printf("max_inline_data = %u\n", init_attrs.cap.max_inline_data);
+    printf("  Max Inline Bytes = %u, but current set to 0 in case GPU memory is used\n", init_attrs.cap.max_inline_data);
   }
 
   // Move the QP state to INIT
   struct ibv_qp_attr attrs = { .qp_state        = IBV_QPS_INIT,
                                .pkey_index      = 0,
-                               .port_num        = port,
+                               .port_num        = rdma_port_id,
                                .qp_access_flags = 0 };
   int rc = ibv_modify_qp(qp, &attrs, IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT | IBV_QP_ACCESS_FLAGS);
   if (rc != 0) {
@@ -286,13 +329,13 @@ static bool moveQpStateToRTS(struct ibv_qp *qp, uint32_t rdma_port_id, PortInfo 
   return true;
 }
 
-static bool createConnectionManagerQueuePair(struct rdma_cm_id *id, struct ibv_pd *pd, struct ibv_cq *cq, enum ibv_qp_type qp_type,
+static bool createConnectionManagerQueuePair(struct rdma_cm_id *id, struct ibv_pd *pd, struct ibv_cq *send_cq, struct ibv_cq *recv_cq, enum ibv_qp_type qp_type,
                                              uint32_t max_send_wr, uint32_t max_recv_wr, uint32_t max_send_sge, uint32_t max_recv_sge,
                                              char *error_message, int max_error_message_chars) {
   struct ibv_qp_init_attr attrs = {}; // Zero structure
   attrs.qp_context = NULL; // app_data
-  attrs.send_cq = cq;
-  attrs.recv_cq = cq;
+  attrs.send_cq = send_cq;
+  attrs.recv_cq = recv_cq;
   attrs.srq = NULL;
   attrs.cap.max_send_wr = max_send_wr;
   attrs.cap.max_recv_wr = max_recv_wr;
@@ -564,7 +607,7 @@ RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *local_NI
 
   // Queue pair
   enum ibv_qp_type qp_type = IBV_QPT_UD;
-  if (!createConnectionManagerQueuePair(id, id->pd, cq, qp_type, max_send_wr, max_recv_wr, max_send_sges, max_recv_sges, error_message, max_error_message_chars)) goto failed;
+  if (!createConnectionManagerQueuePair(id, id->pd, cq, cq, qp_type, max_send_wr, max_recv_wr, max_send_sges, max_recv_sges, error_message, max_error_message_chars)) goto failed;
   qp_created = true;
 
   // Register buffers
@@ -585,8 +628,8 @@ RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *local_NI
   endpoint->is_sender = is_sender;
   endpoint->event_ch = event_ch;
   endpoint->id = id;
-  endpoint->comp_ch = comp_ch;
-  endpoint->cq = cq;
+  endpoint->send_comp_ch = comp_ch;
+  endpoint->send_cq = cq;
   endpoint->multicast_addr = multicast_addr;
 
   // Post recvs
@@ -602,7 +645,7 @@ RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *local_NI
   endpoint->multicast_qp_num = multicast_qp_num;
   endpoint->multicast_qkey = multicast_qkey;
 
-  // Return details
+  // Ready to start transfering
   return endpoint;
 
  failed:
@@ -665,7 +708,7 @@ RdmaEndpoint *rdmaCreateUCEndpoint(TakyonPath *path, bool is_endpointA, int sock
 
   // Queue pair
   enum ibv_qp_type qp_type = IBV_QPT_UC;
-  qp = createQueuePair(pd, send_cq, recv_cq, qp_type, max_send_wr, max_recv_wr, max_send_sge, max_recv_sge, error_message, max_error_message_chars);
+  qp = createQueuePair(pd, send_cq, recv_cq, qp_type, rdma_port_id, max_send_wr, max_recv_wr, max_send_sge, max_recv_sge, error_message, max_error_message_chars);
   if (pd == NULL) goto failed;
 
   // Register buffers
@@ -697,7 +740,7 @@ RdmaEndpoint *rdmaCreateUCEndpoint(TakyonPath *path, bool is_endpointA, int sock
   }
 
   // Exchange QP and port info
-  int gid_index = -1; /*+ get from application */
+  int gid_index = -1; /*+ get from application: only for infiniband */
   PortInfo local_port_info;
   PortInfo remote_port_info;
   if (!getLocalPortInfo(context, qp, rdma_port_id, gid_index, &local_port_info, error_message, max_error_message_chars)) goto failed;
@@ -728,22 +771,36 @@ RdmaEndpoint *rdmaCreateUCEndpoint(TakyonPath *path, bool is_endpointA, int sock
     goto failed;
   }
   textToGid(remote_port_info.gid_text, &remote_port_info.gid);
+  if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) {
+    printf("  Remote connection info: LID 0x%04x, QPN 0x%06x, PSN 0x%06x, GID '%s'\n", remote_port_info.lid, remote_port_info.qpn, remote_port_info.psn, remote_port_info.gid_text);
+  }
 
   // Move the QP state to RTS (ready to send)
   enum ibv_mtu mtu_mode = IBV_MTU_4096; /*+ get from application, or auto detect? */
-  int service_level = 0; /*+ get from app */
+  int service_level = 0; /*+ get from app? What is this for? Ask mellanox */
   if (!moveQpStateToRTS(qp, rdma_port_id, &local_port_info, &remote_port_info, mtu_mode, service_level, gid_index)) goto failed;
 
-  /*++ clean up on failure */
+  // Ready to start transfering
+  return endpoint;
 
+ failed:
+  if (qp != NULL) ibv_destroy_qp(qp);
+  if (send_cq != NULL) ibv_destroy_cq(send_cq);
+  if (recv_cq != NULL) ibv_destroy_cq(recv_cq);
+  for (uint32_t i=0; i<path->attrs.buffer_count; i++) {
+    TakyonBuffer *takyon_buffer = &path->attrs.buffers[i];
+    RdmaBuffer *rdma_buffer = (RdmaBuffer *)takyon_buffer->private;
+    if (rdma_buffer->mr != NULL) ibv_dereg_mr(rdma_buffer->mr);
+  }
+  if (pd != NULL) ibv_dealloc_pd(pd);
+  if (send_comp_ch != NULL) ibv_destroy_comp_channel(send_comp_ch);
+  if (recv_comp_ch != NULL) ibv_destroy_comp_channel(recv_comp_ch);
+  if (context != NULL) ibv_close_device(context);
+  if (endpoint != NULL) free(endpoint);
   return NULL;
 }
 
-bool rdmaDestroyEndpoint(TakyonPath *path, RdmaEndpoint *endpoint, double timeout_seconds, char *error_message, int max_error_message_chars) {
-  (void)timeout_seconds; // Quiet the compiler   /*+ will this get used with RC? If not, remove from arg list */
-
-  /*+ shut down and clean up UC */
-
+bool rdmaDestroyEndpoint(TakyonPath *path, RdmaEndpoint *endpoint, char *error_message, int max_error_message_chars) {
   // Ack events to avoid deadlocking the destructions of the QP
   if (endpoint->nevents_to_ack > 0) {
     ibv_ack_cq_events(endpoint->cq, endpoint->nevents_to_ack);
@@ -767,11 +824,24 @@ bool rdmaDestroyEndpoint(TakyonPath *path, RdmaEndpoint *endpoint, double timeou
   if (endpoint->protocol == RDMA_PROTOCOL_UD_MULTICAST) {
     rdma_destroy_qp(endpoint->id);
   }
-  //*+ free if created directly */endpoint->qp
-  if (endpoint->cq != NULL) {
-    int rc = ibv_destroy_cq(endpoint->cq);
+  if (qp != NULL) {
+    int rc = ibv_destroy_qp(qp);
+    if (rc != 0) {
+      snprintf(error_message, max_error_message_chars, "Failed to destroy queue pair: errno=%d", errno);
+      return false;
+    }
+  }
+  if (endpoint->send_cq != NULL) {
+    int rc = ibv_destroy_cq(endpoint->send_cq);
     if (rc != 0) {
       snprintf(error_message, max_error_message_chars, "Failed to destroy completion queue: errno=%d", errno);
+      return false;
+    }
+  }
+  if (endpoint->recv_cq != NULL) {
+    int rc = ibv_destroy_cq(endpoint->recv_cq);
+    if (rc != 0) {
+      snprintf(error_message, max_error_message_chars, "Failed to destroy recv completion queue: errno=%d", errno);
       return false;
     }
   }
@@ -786,10 +856,24 @@ bool rdmaDestroyEndpoint(TakyonPath *path, RdmaEndpoint *endpoint, double timeou
       }
     }
   }
-  if (endpoint->comp_ch != NULL) {
-    int rc = ibv_destroy_comp_channel(endpoint->comp_ch);
+  if (pd != NULL) {
+    int rc = ibv_dealloc_pd(pd);
+    if (rc != 0) {
+      snprintf(error_message, max_error_message_chars, "Failed to dealloc protection domain: errno=%d", errno);
+      return false;
+    }
+  }
+  if (endpoint->send_comp_ch != NULL) {
+    int rc = ibv_destroy_comp_channel(endpoint->send_comp_ch);
     if (rc != 0) {
       snprintf(error_message, max_error_message_chars, "Failed to destroy completion channel: errno=%d", errno);
+      return false;
+    }
+  }
+  if (endpoint->recv_comp_ch != NULL) {
+    int rc = ibv_destroy_comp_channel(endpoint->recv_comp_ch);
+    if (rc != 0) {
+      snprintf(error_message, max_error_message_chars, "Failed to destroy recv completion channel: errno=%d", errno);
       return false;
     }
   }
@@ -802,6 +886,13 @@ bool rdmaDestroyEndpoint(TakyonPath *path, RdmaEndpoint *endpoint, double timeou
   }
   if (endpoint->event_ch != NULL) {
     rdma_destroy_event_channel(endpoint->event_ch);
+  }
+  if (context != NULL) {
+    int rc = ibv_close_device(context);
+    if (rc != 0) {
+      snprintf(error_message, max_error_message_chars, "Failed to destroy RDMA context/device handle: errno=%d", errno);
+      return false;
+    }
   }
   free(endpoint);
 

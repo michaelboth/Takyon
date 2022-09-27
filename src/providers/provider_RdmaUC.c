@@ -398,7 +398,7 @@ bool rdmaUCCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest 
   return true;
 
  failed:
-  if (private_path->endpoint != NULL) (void)rdmaDestroyEndpoint(path, private_path->endpoint, timeout_seconds, error_message, MAX_ERROR_MESSAGE_CHARS);
+  if (private_path->endpoint != NULL) (void)rdmaDestroyEndpoint(path, private_path->endpoint, error_message, MAX_ERROR_MESSAGE_CHARS);
   if (private_path->rdma_send_request_list != NULL) free(private_path->rdma_send_request_list);
   if (private_path->rdma_recv_request_list != NULL) free(private_path->rdma_recv_request_list);
   if (private_path->send_sge_list != NULL) free(private_path->send_sge_list);
@@ -471,7 +471,7 @@ bool rdmaUCDestroy(TakyonPath *path, double timeout_seconds) {
 
   // Disconnect RDMA endpoint
   char error_message[MAX_ERROR_MESSAGE_CHARS];
-  if (!rdmaDestroyEndpoint(path, endpoint, timeout_seconds, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+  if (!rdmaDestroyEndpoint(path, endpoint, error_message, MAX_ERROR_MESSAGE_CHARS)) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to destroy RDMA endpoint: %s\n", error_message);
     return false;
   }
