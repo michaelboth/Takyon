@@ -185,6 +185,32 @@ static CommInterface L_interfaces[] = {
                                          .zero_byte_messages_supported = true
 					 /*+ unreliable */
                                        },
+                                       { .name = "RdmaUDUnicastSend",
+                                         .create = rdmaCreate,
+                                         .destroy = rdmaDestroy,
+                                         .oneSided = NULL,
+                                         .isOneSidedDone = NULL,
+                                         .send = rdmaSend,
+                                         .isSent = rdmaIsSent,
+                                         .postRecvs = NULL,
+                                         .isRecved = NULL,
+                                         .piggy_back_messages_supported = true,
+                                         .multi_sub_buffers_supported = true,
+                                         .zero_byte_messages_supported = true
+                                       },
+                                       { .name = "RdmaUDUnicastRecv",
+                                         .create = rdmaCreate,
+                                         .destroy = rdmaDestroy,
+                                         .oneSided = NULL,
+                                         .isOneSidedDone = NULL,
+                                         .send = NULL,
+                                         .isSent = NULL,
+                                         .postRecvs = rdmaPostRecvs,
+                                         .isRecved = rdmaIsRecved,
+                                         .piggy_back_messages_supported = true,
+                                         .multi_sub_buffers_supported = true,
+                                         .zero_byte_messages_supported = true
+                                       },
 #endif
 };
 

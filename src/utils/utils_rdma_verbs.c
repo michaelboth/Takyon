@@ -19,19 +19,14 @@
 #include <poll.h>
 #include <arpa/inet.h>
 
-/*+ complete the info */
 /* RDMA Notes:
   - RDMA Protocols:
     - UD Multicast: Using the CM (connection manager) since it's convenient and no hand shake information is needed
-    - UD Unicast:   ? use TCP socket to handshake and detect disconnect, pass socket to rdmaCreateUnicast
+    - UD Unicast:   Using raw verbs with an external TCP socket to do the 'create' handshake and lifetime disconnect detection
     - UC:           CM doesn't support UC so using raw verbs with an external TCP socket to do the 'create' handshake and lifetime disconnect detection
-    - RC:           ? 
+    - RC:           Using raw verbs with an external TCP socket to do the 'create' handshake and lifetime disconnect detection
   - Avoiding use of inline bytes when sending since it only works with CPU memory, and adds complexity to track memory type
   - Posted UD recv requests need to have an extra sizeof(struct ibv_grh) bytes (40 bytes), which is the IB's Global Routing Header placed at the beginning of any UD received message
-*/
-
-/*+ design ideas:
-  - For bidirectional, the QP could have two different CQs and CCs to avoid send/recv completion detection complexity
 */
 
 /*+
@@ -285,7 +280,17 @@ static struct ibv_qp *createQueuePair(TakyonPath *path, struct ibv_pd *pd, struc
                                .pkey_index      = 0,
                                .port_num        = rdma_port_id,
                                .qp_access_flags = 0 };
-  int rc = ibv_modify_qp(qp, &attrs, IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT | IBV_QP_ACCESS_FLAGS);
+  if (qp_type == IBV_QPT_UD) {
+    attrs.qkey = /*++ random? */0x12341234;
+  }
+
+  enum ibv_qp_attr_mask attr_mask = 0;
+  if (qp_type == IBV_QPT_UD) {
+    attr_mask = IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT | IBV_QP_QKEY;
+  } else {
+    attr_mask = IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT | IBV_QP_ACCESS_FLAGS;
+  }
+  int rc = ibv_modify_qp(qp, &attrs, attr_mask);
   if (rc != 0) {
     snprintf(error_message, max_error_message_chars, "ibv_modify_qp() failed. Could not change QP state to INIT: errno=%d", errno);
     ibv_destroy_qp(qp);
@@ -295,11 +300,13 @@ static struct ibv_qp *createQueuePair(TakyonPath *path, struct ibv_pd *pd, struc
   return qp;
 }
 
-static bool moveQpStateToRTS(struct ibv_qp *qp, enum ibv_qp_type qp_type, uint32_t rdma_port_id, PortInfo *local_port_info, PortInfo *remote_port_info, enum ibv_mtu mtu_mode, int service_level, int gid_index, char *error_message, int max_error_message_chars) {
+static bool moveQpStateToRTS(struct ibv_qp *qp, struct ibv_pd *pd, enum ibv_qp_type qp_type, bool is_UD_sender, uint32_t rdma_port_id, PortInfo *local_port_info, PortInfo *remote_port_info, enum ibv_mtu mtu_mode, int service_level, int gid_index, char *error_message, int max_error_message_chars, struct ibv_ah **unicast_sender_ah_ret) {
   struct ibv_qp_attr attrs = { .qp_state    = IBV_QPS_RTR,
                                .path_mtu    = mtu_mode,
                                .dest_qp_num = remote_port_info->qpn,
                                .rq_psn      = remote_port_info->psn,
+			       .max_dest_rd_atomic = 1,   //*+ RC: Number of pending RDMA reads and atomic operations with this endpoint as the destination
+			       .min_rnr_timer      = 12,  // RC: Defines index into timeout table. Index is 0 .. 31, 0 = 665 msecs, 1 = 0.01 msecs, 31 = 491 msecs
                                .ah_attr     = { .is_global     = 0,
                                                 .dlid          = remote_port_info->lid,
                                                 .sl            = service_level,
@@ -314,16 +321,14 @@ static bool moveQpStateToRTS(struct ibv_qp *qp, enum ibv_qp_type qp_type, uint32
     attrs.ah_attr.grh.sgid_index = gid_index;
   }
 
-  if (qp_type == IBV_QPT_RC) {
-    // Set additional attrs for RC (reliable connection)
-    attrs.max_dest_rd_atomic = 1; /*+ Number of pending RDMA reads and atomic operations with this endpoint as the destination */
-    attrs.min_rnr_timer = 12;     // Defines index into timeout table. Index is 0 .. 31, 0 = 665 msecs, 1 = 0.01 msecs, 31 = 491 msecs
-  }
-
   // Move to RTR
-  enum ibv_qp_attr_mask attr_mask = IBV_QP_STATE | IBV_QP_AV | IBV_QP_PATH_MTU | IBV_QP_DEST_QPN | IBV_QP_RQ_PSN;
-  if (qp_type == IBV_QPT_RC) {
-    attr_mask |= IBV_QP_MAX_DEST_RD_ATOMIC | IBV_QP_MIN_RNR_TIMER;
+  enum ibv_qp_attr_mask attr_mask = 0;
+  if (qp_type == IBV_QPT_UC) {
+    attr_mask = IBV_QP_STATE | IBV_QP_AV | IBV_QP_PATH_MTU | IBV_QP_DEST_QPN | IBV_QP_RQ_PSN;
+  } else if (qp_type == IBV_QPT_RC) {
+    attr_mask = IBV_QP_STATE | IBV_QP_AV | IBV_QP_PATH_MTU | IBV_QP_DEST_QPN | IBV_QP_RQ_PSN | IBV_QP_MAX_DEST_RD_ATOMIC | IBV_QP_MIN_RNR_TIMER;
+  } else if (qp_type == IBV_QPT_UD) {
+    attr_mask = IBV_QP_STATE;
   }
   int rc = ibv_modify_qp(qp, &attrs, attr_mask);
   if (rc != 0) {
@@ -332,23 +337,35 @@ static bool moveQpStateToRTS(struct ibv_qp *qp, enum ibv_qp_type qp_type, uint32
   }
 
   // Move to RTS
-  attrs.qp_state = IBV_QPS_RTS;
-  attrs.sq_psn   = local_port_info->psn;
-  if (qp_type == IBV_QPT_RC) {
-    // Set additional attrs for RC (reliable connection)
-    attrs.timeout = 14;      // Retransmit timeout. Defines index into timeout table. Index is 0 .. 31, 0 = infinite, 1 = 8.192 usecs, 14 = .0671 secs, 31 = 8800 secs
-    attrs.retry_cnt = 7;     // Max re-transmits before erroring (without remote NACK). Max is 7
-    attrs.rnr_retry = 7;     // Max re-transmit before erroring (with remote NACK). Max is 6, but 7 is infinit
-    attrs.max_rd_atomic = 1; /*+ Number of pending RDMA reads and atomic operations initiated by this endpoint */
-  }
-  attr_mask = IBV_QP_STATE | IBV_QP_SQ_PSN;
-  if (qp_type == IBV_QPT_RC) {
-    attr_mask |= IBV_QP_TIMEOUT | IBV_QP_RETRY_CNT | IBV_QP_RNR_RETRY | IBV_QP_MAX_QP_RD_ATOMIC;
-  }
-  rc = ibv_modify_qp(qp, &attrs, attr_mask);
-  if (rc != 0) {
-    snprintf(error_message, max_error_message_chars, "ibv_modify_qp() failed. Could not change QP state to RTS: errno=%d", errno);
-    return false;
+  if (qp_type != IBV_QPT_UD || is_UD_sender) {
+    attrs.qp_state = IBV_QPS_RTS;
+    attrs.sq_psn   = local_port_info->psn;
+    if (qp_type == IBV_QPT_RC) {
+      // Set additional attrs for RC (reliable connection)
+      attrs.timeout = 14;      // Retransmit timeout. Defines index into timeout table. Index is 0 .. 31, 0 = infinite, 1 = 8.192 usecs, 14 = .0671 secs, 31 = 8800 secs
+      attrs.retry_cnt = 7;     // Max re-transmits before erroring (without remote NACK). Max is 7
+      attrs.rnr_retry = 7;     // Max re-transmit before erroring (with remote NACK). Max is 6, but 7 is infinit
+      attrs.max_rd_atomic = 1; /*+ Number of pending RDMA reads and atomic operations initiated by this endpoint */
+    }
+    attr_mask = IBV_QP_STATE | IBV_QP_SQ_PSN;
+    if (qp_type == IBV_QPT_RC) {
+      attr_mask |= IBV_QP_TIMEOUT | IBV_QP_RETRY_CNT | IBV_QP_RNR_RETRY | IBV_QP_MAX_QP_RD_ATOMIC;
+    }
+    rc = ibv_modify_qp(qp, &attrs, attr_mask);
+    if (rc != 0) {
+      snprintf(error_message, max_error_message_chars, "ibv_modify_qp() failed. Could not change QP state to RTS: errno=%d", errno);
+      return false;
+    }
+
+    if (qp_type == IBV_QPT_UD) {
+      // UD unicast sender: need an address handle
+      struct ibv_ah *unicast_sender_ah = ibv_create_ah(pd, &attrs.ah_attr);
+      if (unicast_sender_ah == NULL) {
+	snprintf(error_message, max_error_message_chars, "ibv_create_ah() failed. Could not create UD unicast sender address handle");
+	return false;
+      }
+      *unicast_sender_ah_ret = unicast_sender_ah;
+    }
   }
 
   return true;
@@ -697,7 +714,7 @@ RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *local_NI
   return NULL;
 }
 
-RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int socket_fd, enum ibv_qp_type qp_type, const char *rdma_device_name, uint32_t rdma_port_id,
+RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int socket_fd, enum ibv_qp_type qp_type, bool is_UD_sender, const char *rdma_device_name, uint32_t rdma_port_id,
 				 uint32_t max_send_wr, uint32_t max_recv_wr, uint32_t max_send_sges, uint32_t max_recv_sges,
 				 uint32_t recv_request_count, TakyonRecvRequest *recv_requests,
 				 double timeout_seconds, char *error_message, int max_error_message_chars) {
@@ -708,6 +725,7 @@ RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int socket
   struct ibv_cq *recv_cq = NULL;
   struct ibv_pd *pd = NULL;
   struct ibv_qp *qp = NULL;
+  struct ibv_ah *unicast_sender_ah = NULL;
   RdmaEndpoint *endpoint = NULL;
   int64_t timeout_nano_seconds = (int64_t)(timeout_seconds * NANOSECONDS_PER_SECOND_DOUBLE);
 
@@ -754,7 +772,7 @@ RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int socket
   // Build the endpoint structure before posting recvs
   endpoint = calloc(1, sizeof(RdmaEndpoint));
   if (endpoint == NULL) goto failed;
-  endpoint->protocol = RDMA_PROTOCOL_UC;
+  endpoint->protocol = (qp_type == IBV_QPT_RC) ? RDMA_PROTOCOL_RC : (qp_type == IBV_QPT_UC) ? RDMA_PROTOCOL_UC : RDMA_PROTOCOL_UD_UNICAST;
   endpoint->context = context;
   endpoint->send_comp_ch = send_comp_ch;
   endpoint->recv_comp_ch = recv_comp_ch;
@@ -807,12 +825,18 @@ RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int socket
   // Move the QP state to RTS (ready to send)
   enum ibv_mtu mtu_mode = IBV_MTU_4096; /*+ get from application, or auto detect? */
   int service_level = 0; /*+ get from app? What is this for? Ask mellanox */
-  if (!moveQpStateToRTS(qp, qp_type, rdma_port_id, &local_port_info, &remote_port_info, mtu_mode, service_level, gid_index, error_message, MAX_ERROR_MESSAGE_CHARS)) goto failed;
+  if (!moveQpStateToRTS(qp, pd, qp_type, is_UD_sender, rdma_port_id, &local_port_info, &remote_port_info, mtu_mode, service_level, gid_index, error_message, MAX_ERROR_MESSAGE_CHARS, &unicast_sender_ah)) goto failed;
+  if (qp_type == IBV_QPT_UD) {
+    endpoint->unicast_sender_ah = unicast_sender_ah;
+    endpoint->unicast_remote_qp_num = remote_port_info.qpn;
+    endpoint->unicast_remote_qkey = /*++*/0x12341234;
+  }
 
   // Ready to start transfering
   return endpoint;
 
  failed:
+  if (unicast_sender_ah != NULL) ibv_destroy_ah(unicast_sender_ah);
   if (qp != NULL) ibv_destroy_qp(qp);
   if (send_cq != NULL) ibv_destroy_cq(send_cq);
   if (recv_cq != NULL) ibv_destroy_cq(recv_cq);
@@ -853,6 +877,13 @@ bool rdmaDestroyEndpoint(TakyonPath *path, RdmaEndpoint *endpoint, char *error_m
   }
 
   // Destroy verb resources
+  if (endpoint->unicast_sender_ah != NULL) {
+    int rc = ibv_destroy_ah(endpoint->unicast_sender_ah);
+    if (rc != 0) {
+      snprintf(error_message, max_error_message_chars, "Failed to destroy unicast sender address handle: errno=%d", errno);
+      return false;
+    }
+  }
   if (endpoint->protocol == RDMA_PROTOCOL_UD_MULTICAST) {
     rdma_destroy_qp(endpoint->id);
   }
@@ -1172,6 +1203,13 @@ bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr
     send_wr.wr.ud.ah = endpoint->multicast_ah;
     send_wr.wr.ud.remote_qpn = endpoint->multicast_qp_num;
     send_wr.wr.ud.remote_qkey = endpoint->multicast_qkey;
+  } else if (endpoint->protocol == RDMA_PROTOCOL_UD_UNICAST) {
+#ifdef DEBUG_BUILD
+    if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Send to unicast addr: qpn=%u, qkey=%u\n", endpoint->unicast_remote_qp_num, endpoint->unicast_remote_qkey);
+#endif
+    send_wr.wr.ud.ah = endpoint->unicast_sender_ah;
+    send_wr.wr.ud.remote_qpn = endpoint->unicast_remote_qp_num;
+    send_wr.wr.ud.remote_qkey = endpoint->unicast_remote_qkey;
   } else if (endpoint->protocol == RDMA_PROTOCOL_UC || endpoint->protocol == RDMA_PROTOCOL_RC) {
     send_wr.wr.rdma.rkey = rkey;
     send_wr.wr.rdma.remote_addr = remote_addr;

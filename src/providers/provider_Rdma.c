@@ -28,12 +28,19 @@
 //     - Max message size is 1 GB
 //     - Messages can be dropped
 //     - Useful where all bytes may not arrive (unreliable): e.g. live stream video or music
+//   RDMA UD (Unreliable datagram)
+//     - Max message size is RDMA MTU (4KB)
+//     - Messages can be dropped
+//     - Useful where all bytes may not arrive (unreliable): e.g. live stream video or music
 //   ---------------------------------------------------------------------------
 //     "RdmaRC -client -remoteIP=<ip_addr>|<hostname> -port=<port_number> -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number>"
 //     "RdmaRC -server -localIP=<ip_addr>|<hostname>|Any -port=<port_number> [-reuse] -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number>"
 //
 //     "RdmaUC -client -remoteIP=<ip_addr>|<hostname> -port=<port_number> -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number>"
 //     "RdmaUC -server -localIP=<ip_addr>|<hostname>|Any -port=<port_number> [-reuse] -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number>"
+//
+//     "RdmaUDUnicastSend -client -remoteIP=<ip_addr>|<hostname> -port=<port_number> -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number>"
+//     "RdmaUDUnicastRecv -server -localIP=<ip_addr>|<hostname>|Any -port=<port_number> [-reuse] -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number>"
 //
 //   Argument descriptions:
 //     -port=<port_number> = [1024 .. 65535]
@@ -199,6 +206,8 @@ bool rdmaCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *r
   // Get all posible flags and values
   bool is_RC = (strcmp(provider_name, "RdmaRC") == 0);
   bool is_UC = (strcmp(provider_name, "RdmaUC") == 0);
+  bool is_UD = (strcmp(provider_name, "RdmaUDUnicastSend") == 0 || strcmp(provider_name, "RdmaUDUnicastRecv") == 0);
+  bool is_UD_sender = (strcmp(provider_name, "RdmaUDUnicastSend") == 0);
   bool is_client = argGetFlag(path->attrs.provider, "-client");
   bool is_server = argGetFlag(path->attrs.provider, "-server");
   bool allow_reuse = argGetFlag(path->attrs.provider, "-reuse");
@@ -268,9 +277,9 @@ bool rdmaCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *r
   }
 
   // Validate arguments
-  int num_modes = (is_RC ? 1 : 0) + (is_UC ? 1 : 0);
+  int num_modes = (is_RC ? 1 : 0) + (is_UC ? 1 : 0) + (is_UD ? 1 : 0);
   if (num_modes != 1) {
-    TAKYON_RECORD_ERROR(path->error_message, "Rdma spec must start with one of RdmaRC or RmdaUC\n");
+    TAKYON_RECORD_ERROR(path->error_message, "Rdma spec must start with one of RdmaRC, RdmaUC, RdmaUDUnicastSend, or RdmaUDUnicastRecv\n");
     return false;
   }
   num_modes = (is_client ? 1 : 0) + (is_server ? 1 : 0);
@@ -382,8 +391,8 @@ bool rdmaCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *r
   }
 
   // Create the RDMA endpoint
-  enum ibv_qp_type qp_type = (is_RC) ? IBV_QPT_RC : IBV_QPT_UC;
-  private_path->endpoint = rdmaCreateEndpoint(path, path->attrs.is_endpointA, private_path->socket_fd, qp_type, rdma_device_name, rdma_port_number,
+  enum ibv_qp_type qp_type = (is_RC) ? IBV_QPT_RC : (is_UC) ? IBV_QPT_UC : IBV_QPT_UD;
+  private_path->endpoint = rdmaCreateEndpoint(path, path->attrs.is_endpointA, private_path->socket_fd, qp_type, is_UD_sender, rdma_device_name, rdma_port_number,
 					      path->attrs.max_pending_send_and_one_sided_requests, path->attrs.max_pending_recv_requests,
 					      path->attrs.max_sub_buffers_per_send_request, path->attrs.max_sub_buffers_per_recv_request,
 					      post_recv_count, recv_requests, timeout_seconds, error_message, MAX_ERROR_MESSAGE_CHARS);
