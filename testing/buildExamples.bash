@@ -81,7 +81,7 @@ if [ "$mmap" == "yes" ]; then
     command+=" InterProcess=Yes"
 fi
 if [ "$rdma" == "yes" ]; then
-    command+=" RdmaUDMulticast=Yes RdmaUC=Yes"
+    command+=" RdmaUDMulticast=Yes Rdma=Yes"
 fi
 build "$command"
 

@@ -298,6 +298,7 @@ static void twoSidedThroughput(const bool is_endpointA, const char *provider, co
       // Used up all the posted recvs. Need to repost
       if (path->attrs.is_endpointA) {
         // Wait for the recvs to be posted
+	/*+ not if path->capabilities.is_unreliable */
         if (path->capabilities.IsRecved_supported) recvSignal(path, &repost_recv_request);
       } else {
         // If the provider supports pre-posting, then do it
@@ -306,6 +307,7 @@ static void twoSidedThroughput(const bool is_endpointA, const char *provider, co
 	post_first_half = !post_first_half;
         if (path->capabilities.PostRecvs_supported) takyonPostRecvs(path, half_recv_buffer_count, half_recv_requests);
         // Let the send know the recvs are posted
+	/*+ not if path->capabilities.is_unreliable */
         if (path->capabilities.Send_supported) sendSignal(path, use_polling_completion);
       }
       messages_transferred = 0;

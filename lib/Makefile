@@ -94,13 +94,13 @@ endif
 #---------------------------------------------
 # RdmaUC
 #---------------------------------------------
-ifeq ($(RdmaUC),Yes)
-    C_FLAGS      += -DENABLE_RdmaUC
+ifeq ($(Rdma),Yes)
+    C_FLAGS      += -DENABLE_Rdma
     NEED_utils_time := Yes
     NEED_utils_rdma := Yes
     NEED_utils_socket := Yes
-    C_OBJS       += provider_RdmaUC.o
-    HEADER_FILES += provider_RdmaUC.h
+    C_OBJS       += provider_Rdma.o
+    HEADER_FILES += provider_Rdma.h
 endif
 
 #---------------------------------------------

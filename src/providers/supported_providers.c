@@ -26,8 +26,8 @@
 #ifdef ENABLE_RdmaUDMulticast
   #include "provider_RdmaUDMulticast.h"
 #endif
-#ifdef ENABLE_RdmaUC
-  #include "provider_RdmaUC.h"
+#ifdef ENABLE_Rdma
+  #include "provider_Rdma.h"
 #endif
 
 typedef struct {
@@ -157,19 +157,33 @@ static CommInterface L_interfaces[] = {
                                        },
 #endif
 
-#ifdef ENABLE_RdmaUC
-                                       { .name = "RdmaUC",
-                                         .create = rdmaUCCreate,
-                                         .destroy = rdmaUCDestroy,
-                                         .oneSided = rdmaUCOneSided,
-                                         .isOneSidedDone = rdmaUCIsOneSidedDone,
-                                         .send = rdmaUCSend,
-                                         .isSent = rdmaUCIsSent,
-                                         .postRecvs = rdmaUCPostRecvs,
-                                         .isRecved = rdmaUCIsRecved,
+#ifdef ENABLE_Rdma
+                                       { .name = "RdmaRC",
+                                         .create = rdmaCreate,
+                                         .destroy = rdmaDestroy,
+                                         .oneSided = rdmaOneSided,
+                                         .isOneSidedDone = rdmaIsOneSidedDone,
+                                         .send = rdmaSend,
+                                         .isSent = rdmaIsSent,
+                                         .postRecvs = rdmaPostRecvs,
+                                         .isRecved = rdmaIsRecved,
                                          .piggy_back_messages_supported = true,
                                          .multi_sub_buffers_supported = true,
                                          .zero_byte_messages_supported = true
+                                       },
+                                       { .name = "RdmaUC",
+                                         .create = rdmaCreate,
+                                         .destroy = rdmaDestroy,
+                                         .oneSided = rdmaOneSided,
+                                         .isOneSidedDone = rdmaIsOneSidedDone,
+                                         .send = rdmaSend,
+                                         .isSent = rdmaIsSent,
+                                         .postRecvs = rdmaPostRecvs,
+                                         .isRecved = rdmaIsRecved,
+                                         .piggy_back_messages_supported = true,
+                                         .multi_sub_buffers_supported = true,
+                                         .zero_byte_messages_supported = true
+					 /*+ unreliable */
                                        },
 #endif
 };

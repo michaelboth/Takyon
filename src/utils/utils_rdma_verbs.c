@@ -295,7 +295,7 @@ static struct ibv_qp *createQueuePair(TakyonPath *path, struct ibv_pd *pd, struc
   return qp;
 }
 
-static bool moveQpStateToRTS(struct ibv_qp *qp, uint32_t rdma_port_id, PortInfo *local_port_info, PortInfo *remote_port_info, enum ibv_mtu mtu_mode, int service_level, int gid_index, char *error_message, int max_error_message_chars) {
+static bool moveQpStateToRTS(struct ibv_qp *qp, enum ibv_qp_type qp_type, uint32_t rdma_port_id, PortInfo *local_port_info, PortInfo *remote_port_info, enum ibv_mtu mtu_mode, int service_level, int gid_index, char *error_message, int max_error_message_chars) {
   struct ibv_qp_attr attrs = { .qp_state    = IBV_QPS_RTR,
                                .path_mtu    = mtu_mode,
                                .dest_qp_num = remote_port_info->qpn,
@@ -314,8 +314,18 @@ static bool moveQpStateToRTS(struct ibv_qp *qp, uint32_t rdma_port_id, PortInfo 
     attrs.ah_attr.grh.sgid_index = gid_index;
   }
 
+  if (qp_type == IBV_QPT_RC) {
+    // Set additional attrs for RC (reliable connection)
+    attrs.max_dest_rd_atomic = 1; /*+ Number of pending RDMA reads and atomic operations with this endpoint as the destination */
+    attrs.min_rnr_timer = 12;     // Defines index into timeout table. Index is 0 .. 31, 0 = 665 msecs, 1 = 0.01 msecs, 31 = 491 msecs
+  }
+
   // Move to RTR
-  int rc = ibv_modify_qp(qp, &attrs, IBV_QP_STATE | IBV_QP_AV | IBV_QP_PATH_MTU | IBV_QP_DEST_QPN | IBV_QP_RQ_PSN);
+  enum ibv_qp_attr_mask attr_mask = IBV_QP_STATE | IBV_QP_AV | IBV_QP_PATH_MTU | IBV_QP_DEST_QPN | IBV_QP_RQ_PSN;
+  if (qp_type == IBV_QPT_RC) {
+    attr_mask |= IBV_QP_MAX_DEST_RD_ATOMIC | IBV_QP_MIN_RNR_TIMER;
+  }
+  int rc = ibv_modify_qp(qp, &attrs, attr_mask);
   if (rc != 0) {
     snprintf(error_message, max_error_message_chars, "ibv_modify_qp() failed. Could not change QP state to RTR: errno=%d", errno);
     return false;
@@ -324,7 +334,18 @@ static bool moveQpStateToRTS(struct ibv_qp *qp, uint32_t rdma_port_id, PortInfo 
   // Move to RTS
   attrs.qp_state = IBV_QPS_RTS;
   attrs.sq_psn   = local_port_info->psn;
-  rc = ibv_modify_qp(qp, &attrs, IBV_QP_STATE | IBV_QP_SQ_PSN);
+  if (qp_type == IBV_QPT_RC) {
+    // Set additional attrs for RC (reliable connection)
+    attrs.timeout = 14;      // Retransmit timeout. Defines index into timeout table. Index is 0 .. 31, 0 = infinite, 1 = 8.192 usecs, 14 = .0671 secs, 31 = 8800 secs
+    attrs.retry_cnt = 7;     // Max re-transmits before erroring (without remote NACK). Max is 7
+    attrs.rnr_retry = 7;     // Max re-transmit before erroring (with remote NACK). Max is 6, but 7 is infinit
+    attrs.max_rd_atomic = 1; /*+ Number of pending RDMA reads and atomic operations initiated by this endpoint */
+  }
+  attr_mask = IBV_QP_STATE | IBV_QP_SQ_PSN;
+  if (qp_type == IBV_QPT_RC) {
+    attr_mask |= IBV_QP_TIMEOUT | IBV_QP_RETRY_CNT | IBV_QP_RNR_RETRY | IBV_QP_MAX_QP_RD_ATOMIC;
+  }
+  rc = ibv_modify_qp(qp, &attrs, attr_mask);
   if (rc != 0) {
     snprintf(error_message, max_error_message_chars, "ibv_modify_qp() failed. Could not change QP state to RTS: errno=%d", errno);
     return false;
@@ -521,7 +542,7 @@ static struct ibv_ah *joinMulticastGroup(struct rdma_cm_id *id, struct rdma_even
   return ah;
 }
 
-bool rdmaPostRecvs(TakyonPath *path, RdmaEndpoint *endpoint, uint32_t request_count, TakyonRecvRequest *requests, char *error_message, int max_error_message_chars) {
+bool rdmaEndpointPostRecvs(TakyonPath *path, RdmaEndpoint *endpoint, uint32_t request_count, TakyonRecvRequest *requests, char *error_message, int max_error_message_chars) {
   // Prepare WR chain
   struct ibv_recv_wr *first_wr = NULL;
   struct ibv_recv_wr *curr_wr = NULL;
@@ -643,7 +664,7 @@ RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *local_NI
 
   // Post recvs
   if (!is_sender && recv_request_count > 0) {
-    if (!rdmaPostRecvs(path, endpoint, recv_request_count, recv_requests, error_message, max_error_message_chars)) goto failed;
+    if (!rdmaEndpointPostRecvs(path, endpoint, recv_request_count, recv_requests, error_message, max_error_message_chars)) goto failed;
   }
 
   // Join multicast group
@@ -676,10 +697,10 @@ RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *local_NI
   return NULL;
 }
 
-RdmaEndpoint *rdmaCreateUCEndpoint(TakyonPath *path, bool is_endpointA, int socket_fd, const char *rdma_device_name, uint32_t rdma_port_id,
-                                   uint32_t max_send_wr, uint32_t max_recv_wr, uint32_t max_send_sges, uint32_t max_recv_sges,
-                                   uint32_t recv_request_count, TakyonRecvRequest *recv_requests,
-                                   double timeout_seconds, char *error_message, int max_error_message_chars) {
+RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int socket_fd, enum ibv_qp_type qp_type, const char *rdma_device_name, uint32_t rdma_port_id,
+				 uint32_t max_send_wr, uint32_t max_recv_wr, uint32_t max_send_sges, uint32_t max_recv_sges,
+				 uint32_t recv_request_count, TakyonRecvRequest *recv_requests,
+				 double timeout_seconds, char *error_message, int max_error_message_chars) {
   struct ibv_context *context = NULL;
   struct ibv_comp_channel *send_comp_ch = NULL;
   struct ibv_comp_channel *recv_comp_ch = NULL;
@@ -716,8 +737,6 @@ RdmaEndpoint *rdmaCreateUCEndpoint(TakyonPath *path, bool is_endpointA, int sock
   if (pd == NULL) goto failed;
 
   // Queue pair
-  enum ibv_qp_type qp_type = IBV_QPT_UC;
-  //*+*/enum ibv_qp_type qp_type = IBV_QPT_RC;
   qp = createQueuePair(path, pd, send_cq, recv_cq, qp_type, rdma_port_id, max_send_wr, max_recv_wr, max_send_sges, max_recv_sges, error_message, max_error_message_chars);
   if (pd == NULL) goto failed;
 
@@ -746,7 +765,7 @@ RdmaEndpoint *rdmaCreateUCEndpoint(TakyonPath *path, bool is_endpointA, int sock
 
   // Post recvs
   if (recv_request_count > 0) {
-    if (!rdmaPostRecvs(path, endpoint, recv_request_count, recv_requests, error_message, max_error_message_chars)) goto failed;
+    if (!rdmaEndpointPostRecvs(path, endpoint, recv_request_count, recv_requests, error_message, max_error_message_chars)) goto failed;
   }
 
   // Exchange QP and port info
@@ -788,7 +807,7 @@ RdmaEndpoint *rdmaCreateUCEndpoint(TakyonPath *path, bool is_endpointA, int sock
   // Move the QP state to RTS (ready to send)
   enum ibv_mtu mtu_mode = IBV_MTU_4096; /*+ get from application, or auto detect? */
   int service_level = 0; /*+ get from app? What is this for? Ask mellanox */
-  if (!moveQpStateToRTS(qp, rdma_port_id, &local_port_info, &remote_port_info, mtu_mode, service_level, gid_index, error_message, MAX_ERROR_MESSAGE_CHARS)) goto failed;
+  if (!moveQpStateToRTS(qp, qp_type, rdma_port_id, &local_port_info, &remote_port_info, mtu_mode, service_level, gid_index, error_message, MAX_ERROR_MESSAGE_CHARS)) goto failed;
 
   // Ready to start transfering
   return endpoint;
@@ -1113,7 +1132,7 @@ static bool waitForCompletion(bool is_send, RdmaEndpoint *endpoint, uint64_t exp
   return true;
 }
 
-bool rdmaStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr_opcode transfer_mode, uint64_t transfer_id, uint32_t sub_buffer_count, TakyonSubBuffer *sub_buffers, struct ibv_sge *sge_list, uint64_t remote_addr, uint32_t rkey, uint32_t piggy_back_message, bool use_is_sent_notification, char *error_message, int max_error_message_chars) {
+bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr_opcode transfer_mode, uint64_t transfer_id, uint32_t sub_buffer_count, TakyonSubBuffer *sub_buffers, struct ibv_sge *sge_list, uint64_t remote_addr, uint32_t rkey, uint32_t piggy_back_message, bool use_is_sent_notification, char *error_message, int max_error_message_chars) {
   struct ibv_send_wr send_wr;
 
   // Fill in message to be sent
@@ -1178,12 +1197,12 @@ bool rdmaStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr_opcode 
   return true;
 }
 
-bool rdmaIsRecved(RdmaEndpoint *endpoint, uint64_t expected_transfer_id, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret) {
+bool rdmaEndpointIsRecved(RdmaEndpoint *endpoint, uint64_t expected_transfer_id, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret) {
   bool is_send = false;
   return waitForCompletion(is_send, endpoint, expected_transfer_id, use_polling_completion, usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, max_error_message_chars, bytes_received_ret, piggy_back_message_ret);
 }
 
-bool rdmaIsSent(RdmaEndpoint *endpoint, uint64_t expected_transfer_id, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
+bool rdmaEndpointIsSent(RdmaEndpoint *endpoint, uint64_t expected_transfer_id, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
   bool is_send = true;
   return waitForCompletion(is_send, endpoint, expected_transfer_id, use_polling_completion, usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, max_error_message_chars, NULL, NULL);
 }
