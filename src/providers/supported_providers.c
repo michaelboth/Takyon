@@ -158,7 +158,7 @@ static CommInterface L_interfaces[] = {
 #endif
 
 #ifdef ENABLE_RdmaUC
-                                       { .name = "RdmaUD",
+                                       { .name = "RdmaUC",
                                          .create = rdmaUCCreate,
                                          .destroy = rdmaUCDestroy,
                                          .oneSided = rdmaUCOneSided,

@@ -34,7 +34,8 @@ typedef struct {
   struct ibv_comp_channel *recv_comp_ch;
   struct ibv_cq *send_cq;
   struct ibv_cq *recv_cq;
-  unsigned int nevents_to_ack;
+  unsigned int num_send_events_to_ack;
+  unsigned int num_recv_events_to_ack;
   // Multicast
   struct ibv_ah *multicast_ah;
   struct sockaddr multicast_addr;
@@ -43,6 +44,7 @@ typedef struct {
 } RdmaEndpoint;
 
 typedef struct {
+  TakyonPath *path;
   struct ibv_mr *mr;
 } RdmaBuffer;
 

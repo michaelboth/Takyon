@@ -94,10 +94,12 @@ bool rdmaUDMulticastCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRec
     return false;
   }
 
+  /*+
   // Make sure each buffer knows it's for this path: need for verifications later on
   for (uint32_t i=0; i<path->attrs.buffer_count; i++) {
     path->attrs.buffers[i].private = path;
   }
+  */
 
   // Allocate the private data
   PrivateTakyonPath *private_path = calloc(1, sizeof(PrivateTakyonPath));
@@ -161,6 +163,7 @@ bool rdmaUDMulticastCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRec
     goto failed;
   }
   for (uint32_t i=0; i<path->attrs.buffer_count; i++) {
+    private_path->rdma_buffer_list[i].path = path;   // Make sure each buffer knows it's for this path: need for verifications later on
     path->attrs.buffers[i].private = &private_path->rdma_buffer_list[i];
   }
 
@@ -230,6 +233,7 @@ bool rdmaUDMulticastDestroy(TakyonPath *path, double timeout_seconds) {
 }
 
 bool rdmaUDMulticastSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_back_message, double timeout_seconds, bool *timed_out_ret) {
+  (void)timeout_seconds; // Quiet compiler
   TakyonComm *comm = (TakyonComm *)path->private;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   RdmaEndpoint *endpoint = private_path->endpoint;
@@ -253,7 +257,8 @@ bool rdmaUDMulticastSend(TakyonPath *path, TakyonSendRequest *request, uint32_t 
       return false;
     }
     TakyonBuffer *src_buffer = &path->attrs.buffers[sub_buffer->buffer_index];
-    if (src_buffer->private != path) {
+    RdmaBuffer *rdma_buffer = (RdmaBuffer *)src_buffer->private;
+    if (rdma_buffer->path != path) {
       TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer[%d].buffer_index is not from this Takyon path\n", i);
       return false;
     }
@@ -272,7 +277,7 @@ bool rdmaUDMulticastSend(TakyonPath *path, TakyonSendRequest *request, uint32_t 
   // Start the 'send' RDMA transfer
   enum ibv_wr_opcode transfer_mode = IBV_WR_SEND_WITH_IMM;
   uint64_t transfer_id = (uint64_t)request;
-  struct ibv_sge *sge_list = rdma_request->sge_list;
+  struct ibv_sge *sge_list = rdma_request->sges;
   uint64_t remote_addr = 0;
   uint32_t rkey = 0;
   if (!rdmaStartSend(path, endpoint, transfer_mode, transfer_id, request->sub_buffer_count, request->sub_buffers, sge_list, remote_addr, rkey, piggy_back_message, request->use_is_sent_notification, error_message, MAX_ERROR_MESSAGE_CHARS)) {
@@ -333,7 +338,8 @@ bool rdmaUDMulticastPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRe
 	return false;
       }
       TakyonBuffer *dest_buffer = &path->attrs.buffers[sub_buffer->buffer_index];
-      if (dest_buffer->private != path) {
+      RdmaBuffer *rdma_buffer = (RdmaBuffer *)dest_buffer->private;
+      if (rdma_buffer->path != path) {
         TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer[%d].buffer_index is not from this Takyon path\n", i);
         return false;
       }

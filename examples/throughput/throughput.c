@@ -215,7 +215,7 @@ static void recvSignal(TakyonPath *path, TakyonRecvRequest *recv_request) {
   uint64_t bytes_received;
   bool timed_out;
   takyonIsRecved(path, recv_request, ACTIVE_RECV_TIMEOUT_SECONDS, &timed_out, &bytes_received, NULL);
-  if (timed_out)  { printf("\nTimed out waiting for remaining messages\n"); exit(EXIT_SUCCESS); }
+  if (timed_out)  { printf("\nTimed out waiting for signal. Make sure both endpoints define the same number of recv buffers\n"); exit(EXIT_SUCCESS); }
   assert(bytes_received == 0);
 
   // If the provider supports pre-posting, then need to post the recv to be ready for the next send, before the send starts

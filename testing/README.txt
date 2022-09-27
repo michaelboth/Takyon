@@ -1,7 +1,7 @@
 Linux & Mac
   Build
-    usage: ./buildExamples.bash [debug] [mmap] [cuda]
-    > ./buildExamples.bash debug mmap cuda
+    usage: ./buildExamples.bash [debug] [mmap] [rdma] [cuda]
+    > ./buildExamples.bash debug mmap rdma cuda
   Run
     > ./runInterThread.bash
     usage: ./runInterProcess.bash <A|B> [mmap] [socket] [ephemeral]

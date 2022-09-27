@@ -11,7 +11,7 @@ Linux and Mac
     Specification
       > make [DEBUG=Yes] [InterThread=Yes] [InterProcess=Yes] [SocketTcp=Yes] [SocketUdp=Yes] [RdmaUDMulticast=Yes] [CUDA=Yes]
     Example
-      > make DEBUG=Yes InterThread=Yes InterProcess=Yes SocketTcp=Yes SocketUdp=Yes RdmaUDMulticast=Yes CUDA=Yes
+      > make DEBUG=Yes InterThread=Yes InterProcess=Yes SocketTcp=Yes SocketUdp=Yes RdmaUDMulticast=Yes RdmaUC=Yes CUDA=Yes
 
   When linking the library into your app, add the following to the link line:
     -L../../lib -ltakyon -pthread
