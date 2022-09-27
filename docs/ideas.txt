@@ -5,10 +5,6 @@ To DO
   - Compile out error checking if in release mode
     - use #ifdef DEBUG_BUILD where appropriate
   - Allow InterThread and InterProcess to have unreliable modes; i.e. if recv not posted, data is dropped.
-  - DOC:
-    - sent bytes can be less posted recv request
-    - refresh: e.g. one-sided can have multiple buffers
-    - Staging: show 'hello-two_sided' build and run with MMAP/CUDA
 
 Promote To
   - Khronos, as a new proposal
