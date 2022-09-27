@@ -38,6 +38,104 @@
   How is this posible?
 */
 
+#define PORT_INFO_TEXT_BYTES 100
+
+typedef struct  {
+  int lid;  // For infiniband
+  int qpn;
+  int psn;
+  union ibv_gid gid;
+  char gid_text[33];
+  char socket_data[PORT_INFO_TEXT_BYTES]; /*+ is this the only field that needs to remain persistant? */
+} PortInfo;
+
+static struct ibv_context *getRdmaContextFromNamedDevice(const char *rdma_device_name, uint32_t rdma_port_id, char *error_message, int max_error_message_chars) {
+  struct ibv_device **dev_list = ibv_get_device_list(NULL);
+  if (dev_list == NULL) {
+    snprintf(error_message, max_error_message_chars, "ibv_get_device_list() failed");
+    return NULL;
+  }
+  uint32_t index = 0;
+  while (dev_list[index] != NULL) {
+    if (strcmp(ibv_get_device_name(dev_list[index]), rdma_device_name) == 0) {
+      // Found the device, so open it
+      struct ibv_context *context = ibv_open_device(dev_list[index]); /*+ will need to close this: int ibv_close_device(context) : check errno */
+      if (context == NULL) {
+        snprintf(error_message, max_error_message_chars, "ibv_open_device() failed for device '%s': errno=%d", rdma_device_name, errno);
+        return NULL;
+      }
+      free(dev_list);
+      return context;
+    }
+    index++;
+  }
+
+  free(dev_list);
+  snprintf(error_message, max_error_message_chars, "Failed to find the RDMA device '%s'. Run the command line program 'ibv_devinfo' to see the devices.", rdma_device_name);
+  return NULL;
+}
+
+static void gidToText(const union ibv_gid *gid, char *gid_text) {
+  uint32_t gid_int_array[4];
+  memcpy(gid_int_array, gid, sizeof(gid_int_array));
+  for (int i=0; i<4; i++) {
+    sprintf(&gid_text[i * 8], "%08x", htobe32(gid_int_array[i]));
+  }
+}
+
+static void textToGid(const char *gid_text, union ibv_gid *gid) {
+  uint32_t gid_int_array[4];
+  char tmp[9];
+  tmp[8] = 0;
+  for (int i = 0; i < 4; i++) {
+    memcpy(tmp, gid_text + i * 8, 8);
+    __be32 v32;
+    sscanf(tmp, "%x", &v32);
+    gid_int_array[i] = be32toh(v32);
+  }
+  memcpy(gid, gid_int_array, sizeof(*gid));
+}
+
+static bool getLocalPortInfo(struct ibv_context *context, struct ibv_qp *qp, uint32_t rdma_port_id, int gid_index, PortInfo *port_info_ret, char *error_message, int max_error_message_chars) {
+  PortInfo port_info = {}; // Zero the structure
+
+  struct ibv_port_attr port_attrs;
+  int rc = ibv_query_port(context, rdma_port_id, port_attrs_ret);
+  if (rc != 0) {
+    snprintf(error_message, max_error_message_chars, "ibv_query_port() failed for RDMA port ID %d: errno=%d", rdma_port_id, errno);
+    return false;
+  }
+
+  port_info.qpn = qp->qp_num;
+  port_info.psn = lrand48() & 0xffffff;
+  port_info.lid = port_attrs.lid;
+  if (port_attrs.link_layer != IBV_LINK_LAYER_ETHERNET && port_attrs.lid == 0) {
+    snprintf(error_message, max_error_message_chars, "Could not determine the RDMA port's LID value");
+    return false;
+  }
+  /*+ verbosity: port_attrs.link_layer */
+
+  if (gid_index >= 0) {
+    rc = ibv_query_gid(context, rdma_port_id, gid_index, &port_info.gid);
+    if (rc != 0) {
+      snprintf(error_message, max_error_message_chars, "Could not determine the RDMA port's GID value");
+      return false;
+    }
+  }
+
+  if (inet_ntop(AF_INET6, &port_info.gid, port_info.gid_text, sizeof(port_info.gid_text)) == NULL) {
+    snprintf(error_message, max_error_message_chars, "inet_ntop() failed, need to get the RDMA port's GID info: errno=%d", errno);
+    return false;
+  }
+  /*+*/printf("  local port info: LID 0x%04x, QPN 0x%06x, PSN 0x%06x, GID '%s'\n", port_info.lid, port_info.qpn, port_info.psn, port_info.gid_text);
+
+  gidToText(&port_info.gid, port_info.gid_text);
+  sprintf(port_info.socket_data, "%04x:%06x:%06x:%s", port_info.lid, port_info.qpn, port_info.psn, port_info.gid_text);
+
+  return true;
+}
+
+
 static struct rdma_event_channel *createConnectionManagerEventChannel(char *error_message, int max_error_message_chars) {
   struct rdma_event_channel *ch = rdma_create_event_channel();
   if (ch == NULL) {
@@ -102,6 +200,92 @@ static bool armCompletionQueue(struct ibv_cq *cq, char *error_message, int max_e
   return true;
 }
 
+static struct ibv_qp *createQueuePair(struct ibv_pd *pd, struct ibv_cq *send_cq, struct ibv_cq *recv_cq, enum ibv_qp_type qp_type,
+                                      uint32_t max_send_wr, uint32_t max_recv_wr, uint32_t max_send_sge, uint32_t max_recv_sge, char *error_message, int max_error_message_chars) {
+  struct ibv_qp_init_attr init_attrs = {}; // Zero structure
+  init_attrs.qp_context = NULL; // app_data
+  init_attrs.send_cq = send_cq;
+  init_attrs.recv_cq = recv_cq;
+  init_attrs.srq = NULL;
+  init_attrs.cap.max_send_wr = max_send_wr;
+  init_attrs.cap.max_recv_wr = max_recv_wr;
+  init_attrs.cap.max_send_sge = max_send_sge;
+  init_attrs.cap.max_recv_sge = max_recv_sge;
+  init_attrs.cap.max_inline_data = 0;
+  init_attrs.qp_type = qp_type; // One of IBV_QPT_RC, IBV_QPT_UD, IBV_QPT_UC
+  init_attrs.sq_sig_all = 0; // If 0, then preparing a request must set if signaled or not
+  struct ibv_qp *qp = ibv_create_qp(pd, &init_attrs);
+  if (qp == NULL) {
+    snprintf(error_message, max_error_message_chars, "ibv_create_qp() failed");
+    return NULL;
+  }
+
+  // Ask for the max inline byte size
+  {
+    struct ibv_qp_attr attrs;
+    int rc = ibv_query_qp(qp, &attrs, IBV_QP_CAP, &init_attrs);
+    if (rc != 0) {
+      snprintf(error_message, max_error_message_chars, "ibv_query_qp() failed. Could not determine max_inline_bytes: errno=%d", errno);
+      ibv_destroy_qp(qp);
+      return false;
+    }
+    /*+*/printf("max_inline_data = %u\n", init_attrs.cap.max_inline_data);
+  }
+
+  // Move the QP state to INIT
+  struct ibv_qp_attr attrs = { .qp_state        = IBV_QPS_INIT,
+                               .pkey_index      = 0,
+                               .port_num        = port,
+                               .qp_access_flags = 0 };
+  int rc = ibv_modify_qp(qp, &attrs, IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT | IBV_QP_ACCESS_FLAGS);
+  if (rc != 0) {
+    snprintf(error_message, max_error_message_chars, "ibv_modify_qp() failed. Could not change QP state to INIT: errno=%d", errno);
+    ibv_destroy_qp(qp);
+    return false;
+  }
+
+  return qp;
+}
+
+static bool moveQpStateToRTS(struct ibv_qp *qp, uint32_t rdma_port_id, PortInfo *local_port_info, PortInfo *remote_port_info, enum ibv_mtu mtu_mode, int service_level, int gid_index) {
+  struct ibv_qp_attr attrs = { .qp_state    = IBV_QPS_RTR,
+                               .path_mtu    = mtu_mode,
+                               .dest_qp_num = remote_port_info->qpn,
+                               .rq_psn      = remote_port_info->psn,
+                               .ah_attr     = { .is_global     = 0,
+                                                .dlid          = remote_port_info->lid,
+                                                .sl            = service_level,
+                                                .src_path_bits = 0,
+                                                .port_num      = rdma_port_id
+                                               }};
+  if (remote_port_info->gid.global.interface_id) { // Infiniband, not RoCE
+    attrs.ah_attr.is_global      = 1;
+    attrs.ah_attr.grh.hop_limit  = 1;
+    attrs.ah_attr.grh.dgid       = remote_port_info->gid;
+    attrs.ah_attr.grh.sgid_index = gid_index;
+  }
+
+  // Move to RTR
+  int rc = ibv_modify_qp(qp, &attrs, IBV_QP_STATE | IBV_QP_AV | IBV_QP_PATH_MTU | IBV_QP_DEST_QPN | IBV_QP_RQ_PSN)) {
+  if (rc != 0) {
+    snprintf(error_message, max_error_message_chars, "ibv_modify_qp() failed. Could not change QP state to RTR: errno=%d", errno);
+    ibv_destroy_qp(qp);
+    return false;
+  }
+
+  // Move to RTS
+  attr.qp_state	= IBV_QPS_RTS;
+  attr.sq_psn   = local_port_info->psn;
+  rc = ibv_modify_qp(ctx->qp, &attr, IBV_QP_STATE | IBV_QP_SQ_PSN);
+  if (rc != 0) {
+    snprintf(error_message, max_error_message_chars, "ibv_modify_qp() failed. Could not change QP state to RTS: errno=%d", errno);
+    ibv_destroy_qp(qp);
+    return false;
+  }
+
+  return true;
+}
+
 static bool createConnectionManagerQueuePair(struct rdma_cm_id *id, struct ibv_pd *pd, struct ibv_cq *cq, enum ibv_qp_type qp_type,
                                              uint32_t max_send_wr, uint32_t max_recv_wr, uint32_t max_send_sge, uint32_t max_recv_sge,
                                              char *error_message, int max_error_message_chars) {
@@ -127,7 +311,7 @@ static bool createConnectionManagerQueuePair(struct rdma_cm_id *id, struct ibv_p
   return true;
 }
 
-/*+static*/ struct ibv_pd *createProtectionDomain(struct ibv_context *context, char *error_message, int max_error_message_chars) {
+static struct ibv_pd *createProtectionDomain(struct ibv_context *context, char *error_message, int max_error_message_chars) {
   struct ibv_pd *pd = ibv_alloc_pd(context);
   if (pd == NULL) {
     snprintf(error_message, max_error_message_chars, "ibv_alloc_pd() failed");
@@ -406,7 +590,7 @@ RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *local_NI
   endpoint->multicast_addr = multicast_addr;
 
   // Post recvs
-  if (!is_sender) {
+  if (!is_sender && recv_request_count > 0) {
     if (!rdmaPostRecvs(path, endpoint, recv_request_count, recv_requests, error_message, max_error_message_chars)) goto failed;
   }
 
@@ -440,16 +624,125 @@ RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *local_NI
   return NULL;
 }
 
-RdmaEndpoint *rdmaCreateUCEndpoint(TakyonPath *path, bool is_endpointA, int socket_fd,
+RdmaEndpoint *rdmaCreateUCEndpoint(TakyonPath *path, bool is_endpointA, int socket_fd, const char *rdma_device_name, uint32_t rdma_port_id,
                                    uint32_t max_send_wr, uint32_t max_recv_wr, uint32_t max_send_sges, uint32_t max_recv_sges,
                                    uint32_t recv_request_count, TakyonRecvRequest *recv_requests,
                                    double timeout_seconds, char *error_message, int max_error_message_chars) {
-  /*+*/
+  struct ibv_context *context = NULL;
+  struct ibv_comp_channel *send_comp_ch = NULL;
+  struct ibv_comp_channel *recv_comp_ch = NULL;
+  struct ibv_cq *send_cq = NULL;
+  struct ibv_cq *recv_cq = NULL;
+  struct ibv_pd *pd = NULL;
+  struct ibv_qp *qp = NULL;
+  RdmaEndpoint *endpoint = NULL;
+  int64_t timeout_nano_seconds = (int64_t)(timeout_seconds * NANOSECONDS_PER_SECOND_DOUBLE);
+
+  if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) printf("  Create RDMA UC, max_send_wr=%u, max_recv_wr=%u, max_send_sges=%u, max_recv_sges=%u\n", max_send_wr, max_recv_wr, max_send_sges, max_recv_sges);
+
+  // Get handle to RDMA device
+  context = getRdmaContextFromNamedDevice(rdma_device_name, rdma_port_id, error_message, max_error_message_chars);
+  if (context == NULL) return NULL;
+
+  // IMPORTANT: Transfers might be event driven so create the completion channel just in case
+  // Completion channels
+  send_comp_ch = createCompletionChannel(context, error_message, max_error_message_chars);
+  if (send_comp_ch == NULL) goto failed;
+  recv_comp_ch = createCompletionChannel(context, error_message, max_error_message_chars);
+  if (recv_comp_ch == NULL) goto failed;
+
+  // Completion queues
+  send_cq = createCompletionQueue(context, max_send_wr, send_comp_ch, error_message, max_error_message_chars);
+  if (send_cq == NULL) goto failed;
+  if (!armCompletionQueue(send_cq, error_message, max_error_message_chars)) goto failed;
+  recv_cq = createCompletionQueue(context, max_recv_wr, recv_comp_ch, error_message, max_error_message_chars);
+  if (recv_cq == NULL) goto failed;
+  if (!armCompletionQueue(recv_cq, error_message, max_error_message_chars)) goto failed;
+
+  // Protection domain
+  pd = createProtectionDomain(context, error_message, max_error_message_chars);
+  if (pd == NULL) goto failed;
+
+  // Queue pair
+  enum ibv_qp_type qp_type = IBV_QPT_UC;
+  qp = createQueuePair(pd, send_cq, recv_cq, qp_type, max_send_wr, max_recv_wr, max_send_sge, max_recv_sge, error_message, max_error_message_chars);
+  if (pd == NULL) goto failed;
+
+  // Register buffers
+  enum ibv_access_flags access = IBV_ACCESS_LOCAL_WRITE; // Local write is needed for receiving
+  for (uint32_t i=0; i<path->attrs.buffer_count; i++) {
+    TakyonBuffer *takyon_buffer = &path->attrs.buffers[i];
+    RdmaBuffer *rdma_buffer = (RdmaBuffer *)takyon_buffer->private;
+    // IMPORTANT: assuming buffers are zeroed at init
+    if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) printf("  Registering memory region: addr=0x%jx, bytes=%ju\n", (uint64_t)takyon_buffer->addr, takyon_buffer->bytes);
+    rdma_buffer->mr = registerMemoryRegion(pd, takyon_buffer->addr, takyon_buffer->bytes, access, error_message, max_error_message_chars);
+    if (rdma_buffer->mr == NULL) goto failed;
+  }
+
+  // Build the endpoint structure before posting recvs
+  endpoint = calloc(1, sizeof(RdmaEndpoint));
+  if (endpoint == NULL) goto failed;
+  endpoint->protocol = RDMA_PROTOCOL_UC;
+  endpoint->context = context;
+  endpoint->send_comp_ch = send_comp_ch;
+  endpoint->recv_comp_ch = recv_comp_ch;
+  endpoint->send_cq = send_cq;
+  endpoint->recv_cq = recv_cq;
+  endpoint->pd = pd;
+  endpoint->qp = qp;
+
+  // Post recvs
+  if (recv_request_count > 0) {
+    if (!rdmaPostRecvs(path, endpoint, recv_request_count, recv_requests, error_message, max_error_message_chars)) goto failed;
+  }
+
+  // Exchange QP and port info
+  int gid_index = -1; /*+ get from application */
+  PortInfo local_port_info;
+  PortInfo remote_port_info;
+  if (!getLocalPortInfo(context, qp, rdma_port_id, gid_index, &local_port_info, error_message, max_error_message_chars)) goto failed;
+  if (is_endpointA) {
+    if (!socketSend(socket_fd, local_port_info.socket_data, sizeof(local_port_info.socket_data), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+      TAKYON_RECORD_ERROR(path->error_message, "Failed to send RDMA port info text: %s\n", error_message);
+      goto failed;
+    }
+    if (!socketRecv(socket_fd, remote_port_info.socket_data, sizeof(remote_port_info.socket_data), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+      TAKYON_RECORD_ERROR(path->error_message, "Failed to recv remote RDMA port info text: %s\n", error_message);
+      goto failed;
+    }
+  } else {
+    if (!socketRecv(socket_fd, remote_port_info.socket_data, sizeof(remote_port_info.socket_data), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+      TAKYON_RECORD_ERROR(path->error_message, "Failed to recv remote RDMA port info text: %s\n", error_message);
+      goto failed;
+    }
+    if (!socketSend(socket_fd, local_port_info.socket_data, sizeof(local_port_info.socket_data), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+      TAKYON_RECORD_ERROR(path->error_message, "Failed to send RDMA port info text: %s\n", error_message);
+      goto failed;
+    }
+  }
+
+  // Parse the remote port info
+  int tokens = sscanf(remote_port_info.socket_data, "%x:%x:%x:%s", &remote_port_info->lid, &remote_port_info->qpn, &remote_port_info->psn, remote_port_info->gid_text);
+  if (tokens != 4) {
+    TAKYON_RECORD_ERROR(path->error_message, "Failed to parse the remote RDMA port info text\n");
+    goto failed;
+  }
+  textToGid(remote_port_info.gid_text, &remote_port_info.gid);
+
+  // Move the QP state to RTS (ready to send)
+  enum ibv_mtu mtu_mode = IBV_MTU_4096; /*+ get from application, or auto detect? */
+  int service_level = 0; /*+ get from app */
+  if (!moveQpStateToRTS(qp, rdma_port_id, &local_port_info, &remote_port_info, mtu_mode, service_level, gid_index)) goto failed;
+
+  /*++ clean up on failure */
+
   return NULL;
 }
 
 bool rdmaDestroyEndpoint(TakyonPath *path, RdmaEndpoint *endpoint, double timeout_seconds, char *error_message, int max_error_message_chars) {
   (void)timeout_seconds; // Quiet the compiler   /*+ will this get used with RC? If not, remove from arg list */
+
+  /*+ shut down and clean up UC */
 
   // Ack events to avoid deadlocking the destructions of the QP
   if (endpoint->nevents_to_ack > 0) {

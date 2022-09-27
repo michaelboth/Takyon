@@ -8,6 +8,7 @@ To DO
   - DOC:
     - sent bytes can be less posted recv request
     - refresh: e.g. one-sided can have multiple buffers
+    - Staging: show 'hello-two_sided' build and run with MMAP/CUDA
 
 Promote To
   - Khronos, as a new proposal

@@ -28,8 +28,8 @@
 //     - Messages can be dropped
 //     - Useful where all bytes may not arrive (unreliable): e.g. live stream video or music
 //   ---------------------------------------------------------------------------
-//     "RdmaUC -client -remoteIP=<ip_addr>|<hostname> -port=<port_number> -rdmaPort=<local_rdma_port_number>"
-//     "RdmaUC -server -localIP=<ip_addr>|<hostname>|Any -port=<port_number> [-reuse] -rdmaPort=<local_rdma_port_number>"
+//     "RdmaUC -client -remoteIP=<ip_addr>|<hostname> -port=<port_number> -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number>"
+//     "RdmaUC -server -localIP=<ip_addr>|<hostname>|Any -port=<port_number> [-reuse] -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number>"
 //
 //   Argument descriptions:
 //     -port=<port_number> = [1024 .. 65535]
@@ -234,6 +234,18 @@ bool rdmaUCCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest 
       return false;
     }
   }
+  // -rdmaDevice=<name>
+  char rdma_device_name[TAKYON_MAX_PROVIDER_CHARS];
+  bool rdma_device_name_found = false;
+  ok = argGetText(path->attrs.provider, "-rdmaDevice=", rdma_device_name, TAKYON_MAX_PROVIDER_CHARS, &rdma_device_name_found, error_message, MAX_ERROR_MESSAGE_CHARS);
+  if (!ok) {
+    TAKYON_RECORD_ERROR(path->error_message, "provider argument -rdmaDevice=<name> is invalid: %s\n", error_message);
+    return false;
+  }
+  if (!rdma_device_name_found) {
+    TAKYON_RECORD_ERROR(path->error_message, "RdmaUC needs the argument: -rdmaDevice=<name>\n");
+    return false;
+  }
   // -rdmaPort=<local_rdma_port_number>
   uint32_t rdma_port_number = 0;
   bool rdma_port_number_found = false;
@@ -356,7 +368,7 @@ bool rdmaUCCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest 
   }
 
   // Create the RDMA endpoint
-  private_path->endpoint = rdmaCreateUCEndpoint(path, path->attrs.is_endpointA, private_path->socket_fd,
+  private_path->endpoint = rdmaCreateUCEndpoint(path, path->attrs.is_endpointA, private_path->socket_fd, rdma_device_name, rdma_port_number,
                                                 path->attrs.max_pending_send_and_one_sided_requests, path->attrs.max_pending_recv_requests,
                                                 path->attrs.max_sub_buffers_per_send_request, path->attrs.max_sub_buffers_per_recv_request,
                                                 post_recv_count, recv_requests, timeout_seconds, error_message, MAX_ERROR_MESSAGE_CHARS);

@@ -25,16 +25,21 @@ typedef enum {
 typedef struct {
   RdmaProtocol protocol;
   bool is_sender;
+  struct ibv_context *context; // Used if not used connection manager
   struct rdma_event_channel *event_ch;
   struct rdma_cm_id *id;
+  struct ibv_pd *pd;
   struct ibv_qp *qp;
-  struct ibv_comp_channel *comp_ch;
-  struct ibv_cq *cq;
+  struct ibv_comp_channel *send_comp_ch;
+  struct ibv_comp_channel *recv_comp_ch;
+  struct ibv_cq *send_cq;
+  struct ibv_cq *recv_cq;
+  unsigned int nevents_to_ack;
+  // Multicast
   struct ibv_ah *multicast_ah;
   struct sockaddr multicast_addr;
   uint32_t multicast_qp_num;
   uint32_t multicast_qkey;
-  unsigned int nevents_to_ack;
 } RdmaEndpoint;
 
 typedef struct {
@@ -59,7 +64,7 @@ extern RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *l
                                                  uint32_t max_send_wr, uint32_t max_recv_wr, uint32_t max_send_sges, uint32_t max_recv_sges,
                                                  uint32_t recv_request_count, TakyonRecvRequest *recv_requests,
                                                  double timeout_seconds, char *error_message, int max_error_message_chars);
-extern RdmaEndpoint *rdmaCreateUCEndpoint(TakyonPath *path, bool is_endpointA, int socket_fd,
+extern RdmaEndpoint *rdmaCreateUCEndpoint(TakyonPath *path, bool is_endpointA, int socket_fd, const char *rdma_device_name, uint32_t rdma_port_id,
                                           uint32_t max_send_wr, uint32_t max_recv_wr, uint32_t max_send_sges, uint32_t max_recv_sges,
                                           uint32_t recv_request_count, TakyonRecvRequest *recv_requests,
                                           double timeout_seconds, char *error_message, int max_error_message_chars);
