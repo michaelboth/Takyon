@@ -1,7 +1,5 @@
 Show the max sustained throughput of a Takyon provider; supports both one-sided and two-sided.
-  Usage:
-    throughput_mt       "<provider>" [-h] [-n=<uint32>] [-b=<uint64>] [-s=<uint32>] [-r=<uint32>] [-e] [-o] [-v]
-    throughput_mp <A|B> "<provider>" [-h] [-n=<uint32>] [-b=<uint64>] [-s=<uint32>] [-r=<uint32>] [-e] [-o] [-v]
+  To see the usage and options, run with -h
 
 Mac and Linux
   First build the Takyon library: see lib/README.txt
