@@ -28,6 +28,8 @@
 
 #define MAX_MESSAGE_BYTES 100 // Just need enough to transfer a nice text greeting
 #define NUM_TAKYON_BUFFERS 3
+#define FIRST_RECV_TIMEOUT_SECONDS TAKYON_WAIT_FOREVER
+#define ACTIVE_RECV_TIMEOUT_SECONDS 0.25
 
 static void sendMessage(TakyonPath *path, uint32_t i) {
   // Fill in the data to send
@@ -91,12 +93,15 @@ static void sendMessage(TakyonPath *path, uint32_t i) {
   if (path->capabilities.IsSent_supported && send_request.use_is_sent_notification) takyonIsSent(path, &send_request, TAKYON_WAIT_FOREVER, NULL);
 }
 
-static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request) {
+static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, uint32_t message_count) {
   // Wait for data to arrive
   //   - Recv request only has a single sub buffer, regardless of what the sender has
   uint64_t bytes_received;
   uint32_t piggy_back_message;
-  takyonIsRecved(path, recv_request, TAKYON_WAIT_FOREVER, NULL, &bytes_received, &piggy_back_message);
+  bool timed_out;
+  double timeout = (message_count==1) ? FIRST_RECV_TIMEOUT_SECONDS : ACTIVE_RECV_TIMEOUT_SECONDS;
+  takyonIsRecved(path, recv_request, timeout, &timed_out, &bytes_received, &piggy_back_message);
+  if (timed_out)  { printf("\nTimed out waiting for remaining messages\n"); exit(EXIT_SUCCESS); }
 
   // Process the data; i.e. print the received greeting
   TakyonSubBuffer *recver_sub_buffer = &recv_request->sub_buffers[0];
@@ -179,19 +184,19 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
   (void)takyonCreate(&attrs, 1, &recv_request, TAKYON_WAIT_FOREVER, &path);
 
   // Take turns sending the greeting multiple times
-  //  - If this is a connection oriented communication, then messages are sent in both directions and are self synchronizing to avoid race conditions
-  //  - If this is NOT a connection oriented communication, then messages are only sent from A to B and will be dropped if B is not running before the sender
+  //  - If this is a reliable connection, then messages are sent in both directions and are self synchronizing to avoid race conditions
+  //  - If this is an unrelaible connection, then messages are only sent from A to B and will be dropped if B is not running before the sender
   for (uint32_t i=0; i<iterations; i++) {
     if (path->attrs.is_endpointA) {
       // Send message
       sendMessage(path, i);
       // Wait for the message to arrive (will reuse the recv_request that was already prepared)
-      if (path->capabilities.IsRecved_supported) recvMessage(path, &recv_request);
+      if (!path->capabilities.is_unreliable) recvMessage(path, &recv_request, i+2);
     } else {
       // Wait for the message to arrive (will reuse the recv_request that was already prepared)
-      recvMessage(path, &recv_request);
+      recvMessage(path, &recv_request, i);
       // Send message
-      if (path->capabilities.Send_supported) sendMessage(path, i);
+      if (!path->capabilities.is_unreliable) sendMessage(path, i+1);
     }
   }
 

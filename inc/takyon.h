@@ -159,7 +159,7 @@ typedef struct {
   bool PostRecvs_supported;
   bool IsRecved_supported;
   // Extra features
-  //*+*/bool is_unreliable;                  // Messages may be quietly dropped, arrive out of order, or be duplicated
+  bool is_unreliable;                  // Sent messages may be quietly dropped, arrive out of order, or be duplicated
   bool piggy_back_messages_supported;  // True if comm allows sending a 32bit message piggy backed on the primary message
   /*+ maybe convey max sub buffers? can also be 0 for a purely signaling comm */
   bool multi_sub_buffers_supported;    // True if more than one sub buffer can be in a single transfer

@@ -94,13 +94,6 @@ bool rdmaUDMulticastCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRec
     return false;
   }
 
-  /*+
-  // Make sure each buffer knows it's for this path: need for verifications later on
-  for (uint32_t i=0; i<path->attrs.buffer_count; i++) {
-    path->attrs.buffers[i].private = path;
-  }
-  */
-
   // Allocate the private data
   PrivateTakyonPath *private_path = calloc(1, sizeof(PrivateTakyonPath));
   if (private_path == NULL) {

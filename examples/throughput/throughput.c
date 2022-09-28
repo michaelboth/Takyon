@@ -114,8 +114,8 @@ static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, const
   // Wait for data to arrive
   uint64_t bytes_received;
   bool timed_out;
-  double timeout = (message_count==1) ? FIRST_RECV_TIMEOUT_SECONDS : ACTIVE_RECV_TIMEOUT_SECONDS;
   uint32_t piggy_back_message;
+  double timeout = (message_count==1) ? FIRST_RECV_TIMEOUT_SECONDS : ACTIVE_RECV_TIMEOUT_SECONDS;
   takyonIsRecved(path, recv_request, timeout, &timed_out, &bytes_received, &piggy_back_message);
   if (timed_out)  { printf("\nTimed out waiting for remaining messages\n"); exit(EXIT_SUCCESS); }
   if (bytes_received != recv_request->sub_buffers[0].bytes) {
@@ -297,18 +297,16 @@ static void twoSidedThroughput(const bool is_endpointA, const char *provider, co
     if (messages_transferred == half_recv_buffer_count) {
       // Used up all the posted recvs. Need to repost
       if (path->attrs.is_endpointA) {
-        // Wait for the recvs to be posted
-	/*+ not if path->capabilities.is_unreliable */
-        if (path->capabilities.IsRecved_supported) recvSignal(path, &repost_recv_request);
+        // Wait for the recvs to be posted, but if the provider is unreliable then no needed since dropped messages are allowed
+        if (!path->capabilities.is_unreliable) recvSignal(path, &repost_recv_request);
       } else {
         // If the provider supports pre-posting, then do it
 	// IMPORTANT: Posting half at a time allows for data to continue arriving (in the old posted recvs) while new recvs are being posted
 	TakyonRecvRequest *half_recv_requests = post_first_half ? recv_requests : &recv_requests[half_recv_buffer_count];
 	post_first_half = !post_first_half;
         if (path->capabilities.PostRecvs_supported) takyonPostRecvs(path, half_recv_buffer_count, half_recv_requests);
-        // Let the send know the recvs are posted
-	/*+ not if path->capabilities.is_unreliable */
-        if (path->capabilities.Send_supported) sendSignal(path, use_polling_completion);
+        // Let the send know the recvs are posted, but if the provider is unreliable then no needed since dropped messages are allowed
+        if (!path->capabilities.is_unreliable) sendSignal(path, use_polling_completion);
       }
       messages_transferred = 0;
     }
