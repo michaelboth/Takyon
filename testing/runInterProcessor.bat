@@ -97,26 +97,26 @@ if %socket% == yes (
   if %endpoint% == A (
     throughput_mp %endpoint% "SocketTcp -client -remoteIP=%remote_ip% -port=23456" -n=10000 -b=1024 -v
     if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
-    throughput_mp %endpoint% "SocketTcp -client -remoteIP=%remote_ip% -port=23457" -n=100000 -b=1024
+    throughput_mp %endpoint% "SocketTcp -client -remoteIP=%remote_ip% -port=23457" -n=10000 -b=1024
     if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
   )
   if %endpoint% == B (
     throughput_mp %endpoint% "SocketTcp -server -localIP=%local_ip% -port=23456 -reuse" -n=10000 -b=1024 -v
     if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
-    throughput_mp %endpoint% "SocketTcp -server -localIP=%local_ip% -port=23457 -reuse" -n=100000 -b=1024
+    throughput_mp %endpoint% "SocketTcp -server -localIP=%local_ip% -port=23457 -reuse" -n=10000 -b=1024
     if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
   )
   if %ephemeral% == yes (
     if %endpoint% == A (
       throughput_mp %endpoint% "SocketTcp -client -remoteIP=%remote_ip% -ephemeralID=1" -n=10000 -b=1024 -v
       if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
-      throughput_mp %endpoint% "SocketTcp -client -remoteIP=%remote_ip% -ephemeralID=1" -n=100000 -b=1024
+      throughput_mp %endpoint% "SocketTcp -client -remoteIP=%remote_ip% -ephemeralID=1" -n=10000 -b=1024
       if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
     )
     if %endpoint% == B (
       throughput_mp %endpoint% "SocketTcp -server -localIP=%local_ip% -ephemeralID=1" -n=10000 -b=1024 -v
       if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
-      throughput_mp %endpoint% "SocketTcp -server -localIP=%local_ip% -ephemeralID=1" -n=100000 -b=1024
+      throughput_mp %endpoint% "SocketTcp -server -localIP=%local_ip% -ephemeralID=1" -n=10000 -b=1024
       if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
     )
   )
