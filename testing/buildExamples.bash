@@ -26,6 +26,7 @@ function build {
 }
 
 debug="no"
+less_checking="no"
 mmap="no"
 rdma="no"
 cuda="no"
@@ -36,6 +37,9 @@ for arg in "$@"
 do
     if [ "$arg" == "debug" ]; then
         debug="yes"
+    fi
+    if [ "$arg" == "less_checking" ]; then
+        less_checking="yes"
     fi
     if [ "$arg" == "mmap" ]; then
         mmap="yes"
@@ -55,8 +59,8 @@ do
 done
 
 if [ "$help" == "yes" ]; then
-    echo "usage: ./buildExamples.bash [debug] [mmap] [rdma] [cuda]"
-    echo "       ./buildExamples.bash debug mmap rdma cuda"
+    echo "usage: ./buildExamples.bash [debug] [mmap] [rdma] [cuda] [less_checking]"
+    echo "       ./buildExamples.bash debug mmap rdma cuda less_checking"
     echo "       ./buildExamples.bash clean"
     echo "       ./buildExamples.bash help"
     exit 0
@@ -72,6 +76,7 @@ if [ "$clean" == "yes" ]; then
 fi
 
 echo "debug = $debug"
+echo "less_checking = $less_checking"
 echo "mmap  = $mmap"
 echo "rdma  = $rdma"
 echo "cuda  = $cuda"
@@ -80,6 +85,9 @@ echo "cuda  = $cuda"
 options=""
 if [ "$debug" == "yes" ]; then
     options+=" DEBUG=Yes"
+fi
+if [ "$less_checking" == "yes" ]; then
+    options+=" DisableExtraErrorChecking=Yes"
 fi
 if [ "$cuda" == "yes" ]; then
     options+=" CUDA=Yes"

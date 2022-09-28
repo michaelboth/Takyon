@@ -216,6 +216,8 @@ static bool doTwoSidedTransfer(TakyonPath *path, TakyonPath *remote_path, Takyon
   for (uint32_t i=0; i<request->sub_buffer_count; i++) {
     // Source info
     TakyonSubBuffer *sub_buffer = &request->sub_buffers[i];
+    uint64_t src_bytes = sub_buffer->bytes;
+#ifdef EXTRA_ERROR_CHECKING
     if (sub_buffer->buffer_index >= path->attrs.buffer_count) {
       TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer->buffer_index == %d out of range\n", sub_buffer->buffer_index);
       return false;
@@ -225,11 +227,11 @@ static bool doTwoSidedTransfer(TakyonPath *path, TakyonPath *remote_path, Takyon
       TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer[%d].buffer_index is not from this Takyon path\n", i);
       return false;
     }
-    uint64_t src_bytes = sub_buffer->bytes;
     if (src_bytes > (src_buffer->bytes - sub_buffer->offset)) {
       TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju, offset = %ju exceeds src buffer (bytes = %ju)\n", src_bytes, sub_buffer->offset, src_buffer->bytes);
       return false;
     }
+#endif
     total_bytes_to_send += src_bytes;
   }
 
@@ -238,6 +240,8 @@ static bool doTwoSidedTransfer(TakyonPath *path, TakyonPath *remote_path, Takyon
   for (uint32_t i=0; i<remote_request->sub_buffer_count; i++) {
     // Source info
     TakyonSubBuffer *remote_sub_buffer = &remote_request->sub_buffers[i];
+    uint64_t remote_max_bytes = remote_sub_buffer->bytes;
+#ifdef EXTRA_ERROR_CHECKING
     if (remote_sub_buffer->buffer_index >= remote_path->attrs.buffer_count) {
       TAKYON_RECORD_ERROR(path->error_message, "'remote_sub_buffer->buffer_index == %d out of range\n", remote_sub_buffer->buffer_index);
       return false;
@@ -247,11 +251,11 @@ static bool doTwoSidedTransfer(TakyonPath *path, TakyonPath *remote_path, Takyon
       TAKYON_RECORD_ERROR(path->error_message, "'remote sub_buffers[%d] is not from the remote Takyon path\n", i);
       return false;
     }
-    uint64_t remote_max_bytes = remote_sub_buffer->bytes;
     if (remote_max_bytes > (remote_buffer->bytes - remote_sub_buffer->offset)) {
       TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju, offset = %ju exceeds remote buffer (bytes = %ju)\n", remote_max_bytes, remote_sub_buffer->offset, remote_buffer->bytes);
       return false;
     }
+#endif
     total_available_recv_bytes += remote_max_bytes;
   }
 
@@ -326,6 +330,8 @@ static bool doOneSidedTransfer(TakyonPath *path, TakyonPath *remote_path, Takyon
   for (uint32_t i=0; i<request->sub_buffer_count; i++) {
     // Source info
     TakyonSubBuffer *sub_buffer = &request->sub_buffers[i];
+    uint64_t local_bytes = sub_buffer->bytes;
+#ifdef EXTRA_ERROR_CHECKING
     if (sub_buffer->buffer_index >= path->attrs.buffer_count) {
       TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer->buffer_index == %d out of range\n", sub_buffer->buffer_index);
       return false;
@@ -335,24 +341,28 @@ static bool doOneSidedTransfer(TakyonPath *path, TakyonPath *remote_path, Takyon
       TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer[%d].buffer_index is not from this Takyon path\n", i);
       return false;
     }
-    uint64_t local_bytes = sub_buffer->bytes;
     if (local_bytes > (local_buffer->bytes - sub_buffer->offset)) {
       TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju, offset = %ju exceeds local buffer (bytes = %ju)\n", local_bytes, sub_buffer->offset, local_buffer->bytes);
       return false;
     }
+#endif
     total_local_bytes_to_transfer += local_bytes;
   }
 
   // Remote info
+#ifdef EXTRA_ERROR_CHECKING
   if (request->remote_buffer_index >= remote_path->attrs.buffer_count) {
     TAKYON_RECORD_ERROR(path->error_message, "Remote buffer index = %d is out of range\n", request->remote_buffer_index);
     return false;
   }
+#endif
   TakyonBuffer *remote_buffer = &remote_path->attrs.buffers[request->remote_buffer_index];
+#ifdef EXTRA_ERROR_CHECKING
   if (remote_buffer->private != remote_path) {
     TAKYON_RECORD_ERROR(path->error_message, "Remote buffer is for a different Takyon path\n");
     return false;
   }
+#endif
   void *remote_addr = (void *)((uint64_t)remote_buffer->addr + request->remote_offset);
   uint64_t remote_max_bytes = remote_buffer->bytes - request->remote_offset;
 

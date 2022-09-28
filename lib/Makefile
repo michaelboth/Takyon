@@ -1,8 +1,12 @@
 C_FLAGS := -std=gnu99
 ifeq ($(DEBUG),Yes)
-    C_FLAGS += -g -O0 -DDEBUG_BUILD
+    C_FLAGS += -g -O0
 else
     C_FLAGS += -O2
+endif
+ifeq ($(DisableExtraErrorChecking),Yes)
+else
+    C_FLAGS += -DEXTRA_ERROR_CHECKING
 endif
 C_FLAGS += -fPIC
 C_FLAGS += -Wall

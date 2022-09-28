@@ -234,7 +234,7 @@ bool rdmaUDMulticastSend(TakyonPath *path, TakyonSendRequest *request, uint32_t 
   char error_message[MAX_ERROR_MESSAGE_CHARS];
 
   // Make sure sending is allowed
-#ifdef DEBUG_BUILD
+#ifdef EXTRA_ERROR_CHECKING
   if (!endpoint->is_sender) {
     TAKYON_RECORD_ERROR(path->error_message, "This RDMA multicast endpoint can only be used for receiving.\n");
     return false;
@@ -242,7 +242,7 @@ bool rdmaUDMulticastSend(TakyonPath *path, TakyonSendRequest *request, uint32_t 
 #endif
 
   // Validate message attributes
-#ifdef DEBUG_BUILD
+#ifdef EXTRA_ERROR_CHECKING
   for (uint32_t i=0; i<request->sub_buffer_count; i++) {
     TakyonSubBuffer *sub_buffer = &request->sub_buffers[i];
     if (sub_buffer->buffer_index >= path->attrs.buffer_count) {
@@ -289,7 +289,7 @@ bool rdmaUDMulticastIsSent(TakyonPath *path, TakyonSendRequest *request, double 
   char error_message[MAX_ERROR_MESSAGE_CHARS];
 
   // Make sure sending is allowed
-#ifdef DEBUG_BUILD
+#ifdef EXTRA_ERROR_CHECKING
   if (!endpoint->is_sender) {
     TAKYON_RECORD_ERROR(path->error_message, "This RDMA multicast endpoint can only be used for receiving.\n");
     return false;
@@ -313,7 +313,7 @@ bool rdmaUDMulticastPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRe
   char error_message[MAX_ERROR_MESSAGE_CHARS];
 
   // Make sure recving is allowed
-#ifdef DEBUG_BUILD
+#ifdef EXTRA_ERROR_CHECKING
   if (endpoint->is_sender) {
     TAKYON_RECORD_ERROR(path->error_message, "This RDMA multicast endpoint can only be used for sending.\n");
     return false;
@@ -321,7 +321,7 @@ bool rdmaUDMulticastPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRe
 #endif
 
   // Validate message attributes
-#ifdef DEBUG_BUILD
+#ifdef EXTRA_ERROR_CHECKING
   for (uint32_t i=0; i<request_count; i++) {
     TakyonRecvRequest *request = &requests[i];
     for (uint32_t j=0; j<request->sub_buffer_count; j++) {
@@ -369,7 +369,7 @@ bool rdmaUDMulticastIsRecved(TakyonPath *path, TakyonRecvRequest *request, doubl
   char error_message[MAX_ERROR_MESSAGE_CHARS];
 
   // Make sure recving is allowed
-#ifdef DEBUG_BUILD
+#ifdef EXTRA_ERROR_CHECKING
   if (endpoint->is_sender) {
     TAKYON_RECORD_ERROR(path->error_message, "This RDMA multicast endpoint can only be used for sending.\n");
     return false;

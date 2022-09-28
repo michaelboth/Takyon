@@ -543,7 +543,7 @@ bool rdmaOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double timeo
     return false;
   }
 
-#ifdef DEBUG_BUILD
+#ifdef EXTRA_ERROR_CHECKING
   // Make sure at least one buffer
   if (request->sub_buffer_count == 0) {
     TAKYON_RECORD_ERROR(path->error_message, "One sided requests must have at least one sub buffer\n");
@@ -557,7 +557,7 @@ bool rdmaOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double timeo
     // Source info
     TakyonSubBuffer *sub_buffer = &request->sub_buffers[i];
     uint64_t local_bytes = sub_buffer->bytes;
-#ifdef DEBUG_BUILD
+#ifdef EXTRA_ERROR_CHECKING
     if (sub_buffer->buffer_index >= path->attrs.buffer_count) {
       TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer->buffer_index == %d out of range\n", sub_buffer->buffer_index);
       return false;
@@ -577,7 +577,7 @@ bool rdmaOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double timeo
   }
 
   // Remote info
-#ifdef DEBUG_BUILD
+#ifdef EXTRA_ERROR_CHECKING
   if (request->remote_buffer_index >= private_path->remote_buffer_count) {
     TAKYON_RECORD_ERROR(path->error_message, "Remote buffer index = %d is out of range\n", request->remote_buffer_index);
     return false;
@@ -588,7 +588,7 @@ bool rdmaOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double timeo
   uint32_t remote_key = remote_buffer->remote_key;
 
   // Verify enough space in remote request
-#ifdef DEBUG_BUILD
+#ifdef EXTRA_ERROR_CHECKING
   uint64_t remote_max_bytes = remote_buffer->bytes - request->remote_offset;
   if (total_local_bytes_to_transfer > remote_max_bytes) {
     TAKYON_RECORD_ERROR(path->error_message, "Not enough available remote bytes\n");
@@ -650,8 +650,8 @@ bool rdmaSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_back_
     return false;
   }
 
-  // Validate message attributes
-#ifdef DEBUG_BUILD
+#ifdef EXTRA_ERROR_CHECKING
+  // Validate source. Can't compare to dest, since it's unknown what buffers the message is going to
   for (uint32_t i=0; i<request->sub_buffer_count; i++) {
     TakyonSubBuffer *sub_buffer = &request->sub_buffers[i];
     if (sub_buffer->buffer_index >= path->attrs.buffer_count) {
@@ -726,7 +726,7 @@ bool rdmaPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvRequest *
   }
 
   // Validate message attributes
-#ifdef DEBUG_BUILD
+#ifdef EXTRA_ERROR_CHECKING
   for (uint32_t i=0; i<request_count; i++) {
     TakyonRecvRequest *request = &requests[i];
     for (uint32_t j=0; j<request->sub_buffer_count; j++) {

@@ -1,7 +1,5 @@
 To DO
   - BUG: OSX ephemeral sockets (seems the multicast packets are being blocked)
-  - Compile out error checking if in release mode
-    - use #ifdef DEBUG_BUILD where appropriate
   - Allow InterThread and InterProcess to have unreliable modes; i.e. if recv not posted, data is dropped.
   - Inter-processor scripts
 

@@ -4,22 +4,36 @@ rem Keep variables local to this script
 setlocal EnableDelayedExpansion
 
 set debug=no
+set less_checking=no
 set mmap=no
 set cuda=no
 set clean=no
+set help=no
 
 rem Parse args
 for %%a in (%*) do (
   if %%a == debug set debug=yes
+  if %%a == less_checking set less_checking=yes
   if %%a == mmap set mmap=yes
   if %%a == cuda set cuda=yes
   if %%a == clean set clean=yes
+  if %%a == help set help=yes
 )
 
 echo "debug = %debug%"
+echo "less_checking = %less_checking%"
 echo "mmap  = %mmap%"
 echo "cuda  = %cuda%"
 echo "clean = %clean%"
+echo "help = %help%"
+
+if %help% == yes (
+  echo "usage: buildExamples.bat [debug] [mmap] [cuda] [less_checking]"
+  echo "       buildExamples.bat debug mmap cuda less_checking"
+  echo "       buildExamples.bat clean"
+  echo "       buildExamples.bat help"
+  GOTO:done
+)
 
 if %clean% == yes (
   echo "Cleaning Takyon lib and examples..."
@@ -56,6 +70,9 @@ rem Set the make options
 set options=
 if %debug% == yes (
     set options=%options% DEBUG=Yes
+)
+if %less_checking% == yes (
+    set options=%options% DisableExtraErrorChecking=Yes
 )
 if %cuda% == yes (
     set options=%options% CUDA=Yes

@@ -1061,7 +1061,7 @@ static const char *wcErrorToText(enum ibv_wc_status status) {
   }
 }
 
-#ifdef DEBUG_BUILD
+#ifdef EXTRA_ERROR_CHECKING
 static const char *wcOpcodeToText(enum ibv_wc_opcode opcode_val) {
   switch (opcode_val) {
   case IBV_WC_SEND : return "IBV_WC_SEND";
@@ -1078,7 +1078,6 @@ static const char *wcOpcodeToText(enum ibv_wc_opcode opcode_val) {
 #endif
 
 static bool waitForCompletion(bool is_send, RdmaEndpoint *endpoint, uint64_t expected_wr_id, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret) {
-  (void)expected_wr_id; // Quiet the compiler
   bool got_start_time = false;
   double start_time = 0;
   struct ibv_wc wc;
@@ -1137,7 +1136,6 @@ static bool waitForCompletion(bool is_send, RdmaEndpoint *endpoint, uint64_t exp
     snprintf(error_message, max_error_message_chars, "ibv_poll_cq() has work complete error: '%s'", wcErrorToText(wc.status));
     return false;
   }
-#ifdef DEBUG_BUILD
   if (wc.wr_id != expected_wr_id) {
     if (is_send) {
       snprintf(error_message, max_error_message_chars, "Work completion does not match expected send_request. Was takyonIsSent() called in a different order from takyonSend()?");
@@ -1146,6 +1144,7 @@ static bool waitForCompletion(bool is_send, RdmaEndpoint *endpoint, uint64_t exp
     }
     return false;
   }
+#ifdef EXTRA_ERROR_CHECKING
   if (is_send) {
     if (wc.opcode != IBV_WC_SEND) {
       snprintf(error_message, max_error_message_chars, "Work completion was for '%s' but expected 'IBV_WC_SEND'", wcOpcodeToText(wc.opcode));
@@ -1183,11 +1182,11 @@ bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr
   send_wr.opcode = transfer_mode;
   if (transfer_mode == IBV_WR_SEND_WITH_IMM) {
     send_wr.imm_data = htonl(piggy_back_message);
-#ifdef DEBUG_BUILD
+#ifdef EXTRA_ERROR_CHECKING
     if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Posting send: IMM=%u, nSGEs=%d\n", piggy_back_message, send_wr.num_sge);
 #endif
   } else if (transfer_mode == IBV_WR_RDMA_WRITE || transfer_mode == IBV_WR_RDMA_READ) {
-#ifdef DEBUG_BUILD
+#ifdef EXTRA_ERROR_CHECKING
     if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Posting %s: nSGEs=%d\n", (transfer_mode == IBV_WR_RDMA_WRITE) ? "write" : "read", send_wr.num_sge);
 #endif
   }
@@ -1199,21 +1198,21 @@ bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr
     sge->addr = (uint64_t)buffer->addr + sub_buffer->offset;
     sge->length = sub_buffer->bytes;
     sge->lkey = rdma_buffer->mr->lkey;
-#ifdef DEBUG_BUILD
+#ifdef EXTRA_ERROR_CHECKING
     if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("    SGE[%d]: addr=0x%jx, bytes=%u, lkey=%u\n", j, (uint64_t)sge->addr, sge->length, sge->lkey);
 #endif
   }
 
   // Protocal specific stuff
   if (endpoint->protocol == RDMA_PROTOCOL_UD_MULTICAST) {
-#ifdef DEBUG_BUILD
+#ifdef EXTRA_ERROR_CHECKING
     if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Send to multicast addr: qpn=%u, qkey=%u\n", endpoint->multicast_qp_num, endpoint->multicast_qkey);
 #endif
     send_wr.wr.ud.ah = endpoint->multicast_ah;
     send_wr.wr.ud.remote_qpn = endpoint->multicast_qp_num;
     send_wr.wr.ud.remote_qkey = endpoint->multicast_qkey;
   } else if (endpoint->protocol == RDMA_PROTOCOL_UD_UNICAST) {
-#ifdef DEBUG_BUILD
+#ifdef EXTRA_ERROR_CHECKING
     if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Send to unicast addr: qpn=%u, qkey=%u\n", endpoint->unicast_remote_qp_num, endpoint->unicast_remote_qkey);
 #endif
     send_wr.wr.ud.ah = endpoint->unicast_sender_ah;
@@ -1227,7 +1226,7 @@ bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr
   // Signaling
   send_wr.send_flags = 0;
   if (use_is_sent_notification) {
-#ifdef DEBUG_BUILD
+#ifdef EXTRA_ERROR_CHECKING
     if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Send signaled\n");
 #endif
     send_wr.send_flags |= IBV_SEND_SIGNALED; // Can only do this for the QP's max number of pending send requests before a signal is needed to avoid overrunning the request buffer

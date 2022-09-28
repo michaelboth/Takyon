@@ -2,9 +2,15 @@ LIBRARY = takyon.lib
 
 # Check if release distribution is enabled
 !IF "$(DEBUG)" == "Yes"
-OPTIMIZATION_C_FLAGS  = -Zi -MDd -DDEBUG_BUILD    # Debug: -MTd or -MDd
+OPTIMIZATION_C_FLAGS = -Zi -MDd  # Debug: -MTd or -MDd
 !ELSE
-OPTIMIZATION_C_FLAGS  = -O2 -MD # Release: -MT means static linking, and -MD means dynamic linking.
+OPTIMIZATION_C_FLAGS = -O2 -MD  # Release: -MT means static linking, and -MD means dynamic linking.
+!ENDIF
+
+!IF "$(DisableExtraErrorChecking)" == "Yes"
+EXTRA_ERROR_C_FLAGS =
+!ELSE
+EXTRA_ERROR_C_FLAGS = -DEXTRA_ERROR_CHECKING
 !ENDIF
 
 NEED_utils_time = No
@@ -98,7 +104,7 @@ C_INCS  = -I../inc -I../src/utils -I../src/providers -I../src/core
 
 # -std:c11
 # -std:c17
-C_FLAGS = $(OPTIMIZATION_C_FLAGS) -nologo -WX -W3 -D_CRT_SECURE_NO_WARNINGS $(C_INCS) \
+C_FLAGS = $(OPTIMIZATION_C_FLAGS) $(EXTRA_ERROR_C_FLAGS) -nologo -WX -W3 -D_CRT_SECURE_NO_WARNINGS $(C_INCS) \
  $(CUDA_C_FLAGS) \
  $(InterThread_C_FLAGS) $(utils_thread_cond_timed_wait_C_FLAGS) \
  $(InterProcess_C_FLAGS) \

@@ -247,10 +247,12 @@ static bool postRecvRequest(TakyonPath *path, PrivateTakyonPath *private_path, T
   for (uint32_t j=0; j<request->sub_buffer_count; j++) {
     TakyonSubBuffer *sub_buffer = &request->sub_buffers[j];
     RecvRequestAndCompletion *local_sub_buffer = &private_path->local_recv_request_and_completions[private_path->curr_local_unused_recv_request_index + j];
+#ifdef EXTRA_ERROR_CHECKING
     if (sub_buffer->buffer_index >= path->attrs.buffer_count) {
       TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer->buffer_index == %d out of range\n", sub_buffer->buffer_index);
       return false;
     }
+#endif
     local_sub_buffer->buffer_index = sub_buffer->buffer_index;
     local_sub_buffer->bytes = sub_buffer->bytes;
     local_sub_buffer->offset = sub_buffer->offset;
@@ -702,17 +704,21 @@ bool interProcessOneSided(TakyonPath *path, TakyonOneSidedRequest *request, doub
     return false;
   }
 
+#ifdef EXTRA_ERROR_CHECKING
   // Make sure at least one buffer
   if (request->sub_buffer_count == 0) {
     TAKYON_RECORD_ERROR(path->error_message, "One sided requests must have at least one sub buffer\n");
     return false;
   }
+#endif
 
   // Get total bytes to transfer
   uint64_t total_local_bytes_to_transfer = 0;
   for (uint32_t i=0; i<request->sub_buffer_count; i++) {
     // Source info
     TakyonSubBuffer *sub_buffer = &request->sub_buffers[i];
+    uint64_t local_bytes = sub_buffer->bytes;
+#ifdef EXTRA_ERROR_CHECKING
     if (sub_buffer->buffer_index >= path->attrs.buffer_count) {
       TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer->buffer_index == %d out of range\n", sub_buffer->buffer_index);
       return false;
@@ -723,19 +729,21 @@ bool interProcessOneSided(TakyonPath *path, TakyonOneSidedRequest *request, doub
       TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer[%d].buffer_index is not from this Takyon path\n", i);
       return false;
     }
-    uint64_t local_bytes = sub_buffer->bytes;
     if (local_bytes > (local_buffer->bytes - sub_buffer->offset)) {
       TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju, offset = %ju exceeds local buffer (bytes = %ju)\n", local_bytes, sub_buffer->offset, local_buffer->bytes);
       return false;
     }
+#endif
     total_local_bytes_to_transfer += local_bytes;
   }
 
   // Remote info
+#ifdef EXTRA_ERROR_CHECKING
   if (request->remote_buffer_index >= private_path->remote_buffer_count) {
     TAKYON_RECORD_ERROR(path->error_message, "Remote buffer index = %d is out of range\n", request->remote_buffer_index);
     return false;
   }
+#endif
   RemoteTakyonBuffer *remote_buffer = &private_path->remote_buffers[request->remote_buffer_index];
   void *remote_addr = (void *)((uint64_t)remote_buffer->mmap_addr + request->remote_offset);
   uint64_t remote_max_bytes = remote_buffer->bytes - request->remote_offset;
@@ -783,8 +791,9 @@ bool interProcessSend(TakyonPath *path, TakyonSendRequest *request, uint32_t pig
   // Get total bytes to send
   uint64_t total_bytes_to_send = 0;
   for (uint32_t i=0; i<request->sub_buffer_count; i++) {
-    // Source info
     TakyonSubBuffer *sub_buffer = &request->sub_buffers[i];
+    uint64_t src_bytes = sub_buffer->bytes;
+#ifdef EXTRA_ERROR_CHECKING
     if (sub_buffer->buffer_index >= path->attrs.buffer_count) {
       TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer->buffer_index == %d out of range\n", sub_buffer->buffer_index);
       return false;
@@ -795,11 +804,11 @@ bool interProcessSend(TakyonPath *path, TakyonSendRequest *request, uint32_t pig
       TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer[%d].buffer_index is not from this Takyon path\n", i);
       return false;
     }
-    uint64_t src_bytes = sub_buffer->bytes;
     if (src_bytes > (src_buffer->bytes - sub_buffer->offset)) {
       TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju, offset = %ju exceeds src buffer (bytes = %ju)\n", src_bytes, sub_buffer->offset, src_buffer->bytes);
       return false;
     }
+#endif
     total_bytes_to_send += src_bytes;
   }
 
@@ -815,8 +824,8 @@ bool interProcessSend(TakyonPath *path, TakyonSendRequest *request, uint32_t pig
   uint64_t total_available_recv_bytes = 0;
   for (uint32_t i=0; i<remote_request->sub_buffer_count; i++) {
     RecvRequestAndCompletion *remote_sub_buffer = &private_path->remote_recv_request_and_completions[private_path->curr_remote_posted_recv_request_index + i];
-    RemoteTakyonBuffer *remote_buffer = &private_path->remote_buffers[remote_sub_buffer->buffer_index];
     uint64_t remote_max_bytes = remote_sub_buffer->bytes;
+    RemoteTakyonBuffer *remote_buffer = &private_path->remote_buffers[remote_sub_buffer->buffer_index];
     if (remote_max_bytes > (remote_buffer->bytes - remote_sub_buffer->offset)) {
       TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju, offset = %ju exceeds remote buffer (bytes = %ju)\n", remote_max_bytes, remote_sub_buffer->offset, remote_buffer->bytes);
       return false;
@@ -889,7 +898,7 @@ bool interProcessSend(TakyonPath *path, TakyonSendRequest *request, uint32_t pig
           TAKYON_RECORD_ERROR(path->error_message, "cudaEventNotify() failed: %s\n", error_message);
           return false;
         }
-        // Active the event
+        // Activate the event
         if (!cudaEventNotify(&remote_buffer->cuda_event[event_index], error_message, MAX_ERROR_MESSAGE_CHARS)) {
           TAKYON_RECORD_ERROR(path->error_message, "cudaEventNotify() failed: %s\n", error_message);
           return false;

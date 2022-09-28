@@ -287,6 +287,8 @@ bool tcpSocketSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_
   for (uint32_t i=0; i<request->sub_buffer_count; i++) {
     // Source info
     TakyonSubBuffer *sub_buffer = &request->sub_buffers[i];
+    uint64_t src_bytes = sub_buffer->bytes;
+#ifdef EXTRA_ERROR_CHECKING
     if (sub_buffer->buffer_index >= path->attrs.buffer_count) {
       TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer->buffer_index == %d out of range\n", sub_buffer->buffer_index);
       return false;
@@ -297,12 +299,12 @@ bool tcpSocketSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_
       TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer[%d] is not from this Takyon path\n", i);
       return false;
     }
-    uint64_t src_bytes = sub_buffer->bytes;
     if (src_bytes > (src_buffer->bytes - sub_buffer->offset)) {
       private_path->connection_failed = true;
       TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju, offset = %ju exceeds src buffer (bytes = %ju)\n", src_bytes, sub_buffer->offset, src_buffer->bytes);
       return false;
     }
+#endif
     total_bytes_to_send += src_bytes;
   }
 
@@ -396,6 +398,8 @@ bool tcpSocketIsRecved(TakyonPath *path, TakyonRecvRequest *request, double time
     uint64_t total_available_recv_bytes = 0;
     for (uint32_t i=0; i<request->sub_buffer_count; i++) {
       TakyonSubBuffer *sub_buffer = &request->sub_buffers[i];
+      uint64_t max_bytes = sub_buffer->bytes;
+#ifdef EXTRA_ERROR_CHECKING
       if (sub_buffer->buffer_index >= path->attrs.buffer_count) {
         TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer->buffer_index == %d out of range\n", sub_buffer->buffer_index);
         return false;
@@ -406,12 +410,12 @@ bool tcpSocketIsRecved(TakyonPath *path, TakyonRecvRequest *request, double time
         TAKYON_RECORD_ERROR(path->error_message, "'sub_buffers[%d] is not from the remote Takyon path\n", i);
         return false;
       }
-      uint64_t max_bytes = sub_buffer->bytes;
       if (max_bytes > (buffer->bytes - sub_buffer->offset)) {
         private_path->connection_failed = true;
         TAKYON_RECORD_ERROR(path->error_message, "Bytes = %ju, offset = %ju exceeds dest buffer (bytes = %ju)\n", max_bytes, sub_buffer->offset, buffer->bytes);
         return false;
       }
+#endif
       total_available_recv_bytes += max_bytes;
     }
 
