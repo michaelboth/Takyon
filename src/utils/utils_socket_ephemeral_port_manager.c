@@ -243,7 +243,8 @@ static void *ephemeralPortMonitoringThread(void *user_arg) {
     bool is_polling = false;
     uint64_t bytes_read;
     EphemeralPortMessage message;
-    if (!socketDatagramRecv(L_multicast_recv_socket, &message, sizeof(EphemeralPortMessage), &bytes_read, is_polling, timeout_ns, NULL, L_error_message, MAX_PRIVATE_ERROR_MESSAGE_CHARS)) {
+    bool timed_out = false;
+    if (!socketDatagramRecv(L_multicast_recv_socket, &message, sizeof(EphemeralPortMessage), &bytes_read, is_polling, timeout_ns, &timed_out, L_error_message, MAX_PRIVATE_ERROR_MESSAGE_CHARS)) {
       // Failed to read the message
       fprintf(stderr, "Ephemeral port manager thread: Failed to read pending datagram: %s\n", L_error_message);
       exit(EXIT_FAILURE);
@@ -521,6 +522,7 @@ void ephemeralPortManagerFinalize() {
 
 // NOTE: This is called by the endpoint that wants a port number
 uint16_t ephemeralPortManagerGet(const char *provider_name, uint32_t path_id, int64_t timeout_ns, bool *timed_out_ret, uint64_t verbosity, char *error_message, int max_error_message_chars) {
+  *timed_out_ret = false;
   if (verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) {
     printf("Ephemeral port manager: asking for port for (provider='%s', path_id=%u)\n", provider_name, path_id);
   }
@@ -539,7 +541,7 @@ uint16_t ephemeralPortManagerGet(const char *provider_name, uint32_t path_id, in
       if (ellapsed_time_ns >= timeout_ns) {
         // Timed out
         pthread_mutex_unlock(L_mutex);
-        if (timed_out_ret != NULL) *timed_out_ret = true;
+        *timed_out_ret = true;
         return 0;
       }
       int64_t remaining_timeout = timeout_ns - ellapsed_time_ns;
@@ -573,7 +575,7 @@ uint16_t ephemeralPortManagerGet(const char *provider_name, uint32_t path_id, in
     }
 
     // Sleep while waiting for data
-    bool timed_out;
+    bool timed_out = false;
     bool suceeded = threadCondWait(L_mutex, L_cond, cond_wait_timeout, &timed_out, error_message, max_error_message_chars);
     if (!suceeded) {
       pthread_mutex_unlock(L_mutex);

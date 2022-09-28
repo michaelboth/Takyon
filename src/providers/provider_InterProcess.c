@@ -144,8 +144,9 @@ static void *disconnectDetectionThread(void *user_data) {
   // Wait for either a socket disconnect, or for takyonDestroy() to get called
   uint32_t dummy;
   int64_t timeout_nano_seconds = -1; // Wait forever
+  bool timed_out = false;
   char error_message[MAX_ERROR_MESSAGE_CHARS];
-  if (!socketRecv(private_path->socket_fd, &dummy, sizeof(dummy), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+  if (!socketRecv(private_path->socket_fd, &dummy, sizeof(dummy), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
     private_path->connection_failed = true;
   }
   return NULL;
@@ -270,6 +271,7 @@ static bool postRecvRequest(TakyonPath *path, PrivateTakyonPath *private_path, T
 bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *recv_requests, double timeout_seconds) {
   TakyonComm *comm = (TakyonComm *)path->private;
   int64_t timeout_nano_seconds = (int64_t)(timeout_seconds * NANOSECONDS_PER_SECOND_DOUBLE);
+  bool timed_out = false;
   char error_message[MAX_ERROR_MESSAGE_CHARS];
 
   // -pathID=<non_negative_integer>
@@ -410,17 +412,17 @@ bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRe
   // Swap remote buffer info
   if (path->attrs.is_endpointA) {
     // Send buffer count
-    if (!socketSend(private_path->socket_fd, &path->attrs.buffer_count, sizeof(path->attrs.buffer_count), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    if (!socketSend(private_path->socket_fd, &path->attrs.buffer_count, sizeof(path->attrs.buffer_count), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to send local buffer count: %s\n", error_message);
       goto cleanup;
     }
     // Send buffer info
-    if (!socketSend(private_path->socket_fd, local_buffer_info_list, local_buffer_info_list_bytes, false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    if (!socketSend(private_path->socket_fd, local_buffer_info_list, local_buffer_info_list_bytes, false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to send local buffer info: %s\n", error_message);
       goto cleanup;
     }
     // Recv remote buffer count
-    if (!socketRecv(private_path->socket_fd, &private_path->remote_buffer_count, sizeof(private_path->remote_buffer_count), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    if (!socketRecv(private_path->socket_fd, &private_path->remote_buffer_count, sizeof(private_path->remote_buffer_count), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to recv remote buffer count: %s\n", error_message);
       goto cleanup;
     }
@@ -431,13 +433,13 @@ bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRe
       goto cleanup;
     }
     // Recv remote buffer info
-    if (!socketRecv(private_path->socket_fd, remote_buffer_info_list, remote_buffer_info_bytes, false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    if (!socketRecv(private_path->socket_fd, remote_buffer_info_list, remote_buffer_info_bytes, false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to recv remote buffer info: %s\n", error_message);
       goto cleanup;
     }
   } else {
     // Recv remote buffer count
-    if (!socketRecv(private_path->socket_fd, &private_path->remote_buffer_count, sizeof(private_path->remote_buffer_count), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    if (!socketRecv(private_path->socket_fd, &private_path->remote_buffer_count, sizeof(private_path->remote_buffer_count), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to recv remote buffer count: %s\n", error_message);
       goto cleanup;
     }
@@ -448,17 +450,17 @@ bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRe
       goto cleanup;
     }
     // Recv remote buffer info
-    if (!socketRecv(private_path->socket_fd, remote_buffer_info_list, remote_buffer_info_bytes, false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    if (!socketRecv(private_path->socket_fd, remote_buffer_info_list, remote_buffer_info_bytes, false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to recv remote buffer info: %s\n", error_message);
       goto cleanup;
     }
     // Send buffer count
-    if (!socketSend(private_path->socket_fd, &path->attrs.buffer_count, sizeof(path->attrs.buffer_count), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    if (!socketSend(private_path->socket_fd, &path->attrs.buffer_count, sizeof(path->attrs.buffer_count), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to send local buffer count: %s\n", error_message);
       goto cleanup;
     }
     // Send buffer info
-    if (!socketSend(private_path->socket_fd, local_buffer_info_list, local_buffer_info_list_bytes, false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    if (!socketSend(private_path->socket_fd, local_buffer_info_list, local_buffer_info_list_bytes, false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to send local buffer info: %s\n", error_message);
       goto cleanup;
     }
@@ -545,23 +547,23 @@ bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRe
   RemotePathInfo remote_path_info;
   if (path->attrs.is_endpointA) {
     // Send
-    if (!socketSend(private_path->socket_fd, &local_path_info, sizeof(RemotePathInfo), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    if (!socketSend(private_path->socket_fd, &local_path_info, sizeof(RemotePathInfo), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to send local path info: %s\n", error_message);
       goto cleanup;
     }
     // Recv
-    if (!socketRecv(private_path->socket_fd, &remote_path_info, sizeof(RemotePathInfo), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    if (!socketRecv(private_path->socket_fd, &remote_path_info, sizeof(RemotePathInfo), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to recv remote path info: %s\n", error_message);
       goto cleanup;
     }
   } else {
     // Recv
-    if (!socketRecv(private_path->socket_fd, &remote_path_info, sizeof(RemotePathInfo), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    if (!socketRecv(private_path->socket_fd, &remote_path_info, sizeof(RemotePathInfo), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to recv remote path info: %s\n", error_message);
       goto cleanup;
     }
     // Send
-    if (!socketSend(private_path->socket_fd, &local_path_info, sizeof(RemotePathInfo), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    if (!socketSend(private_path->socket_fd, &local_path_info, sizeof(RemotePathInfo), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to send local path info: %s\n", error_message);
       goto cleanup;
     }
@@ -605,6 +607,7 @@ bool interProcessDestroy(TakyonPath *path, double timeout_seconds) {
   TakyonComm *comm = (TakyonComm *)path->private;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   int64_t timeout_nano_seconds = (int64_t)(timeout_seconds * NANOSECONDS_PER_SECOND_DOUBLE);
+  bool timed_out = false;
   char error_message[MAX_ERROR_MESSAGE_CHARS];
 
   // Wake up thread
@@ -612,7 +615,7 @@ bool interProcessDestroy(TakyonPath *path, double timeout_seconds) {
     if (!private_path->connection_failed) {
       // Wake thread up so it will exit
       uint32_t dummy = 0;
-      if (!socketSend(private_path->socket_fd, &dummy, sizeof(dummy), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+      if (!socketSend(private_path->socket_fd, &dummy, sizeof(dummy), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
         TAKYON_RECORD_ERROR(path->error_message, "Failed to wake up disconnectDetectionThread(): %s\n", error_message);
         private_path->connection_failed = true;
       }
@@ -631,13 +634,13 @@ bool interProcessDestroy(TakyonPath *path, double timeout_seconds) {
     if (path->attrs.is_endpointA) {
       uint32_t x = 23;
       // Send
-      if (!socketSend(private_path->socket_fd, &x, sizeof(x), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+      if (!socketSend(private_path->socket_fd, &x, sizeof(x), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
         TAKYON_RECORD_ERROR(path->error_message, "Failed to send barriar value: %s\n", error_message);
         barrier_ok = false;
       }
       x = 33;
       // Recv
-      if (barrier_ok && !socketRecv(private_path->socket_fd, &x, sizeof(x), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+      if (barrier_ok && !socketRecv(private_path->socket_fd, &x, sizeof(x), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
         TAKYON_RECORD_ERROR(path->error_message, "Failed to recv barrier value: %s\n", error_message);
         barrier_ok = false;
       }
@@ -648,12 +651,12 @@ bool interProcessDestroy(TakyonPath *path, double timeout_seconds) {
     } else {
       uint32_t x = 33;
       // Recv
-      if (!socketRecv(private_path->socket_fd, &x, sizeof(x), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+      if (!socketRecv(private_path->socket_fd, &x, sizeof(x), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
         TAKYON_RECORD_ERROR(path->error_message, "Failed to recv barrier value: %s\n", error_message);
         barrier_ok = false;
       }
       // Send
-      if (barrier_ok && !socketSend(private_path->socket_fd, &x, sizeof(x), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+      if (barrier_ok && !socketSend(private_path->socket_fd, &x, sizeof(x), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
         TAKYON_RECORD_ERROR(path->error_message, "Failed to send barrier value: %s\n", error_message);
         barrier_ok = false;
       }
@@ -689,9 +692,9 @@ static bool transferData(void *dest_addr, void *src_addr, uint64_t bytes, char *
 
 bool interProcessOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double timeout_seconds, bool *timed_out_ret) {
   (void)timeout_seconds;
+  *timed_out_ret = false;
   TakyonComm *comm = (TakyonComm *)path->private;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
-  if (timed_out_ret != NULL) *timed_out_ret = false;
 
   // Verify connection is good
   if (private_path->connection_failed) {
@@ -767,9 +770,9 @@ bool interProcessOneSided(TakyonPath *path, TakyonOneSidedRequest *request, doub
 
 bool interProcessSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_back_message, double timeout_seconds, bool *timed_out_ret) {
   (void)timeout_seconds;
+  *timed_out_ret = false;
   TakyonComm *comm = (TakyonComm *)path->private;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
-  if (timed_out_ret != NULL) *timed_out_ret = false;
 
   // Verify connection is good
   if (private_path->connection_failed) {
@@ -950,11 +953,11 @@ bool interProcessPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvR
 }
 
 bool interProcessIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret) {
+  *timed_out_ret = false;
   TakyonComm *comm = (TakyonComm *)path->private;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   int64_t timeout_nano_seconds = (int64_t)(timeout_seconds * NANOSECONDS_PER_SECOND_DOUBLE);
   int64_t time1 = clockTimeNanoseconds();
-  if (timed_out_ret != NULL) *timed_out_ret = false;
 
   // Verify connection is good
   if (private_path->connection_failed) {
@@ -974,14 +977,14 @@ bool interProcessIsRecved(TakyonPath *path, TakyonRecvRequest *request, double t
     // Check timeout
     if (timeout_nano_seconds == 0) {
       // No timeout, so return now
-      if (timed_out_ret != NULL) *timed_out_ret = true;
+      *timed_out_ret = true;
       return true;
     } else if (timeout_nano_seconds >= 0) {
       // Hit the timeout without data, time to return
       int64_t time2 = clockTimeNanoseconds();
       int64_t diff = time2 - time1;
       if (diff > timeout_nano_seconds) {
-        if (timed_out_ret != NULL) *timed_out_ret = true;
+        *timed_out_ret = true;
         return true;
       }
     }

@@ -266,7 +266,7 @@ InterThreadManagerItem *interThreadManagerConnect(uint32_t provider_id, uint32_t
     pthread_cond_broadcast(L_master_cond);
     // Wait for endpoint B to connect
     while (!item->connected) {
-      bool timed_out;
+      bool timed_out = false;
       int64_t timeout_in_ns = (int64_t)(timeout_in_seconds * NANOSECONDS_PER_SECOND_DOUBLE);
       bool suceeded = threadCondWait(L_master_mutex, L_master_cond, timeout_in_ns, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS);
       if ((!suceeded) || timed_out) {
@@ -294,7 +294,7 @@ InterThreadManagerItem *interThreadManagerConnect(uint32_t provider_id, uint32_t
     item = getUnconnectedManagerItem(provider_id, path_id);
     while (item == NULL) {
       // Give some time for endpointA to connect
-      bool timed_out;
+      bool timed_out = false;
       int64_t timeout_in_ns = (int64_t)(timeout_in_seconds * NANOSECONDS_PER_SECOND_DOUBLE);
       bool suceeded = threadCondWait(L_master_mutex, L_master_cond, timeout_in_ns, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS);
       if ((!suceeded) || timed_out) {
@@ -345,7 +345,7 @@ bool interThreadManagerDisconnect(TakyonPath *path, InterThreadManagerItem *item
   } else if (item->usage_count > 0) {
     while ((!item->disconnected) && (item->usage_count > 0)) {
       // This path is in a good state (no errors on the path, so wait for the remote side to disconnect
-      bool timed_out;
+      bool timed_out = false;
       int64_t timeout_in_ns = (int64_t)(timeout_in_seconds * NANOSECONDS_PER_SECOND_DOUBLE);
       bool suceeded = threadCondWait(&item->mutex, &item->cond, timeout_in_ns, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS);
       if (!suceeded) {

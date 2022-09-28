@@ -278,10 +278,10 @@ bool udpSocketDestroy(TakyonPath *path, double timeout_seconds) {
 
 bool udpSocketSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_back_message, double timeout_seconds, bool *timed_out_ret) {
   (void)piggy_back_message;
+  *timed_out_ret = false;
   TakyonComm *comm = (TakyonComm *)path->private;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   int64_t timeout_nano_seconds = (int64_t)(timeout_seconds * NANOSECONDS_PER_SECOND_DOUBLE);
-  if (timed_out_ret != NULL) *timed_out_ret = false;
   char error_message[MAX_ERROR_MESSAGE_CHARS];
 
   // Verify connection is good
@@ -351,10 +351,10 @@ bool udpSocketSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_
 }
 
 bool udpSocketIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret) {
+  *timed_out_ret = false;
   TakyonComm *comm = (TakyonComm *)path->private;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   int64_t timeout_nano_seconds = (int64_t)(timeout_seconds * NANOSECONDS_PER_SECOND_DOUBLE);
-  if (timed_out_ret != NULL) *timed_out_ret = false;
   char error_message[MAX_ERROR_MESSAGE_CHARS];
 
   // Verify connection is good

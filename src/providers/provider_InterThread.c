@@ -382,10 +382,10 @@ static bool doOneSidedTransfer(TakyonPath *path, TakyonPath *remote_path, Takyon
 
 bool interThreadOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double timeout_seconds, bool *timed_out_ret) {
   (void)timeout_seconds;
+  *timed_out_ret = false;
   TakyonComm *comm = (TakyonComm *)path->private;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   InterThreadManagerItem *remote_thread_handle = private_path->remote_thread_handle;
-  if (timed_out_ret != NULL) *timed_out_ret = false;
 
   // Lock the mutex now since many of the variables come from the remote side
   pthread_mutex_lock(&remote_thread_handle->mutex); // IMPORTANT: this is held for a long time and will slow down takyonPostRecvs() takyonIsRecved()
@@ -413,10 +413,10 @@ bool interThreadOneSided(TakyonPath *path, TakyonOneSidedRequest *request, doubl
 
 bool interThreadSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_back_message, double timeout_seconds, bool *timed_out_ret) {
   (void)timeout_seconds;
+  *timed_out_ret = false;
   TakyonComm *comm = (TakyonComm *)path->private;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   InterThreadManagerItem *remote_thread_handle = private_path->remote_thread_handle;
-  if (timed_out_ret != NULL) *timed_out_ret = false;
 
   // Lock the mutex now since many of the variables come from the remote side
   pthread_mutex_lock(&remote_thread_handle->mutex); // IMPORTANT: this is held for a long time and will slow down takyonPostRecvs() takyonIsRecved()
@@ -482,12 +482,12 @@ bool interThreadPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvRe
 }
 
 bool interThreadIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret) {
+  *timed_out_ret = false;
   TakyonComm *comm = (TakyonComm *)path->private;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   InterThreadManagerItem *remote_thread_handle = private_path->remote_thread_handle;
   int64_t timeout_nano_seconds = (int64_t)(timeout_seconds * NANOSECONDS_PER_SECOND_DOUBLE);
   int64_t time1 = clockTimeNanoseconds();
-  if (timed_out_ret != NULL) *timed_out_ret = false;
   char error_message[MAX_ERROR_MESSAGE_CHARS];
 
   // Lock the mutex now since many of the variables come from the remote side
@@ -505,14 +505,14 @@ bool interThreadIsRecved(TakyonPath *path, TakyonRecvRequest *request, double ti
       // Check timeout
       if (timeout_nano_seconds == 0) {
         // No timeout, so return now
-        if (timed_out_ret != NULL) *timed_out_ret = true;
+        *timed_out_ret = true;
         return true;
       } else if (timeout_nano_seconds >= 0) {
         // Hit the timeout without data, time to return
         int64_t time2 = clockTimeNanoseconds();
         int64_t diff = time2 - time1;
         if (diff > timeout_nano_seconds) {
-          if (timed_out_ret != NULL) *timed_out_ret = true;
+          *timed_out_ret = true;
           return true;
         }
       }
@@ -520,7 +520,7 @@ bool interThreadIsRecved(TakyonPath *path, TakyonRecvRequest *request, double ti
       if (request->usec_sleep_between_poll_attempts > 0) clockSleepUsecs(request->usec_sleep_between_poll_attempts);
     } else {
       // Sleep while waiting for data
-      bool timed_out;
+      bool timed_out = false;
       bool suceeded = threadCondWait(&remote_thread_handle->mutex, &remote_thread_handle->cond, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS);
       if (!suceeded) {
         interThreadManagerMarkConnectionAsBad(remote_thread_handle);
@@ -530,7 +530,7 @@ bool interThreadIsRecved(TakyonPath *path, TakyonRecvRequest *request, double ti
       }
       if (timed_out) {
         pthread_mutex_unlock(&remote_thread_handle->mutex);
-        if (timed_out_ret != NULL) *timed_out_ret = true;
+        *timed_out_ret = true;
         return true;
       }
     }

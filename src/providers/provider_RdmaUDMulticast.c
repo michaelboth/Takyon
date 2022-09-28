@@ -227,10 +227,10 @@ bool rdmaUDMulticastDestroy(TakyonPath *path, double timeout_seconds) {
 
 bool rdmaUDMulticastSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_back_message, double timeout_seconds, bool *timed_out_ret) {
   (void)timeout_seconds; // Quiet compiler
+  *timed_out_ret = false;
   TakyonComm *comm = (TakyonComm *)path->private;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   RdmaEndpoint *endpoint = private_path->endpoint;
-  if (timed_out_ret != NULL) *timed_out_ret = false;
   char error_message[MAX_ERROR_MESSAGE_CHARS];
 
   // Make sure sending is allowed
@@ -282,10 +282,10 @@ bool rdmaUDMulticastSend(TakyonPath *path, TakyonSendRequest *request, uint32_t 
 }
 
 bool rdmaUDMulticastIsSent(TakyonPath *path, TakyonSendRequest *request, double timeout_seconds, bool *timed_out_ret) {
+  *timed_out_ret = false;
   TakyonComm *comm = (TakyonComm *)path->private;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   RdmaEndpoint *endpoint = private_path->endpoint;
-  if (timed_out_ret != NULL) *timed_out_ret = false;
   char error_message[MAX_ERROR_MESSAGE_CHARS];
 
   // Make sure sending is allowed
@@ -362,10 +362,10 @@ bool rdmaUDMulticastPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRe
 }
 
 bool rdmaUDMulticastIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret) {
+  *timed_out_ret = false;
   TakyonComm *comm = (TakyonComm *)path->private;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   RdmaEndpoint *endpoint = private_path->endpoint;
-  if (timed_out_ret != NULL) *timed_out_ret = false;
   char error_message[MAX_ERROR_MESSAGE_CHARS];
 
   // Make sure recving is allowed

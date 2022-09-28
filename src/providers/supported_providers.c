@@ -249,6 +249,7 @@ bool setProviderFunctionsAndCapabilities(const char *provider_name, TakyonComm *
       capabilities->IsSent_supported              = interface->isSent != NULL;
       capabilities->PostRecvs_supported           = interface->postRecvs != NULL;
       capabilities->IsRecved_supported            = interface->isRecved != NULL;
+      capabilities->is_unreliable                 = interface->is_unreliable;
       capabilities->piggy_back_messages_supported = interface->piggy_back_messages_supported;
       capabilities->multi_sub_buffers_supported   = interface->multi_sub_buffers_supported;
       capabilities->zero_byte_messages_supported  = interface->zero_byte_messages_supported;

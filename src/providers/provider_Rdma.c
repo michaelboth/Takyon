@@ -33,18 +33,19 @@
 //     - Messages can be dropped
 //     - Useful where all bytes may not arrive (unreliable): e.g. live stream video or music
 //   ---------------------------------------------------------------------------
-//     "RdmaRC -client -remoteIP=<ip_addr>|<hostname> -port=<port_number> -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number>"
-//     "RdmaRC -server -localIP=<ip_addr>|<hostname>|Any -port=<port_number> [-reuse] -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number>"
+//     "RdmaRC -client -remoteIP=<ip_addr>|<hostname> -port=<port_number> -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number> -gidIndex=<index_number>"
+//     "RdmaRC -server -localIP=<ip_addr>|<hostname>|Any -port=<port_number> [-reuse] -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number> -gidIndex=<index_number>"
 //
-//     "RdmaUC -client -remoteIP=<ip_addr>|<hostname> -port=<port_number> -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number>"
-//     "RdmaUC -server -localIP=<ip_addr>|<hostname>|Any -port=<port_number> [-reuse] -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number>"
+//     "RdmaUC -client -remoteIP=<ip_addr>|<hostname> -port=<port_number> -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number> -gidIndex=<index_number>"
+//     "RdmaUC -server -localIP=<ip_addr>|<hostname>|Any -port=<port_number> [-reuse] -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number> -gidIndex=<index_number>"
 //
-//     "RdmaUDUnicastSend -client -remoteIP=<ip_addr>|<hostname> -port=<port_number> -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number>"
-//     "RdmaUDUnicastRecv -server -localIP=<ip_addr>|<hostname>|Any -port=<port_number> [-reuse] -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number>"
+//     "RdmaUDUnicastSend -client -remoteIP=<ip_addr>|<hostname> -port=<port_number> -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number> -gidIndex=<index_number>"
+//     "RdmaUDUnicastRecv -server -localIP=<ip_addr>|<hostname>|Any -port=<port_number> [-reuse] -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number> -gidIndex=<index_number>"
 //
 //   Argument descriptions:
 //     -port=<port_number> = [1024 .. 65535]
 //     -rdmaPort=<local_rdma_port_number> = 1 .. max ports on local RDMA NIC
+//     -gidIndex=<index_number> = RDMA's global address index
 
 typedef struct {
   uint64_t bytes;
@@ -79,8 +80,9 @@ static void *disconnectDetectionThread(void *user_data) {
   // Wait for either a socket disconnect, or for takyonDestroy() to get called
   uint32_t dummy;
   int64_t timeout_nano_seconds = -1; // Wait forever
+  bool timed_out = false;
   char error_message[MAX_ERROR_MESSAGE_CHARS];
-  if (!socketRecv(private_path->socket_fd, &dummy, sizeof(dummy), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+  if (!socketRecv(private_path->socket_fd, &dummy, sizeof(dummy), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
     private_path->connection_failed = true;
   }
   return NULL;
@@ -90,14 +92,15 @@ static bool sendRdmaBufferInfo(TakyonPath *path, PrivateTakyonPath *private_path
   bool is_big_endian = endianIsBig();
   uint32_t buffer_count = path->attrs.buffer_count;
   char error_message[MAX_ERROR_MESSAGE_CHARS];
+  bool timed_out = false;
 
   // Send endian
-  if (!socketSend(private_path->socket_fd, &is_big_endian, sizeof(is_big_endian), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+  if (!socketSend(private_path->socket_fd, &is_big_endian, sizeof(is_big_endian), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to send is_big_endian: %s\n", error_message);
     return false;
   }
   // Send buffer count
-  if (!socketSend(private_path->socket_fd, &buffer_count, sizeof(buffer_count), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+  if (!socketSend(private_path->socket_fd, &buffer_count, sizeof(buffer_count), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to send buffer_count: %s\n", error_message);
     return false;
   }
@@ -110,17 +113,17 @@ static bool sendRdmaBufferInfo(TakyonPath *path, PrivateTakyonPath *private_path
     uint32_t remote_key = rdma_buffer->mr->rkey;
 
     // Send bytes
-    if (!socketSend(private_path->socket_fd, &bytes, sizeof(bytes), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    if (!socketSend(private_path->socket_fd, &bytes, sizeof(bytes), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to send bytes: %s\n", error_message);
       return false;
     }
     // Send remote_addr
-    if (!socketSend(private_path->socket_fd, &remote_addr, sizeof(remote_addr), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    if (!socketSend(private_path->socket_fd, &remote_addr, sizeof(remote_addr), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to send remote_addr: %s\n", error_message);
       return false;
     }
     // Send remote_key
-    if (!socketSend(private_path->socket_fd, &remote_key, sizeof(remote_key), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    if (!socketSend(private_path->socket_fd, &remote_key, sizeof(remote_key), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to send remote_key: %s\n", error_message);
       return false;
     }
@@ -132,16 +135,17 @@ static bool sendRdmaBufferInfo(TakyonPath *path, PrivateTakyonPath *private_path
 static bool recvRdmaBufferInfo(TakyonPath *path, PrivateTakyonPath *private_path, int64_t timeout_nano_seconds) {
   bool is_big_endian = endianIsBig();
   char error_message[MAX_ERROR_MESSAGE_CHARS];
+  bool timed_out = false;
 
   // Recv endian
   bool remote_is_big_endian;
-  if (!socketRecv(private_path->socket_fd, &remote_is_big_endian, sizeof(remote_is_big_endian), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+  if (!socketRecv(private_path->socket_fd, &remote_is_big_endian, sizeof(remote_is_big_endian), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to recv remote_is_big_endian: %s\n", error_message);
     return false;
   }
   // Recv buffer count
   uint32_t buffer_count;
-  if (!socketRecv(private_path->socket_fd, &buffer_count, sizeof(buffer_count), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+  if (!socketRecv(private_path->socket_fd, &buffer_count, sizeof(buffer_count), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to recv buffer_count: %s\n", error_message);
     return false;
   }
@@ -162,21 +166,21 @@ static bool recvRdmaBufferInfo(TakyonPath *path, PrivateTakyonPath *private_path
   for (uint32_t i=0; i<buffer_count; i++) {
     // Recv bytes
     uint64_t bytes;
-    if (!socketRecv(private_path->socket_fd, &bytes, sizeof(bytes), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    if (!socketRecv(private_path->socket_fd, &bytes, sizeof(bytes), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to recv bytes: %s\n", error_message);
       return false;
     }
     if (remote_is_big_endian != is_big_endian) endianSwap8Byte(&bytes, 1);
     // Recv remote_addr
     uint64_t remote_addr;
-    if (!socketRecv(private_path->socket_fd, &remote_addr, sizeof(remote_addr), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    if (!socketRecv(private_path->socket_fd, &remote_addr, sizeof(remote_addr), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to recv remote_addr: %s\n", error_message);
       return false;
     }
     if (remote_is_big_endian != is_big_endian) endianSwap8Byte(&remote_addr, 1);
     // Recv remote_key
     uint32_t remote_key;
-    if (!socketRecv(private_path->socket_fd, &remote_key, sizeof(remote_key), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    if (!socketRecv(private_path->socket_fd, &remote_key, sizeof(remote_key), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to recv remote_key: %s\n", error_message);
       return false;
     }
@@ -274,6 +278,18 @@ bool rdmaCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *r
       TAKYON_RECORD_ERROR(path->error_message, "RDMA port needs to be greater than 0\n");
       return false;
     }
+  }
+  // -gidIndex=<index_number>
+  uint32_t gid_index = 0;
+  bool gid_index_found = false;
+  ok = argGetUInt(path->attrs.provider, "-gidIndex=", &gid_index, &gid_index_found, error_message, MAX_ERROR_MESSAGE_CHARS);
+  if (!ok) {
+    TAKYON_RECORD_ERROR(path->error_message, "provider spec -gidIndex=<index_number> is invalid: %s\n", error_message);
+    return false;
+  }
+  if (!gid_index_found) {
+    TAKYON_RECORD_ERROR(path->error_message, "Rdma needs the argument: -gidIndex=<index_number>\n");
+    return false;
   }
 
   // Validate arguments
@@ -392,7 +408,7 @@ bool rdmaCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *r
 
   // Create the RDMA endpoint
   enum ibv_qp_type qp_type = (is_RC) ? IBV_QPT_RC : (is_UC) ? IBV_QPT_UC : IBV_QPT_UD;
-  private_path->endpoint = rdmaCreateEndpoint(path, path->attrs.is_endpointA, private_path->socket_fd, qp_type, is_UD_sender, rdma_device_name, rdma_port_number,
+  private_path->endpoint = rdmaCreateEndpoint(path, path->attrs.is_endpointA, private_path->socket_fd, qp_type, is_UD_sender, rdma_device_name, rdma_port_number, gid_index,
 					      path->attrs.max_pending_send_and_one_sided_requests, path->attrs.max_pending_recv_requests,
 					      path->attrs.max_sub_buffers_per_send_request, path->attrs.max_sub_buffers_per_recv_request,
 					      post_recv_count, recv_requests, timeout_seconds, error_message, MAX_ERROR_MESSAGE_CHARS);
@@ -440,13 +456,14 @@ bool rdmaDestroy(TakyonPath *path, double timeout_seconds) {
   RdmaEndpoint *endpoint = private_path->endpoint;
   int64_t timeout_nano_seconds = (int64_t)(timeout_seconds * NANOSECONDS_PER_SECOND_DOUBLE);
   char error_message[MAX_ERROR_MESSAGE_CHARS];
+  bool timed_out = false;
 
   // Wake up thread
   if (private_path->thread_started) {
     if (!private_path->connection_failed) {
       // Wake thread up so it will exit
       uint32_t dummy = 0;
-      if (!socketSend(private_path->socket_fd, &dummy, sizeof(dummy), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+      if (!socketSend(private_path->socket_fd, &dummy, sizeof(dummy), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
         TAKYON_RECORD_ERROR(path->error_message, "Failed to wake up disconnectDetectionThread(): %s\n", error_message);
         private_path->connection_failed = true;
       }
@@ -465,13 +482,13 @@ bool rdmaDestroy(TakyonPath *path, double timeout_seconds) {
     if (path->attrs.is_endpointA) {
       uint32_t x = 23;
       // Send
-      if (!socketSend(private_path->socket_fd, &x, sizeof(x), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+      if (!socketSend(private_path->socket_fd, &x, sizeof(x), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
         TAKYON_RECORD_ERROR(path->error_message, "Failed to send barriar value: %s\n", error_message);
         barrier_ok = false;
       }
       x = 33;
       // Recv
-      if (barrier_ok && !socketRecv(private_path->socket_fd, &x, sizeof(x), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+      if (barrier_ok && !socketRecv(private_path->socket_fd, &x, sizeof(x), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
         TAKYON_RECORD_ERROR(path->error_message, "Failed to recv barrier value: %s\n", error_message);
         barrier_ok = false;
       }
@@ -482,12 +499,12 @@ bool rdmaDestroy(TakyonPath *path, double timeout_seconds) {
     } else {
       uint32_t x = 33;
       // Recv
-      if (!socketRecv(private_path->socket_fd, &x, sizeof(x), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+      if (!socketRecv(private_path->socket_fd, &x, sizeof(x), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
         TAKYON_RECORD_ERROR(path->error_message, "Failed to recv barrier value: %s\n", error_message);
         barrier_ok = false;
       }
       // Send
-      if (barrier_ok && !socketSend(private_path->socket_fd, &x, sizeof(x), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+      if (barrier_ok && !socketSend(private_path->socket_fd, &x, sizeof(x), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
         TAKYON_RECORD_ERROR(path->error_message, "Failed to send barrier value: %s\n", error_message);
         barrier_ok = false;
       }
@@ -514,10 +531,10 @@ bool rdmaDestroy(TakyonPath *path, double timeout_seconds) {
 
 bool rdmaOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double timeout_seconds, bool *timed_out_ret) {
   (void)timeout_seconds; // Quiet compiler
+  *timed_out_ret = false;
   TakyonComm *comm = (TakyonComm *)path->private;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   RdmaEndpoint *endpoint = private_path->endpoint;
-  if (timed_out_ret != NULL) *timed_out_ret = false;
   char error_message[MAX_ERROR_MESSAGE_CHARS];
 
   // Verify connection is good
@@ -597,10 +614,10 @@ bool rdmaOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double timeo
 }
 
 bool rdmaIsOneSidedDone(TakyonPath *path, TakyonOneSidedRequest *request, double timeout_seconds, bool *timed_out_ret) {
+  *timed_out_ret = false;
   TakyonComm *comm = (TakyonComm *)path->private;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   RdmaEndpoint *endpoint = private_path->endpoint;
-  if (timed_out_ret != NULL) *timed_out_ret = false;
   char error_message[MAX_ERROR_MESSAGE_CHARS];
 
   // Verify connection is good
@@ -621,10 +638,10 @@ bool rdmaIsOneSidedDone(TakyonPath *path, TakyonOneSidedRequest *request, double
 
 bool rdmaSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_back_message, double timeout_seconds, bool *timed_out_ret) {
   (void)timeout_seconds; // Quiet compiler
+  *timed_out_ret = false;
   TakyonComm *comm = (TakyonComm *)path->private;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   RdmaEndpoint *endpoint = private_path->endpoint;
-  if (timed_out_ret != NULL) *timed_out_ret = false;
   char error_message[MAX_ERROR_MESSAGE_CHARS];
 
   // Verify connection is good
@@ -674,10 +691,10 @@ bool rdmaSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_back_
 }
 
 bool rdmaIsSent(TakyonPath *path, TakyonSendRequest *request, double timeout_seconds, bool *timed_out_ret) {
+  *timed_out_ret = false;
   TakyonComm *comm = (TakyonComm *)path->private;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   RdmaEndpoint *endpoint = private_path->endpoint;
-  if (timed_out_ret != NULL) *timed_out_ret = false;
   char error_message[MAX_ERROR_MESSAGE_CHARS];
 
   // Verify connection is good
@@ -750,10 +767,10 @@ bool rdmaPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvRequest *
 }
 
 bool rdmaIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret) {
+  *timed_out_ret = false;
   TakyonComm *comm = (TakyonComm *)path->private;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   RdmaEndpoint *endpoint = private_path->endpoint;
-  if (timed_out_ret != NULL) *timed_out_ret = false;
   char error_message[MAX_ERROR_MESSAGE_CHARS];
 
   // Verify connection is good

@@ -69,9 +69,8 @@ static struct timespec getCurrentAbsoluteTime(int64_t timeout_ns) {
 }
 
 bool threadCondWait(pthread_mutex_t *mutex, pthread_cond_t *cond_var, int64_t timeout_ns, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
+  *timed_out_ret = false;
   int rc;
-
-  if (timed_out_ret != NULL) *timed_out_ret = false;
 
   if (timeout_ns < 0) {
 #ifdef __APPLE__
@@ -103,7 +102,7 @@ bool threadCondWait(pthread_mutex_t *mutex, pthread_cond_t *cond_var, int64_t ti
       // Returned succesfully
       return true;
     } else if (rc == ETIMEDOUT) {
-      if (timed_out_ret != NULL) *timed_out_ret = true;
+      *timed_out_ret = true;
       return true;
     } else {
       snprintf(error_message, max_error_message_chars, "Failed to call pthread_cond_timedwait()");

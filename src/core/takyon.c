@@ -277,14 +277,16 @@ bool takyonOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double tim
   }
 
   // Initiate the send
-  bool ok = comm->oneSided(path, request, timeout_seconds, timed_out_ret);
+  bool timed_out = false;
+  bool ok = comm->oneSided(path, request, timeout_seconds, &timed_out);
   if (!ok) {
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
+  if (timed_out_ret != NULL) *timed_out_ret = timed_out;
 
   // Verbosity
-  if (comm->isOneSidedDone == NULL && timed_out_ret != NULL && !(*timed_out_ret) && path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS) {
+  if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS && comm->isOneSidedDone == NULL && !timed_out) {
     printf("%-15s (%s:%s) Message transferred\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider);
   }
 
@@ -319,14 +321,16 @@ bool takyonIsOneSidedDone(TakyonPath *path, TakyonOneSidedRequest *request, doub
   }
 
   // Initiate the send
-  bool ok = comm->isOneSidedDone(path, request, timeout_seconds, timed_out_ret);
+  bool timed_out = false;
+  bool ok = comm->isOneSidedDone(path, request, timeout_seconds, &timed_out);
   if (!ok) {
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
+  if (timed_out_ret != NULL) *timed_out_ret = timed_out;
 
   // Verbosity
-  if (timed_out_ret != NULL && !(*timed_out_ret) && path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS) {
+  if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS && !timed_out) {
     printf("%-15s (%s:%s) Message transferred\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider);
   }
 
@@ -376,15 +380,16 @@ bool takyonSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_bac
   }
 
   // Initiate the send
-  /*+ bool timed_out; */
-  bool ok = comm->send(path, request, piggy_back_message, timeout_seconds, timed_out_ret);
+  bool timed_out = false;
+  bool ok = comm->send(path, request, piggy_back_message, timeout_seconds, &timed_out);
   if (!ok) {
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
+  if (timed_out_ret != NULL) *timed_out_ret = timed_out;
 
   // Verbosity
-  if (comm->isSent == NULL && timed_out_ret != NULL && !(*timed_out_ret) && path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS) {
+  if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS && comm->isSent == NULL && !timed_out) {
     printf("%-15s (%s:%s) Message sent\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider);
   }
 
@@ -419,14 +424,16 @@ bool takyonIsSent(TakyonPath *path, TakyonSendRequest *request, double timeout_s
   }
 
   // Check for send completion
-  bool ok = comm->isSent(path, request, timeout_seconds, timed_out_ret);
+  bool timed_out = false;
+  bool ok = comm->isSent(path, request, timeout_seconds, &timed_out);
   if (!ok) {
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
+  if (timed_out_ret != NULL) *timed_out_ret = timed_out;
 
   // Verbosity
-  if (timed_out_ret != NULL && !(*timed_out_ret) && path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS) {
+  if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS && !timed_out) {
     printf("%-15s (%s:%s) Message sent\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider);
   }
 
@@ -530,16 +537,18 @@ bool takyonIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout
   }
 
   // Wait for the message to arrive
-  uint64_t bytes_received;
-  uint32_t piggy_back_message;
-  bool ok = comm->isRecved(path, request, timeout_seconds, timed_out_ret, &bytes_received, &piggy_back_message);
+  uint64_t bytes_received = 0;
+  uint32_t piggy_back_message = 0;
+  bool timed_out = false;
+  bool ok = comm->isRecved(path, request, timeout_seconds, &timed_out, &bytes_received, &piggy_back_message);
   if (!ok) {
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
+  if (timed_out_ret != NULL) *timed_out_ret = timed_out;
 
   // Verbosity
-  if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS) {
+  if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS && !timed_out) {
     if (path->capabilities.piggy_back_messages_supported) {
       printf("%-15s (%s:%s) Got message: " UINT64_FORMAT " bytes, piggy_back_message=0x%x\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider, bytes_received, piggy_back_message);
     } else {
@@ -547,7 +556,7 @@ bool takyonIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout
     }
   }
 
-  // Return info
+  // Return info: will only be valid if not timed out
   if (bytes_received_ret != NULL) *bytes_received_ret = bytes_received;
   if (piggy_back_message_ret != NULL) *piggy_back_message_ret = piggy_back_message;
 

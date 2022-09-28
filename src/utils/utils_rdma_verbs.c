@@ -30,10 +30,12 @@
 */
 
 /*+
-  When testing two processes on a single node:
-    - UD multicast can send up to 10,000 bytes message without getting IBV_WC_LOC_LEN_ERR.
-    - Recv can get 8960 bytes.
-  How is this posible?
+  MELLANOX:
+    - Is MLNX OFED Verbs also ported to Windows or still need to use Network Direct?
+    - When testing two processes on a single node: UD multicast can send up to 10,000 bytes message without getting IBV_WC_LOC_LEN_ERR. Recv can get 8960 bytes. How is this posible.
+    - Can't register CUDA memory is access is
+    - Current the smaller of the max MTU from both endpoints is automatically used. Should the user set it in the provider spec instead?
+    - Which QP options should be set in provider spec? see moveQpStateToRTS()
 */
 
 #define PORT_INFO_TEXT_BYTES 100
@@ -44,6 +46,8 @@ typedef struct  {
   int psn;
   union ibv_gid gid; // For RoCE
   char gid_text[33]; // For RoCE
+  enum ibv_mtu max_mtu_mode;
+  uint32_t unicast_qkey;
   char socket_data[PORT_INFO_TEXT_BYTES]; // Use for transferring to remote side regardless of endian
 } PortInfo;
 
@@ -140,12 +144,13 @@ static bool getLocalPortInfo(TakyonPath *path, struct ibv_context *context, stru
   if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) {
     printf("  RDMA Port %u Info:\n", rdma_port_id);
     printf("    State:            %s\n", portStateToText(port_attrs.state));
-    printf("    Max MTU:          %s\n", mtuModeToText(port_attrs.max_mtu)); /*+ use this to auto set max MTU? Put in remote info and get max? */
+    printf("    Max MTU:          %s\n", mtuModeToText(port_attrs.max_mtu));
     printf("    Active MTU:       %s\n", mtuModeToText(port_attrs.active_mtu));
     printf("    Max message size: %u\n", port_attrs.max_msg_sz);
     printf("    Link Layer:       %s\n", linkLayerToText(port_attrs.link_layer));
   }
 
+  port_info.max_mtu_mode = port_attrs.max_mtu;
   port_info.qpn = qp->qp_num;
   srand48((long int)clockTimeNanoseconds());
   port_info.psn = lrand48() & 0xffffff;
@@ -172,7 +177,7 @@ static bool getLocalPortInfo(TakyonPath *path, struct ibv_context *context, stru
   }
 
   gidToText(&port_info.gid, port_info.gid_text);
-  sprintf(port_info.socket_data, "%04x:%06x:%06x:%s", port_info.lid, port_info.qpn, port_info.psn, port_info.gid_text);
+  sprintf(port_info.socket_data, "%04x:%06x:%06x:%04x:%06x:%s", port_info.lid, port_info.qpn, port_info.psn, port_info.max_mtu_mode, port_info.unicast_qkey, port_info.gid_text);
 
   *port_info_ret = port_info;
 
@@ -243,7 +248,7 @@ static bool armCompletionQueue(struct ibv_cq *cq, char *error_message, int max_e
   return true;
 }
 
-static struct ibv_qp *createQueuePair(TakyonPath *path, struct ibv_pd *pd, struct ibv_cq *send_cq, struct ibv_cq *recv_cq, enum ibv_qp_type qp_type, uint32_t rdma_port_id,
+static struct ibv_qp *createQueuePair(TakyonPath *path, struct ibv_pd *pd, struct ibv_cq *send_cq, struct ibv_cq *recv_cq, enum ibv_qp_type qp_type, uint32_t rdma_port_id, uint32_t unicast_local_qkey,
                                       uint32_t max_send_wr, uint32_t max_recv_wr, uint32_t max_send_sge, uint32_t max_recv_sge, char *error_message, int max_error_message_chars) {
   struct ibv_qp_init_attr init_attrs = {}; // Zero structure
   init_attrs.qp_context = NULL; // app_data
@@ -281,7 +286,7 @@ static struct ibv_qp *createQueuePair(TakyonPath *path, struct ibv_pd *pd, struc
                                .port_num        = rdma_port_id,
                                .qp_access_flags = 0 };
   if (qp_type == IBV_QPT_UD) {
-    attrs.qkey = /*++ random? */0x12341234;
+    attrs.qkey = unicast_local_qkey;
   }
 
   enum ibv_qp_attr_mask attr_mask = 0;
@@ -300,23 +305,24 @@ static struct ibv_qp *createQueuePair(TakyonPath *path, struct ibv_pd *pd, struc
   return qp;
 }
 
-static bool moveQpStateToRTS(struct ibv_qp *qp, struct ibv_pd *pd, enum ibv_qp_type qp_type, bool is_UD_sender, uint32_t rdma_port_id, PortInfo *local_port_info, PortInfo *remote_port_info, enum ibv_mtu mtu_mode, int service_level, int gid_index, char *error_message, int max_error_message_chars, struct ibv_ah **unicast_sender_ah_ret) {
+static bool moveQpStateToRTS(struct ibv_qp *qp, struct ibv_pd *pd, enum ibv_qp_type qp_type, bool is_UD_sender, uint32_t rdma_port_id, PortInfo *local_port_info, PortInfo *remote_port_info, enum ibv_mtu mtu_mode, int gid_index, char *error_message, int max_error_message_chars, struct ibv_ah **unicast_sender_ah_ret) {
+  int service_level = 0; /*+ get from app? What is this for? Ask mellanox. Does this need to be the same on both sides? Is this only for Infiniband? */
   struct ibv_qp_attr attrs = { .qp_state    = IBV_QPS_RTR,
                                .path_mtu    = mtu_mode,
                                .dest_qp_num = remote_port_info->qpn,
                                .rq_psn      = remote_port_info->psn,
 			       .max_dest_rd_atomic = 1,   //*+ RC: Number of pending RDMA reads and atomic operations with this endpoint as the destination
-			       .min_rnr_timer      = 12,  // RC: Defines index into timeout table. Index is 0 .. 31, 0 = 665 msecs, 1 = 0.01 msecs, 31 = 491 msecs
+			       .min_rnr_timer      = 12,  //*+ RC: Defines index into timeout table. Index is 0 .. 31, 0 = 665 msecs, 1 = 0.01 msecs, 31 = 491 msecs
                                .ah_attr     = { .is_global     = 0,
                                                 .dlid          = remote_port_info->lid,
                                                 .sl            = service_level,
                                                 .src_path_bits = 0,
                                                 .port_num      = rdma_port_id
                                                }};
-  if (remote_port_info->gid.global.interface_id) { // For RoCE
-    /*+ also for infiniband? */
+  if (remote_port_info->gid.global.interface_id) { // For RoCE v2
+    /*+ also for infiniband and iWarp? */
     attrs.ah_attr.is_global      = 1;
-    attrs.ah_attr.grh.hop_limit  = 1;
+    attrs.ah_attr.grh.hop_limit  = 1; // Max routers to travel through before being dropped
     attrs.ah_attr.grh.dgid       = remote_port_info->gid;
     attrs.ah_attr.grh.sgid_index = gid_index;
   }
@@ -342,10 +348,10 @@ static bool moveQpStateToRTS(struct ibv_qp *qp, struct ibv_pd *pd, enum ibv_qp_t
     attrs.sq_psn   = local_port_info->psn;
     if (qp_type == IBV_QPT_RC) {
       // Set additional attrs for RC (reliable connection)
-      attrs.timeout = 14;      // Retransmit timeout. Defines index into timeout table. Index is 0 .. 31, 0 = infinite, 1 = 8.192 usecs, 14 = .0671 secs, 31 = 8800 secs
-      attrs.retry_cnt = 7;     // Max re-transmits before erroring (without remote NACK). Max is 7
-      attrs.rnr_retry = 7;     // Max re-transmit before erroring (with remote NACK). Max is 6, but 7 is infinit
-      attrs.max_rd_atomic = 1; /*+ Number of pending RDMA reads and atomic operations initiated by this endpoint */
+      attrs.timeout       = 14; //*+ Retransmit timeout. Defines index into timeout table. Index is 0 .. 31, 0 = infinite, 1 = 8.192 usecs, 14 = .0671 secs, 31 = 8800 secs
+      attrs.retry_cnt     = 7;  //*+ Max re-transmits before erroring (without remote NACK). Max is 7
+      attrs.rnr_retry     = 7;  //*+ Max re-transmit before erroring (with remote NACK). Max is 6, but 7 is infinit
+      attrs.max_rd_atomic = 1;  //*+ Number of pending RDMA reads and atomic operations initiated by this endpoint
     }
     attr_mask = IBV_QP_STATE | IBV_QP_SQ_PSN;
     if (qp_type == IBV_QPT_RC) {
@@ -714,7 +720,7 @@ RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *local_NI
   return NULL;
 }
 
-RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int socket_fd, enum ibv_qp_type qp_type, bool is_UD_sender, const char *rdma_device_name, uint32_t rdma_port_id,
+RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int socket_fd, enum ibv_qp_type qp_type, bool is_UD_sender, const char *rdma_device_name, uint32_t rdma_port_id, uint32_t gid_index,
 				 uint32_t max_send_wr, uint32_t max_recv_wr, uint32_t max_send_sges, uint32_t max_recv_sges,
 				 uint32_t recv_request_count, TakyonRecvRequest *recv_requests,
 				 double timeout_seconds, char *error_message, int max_error_message_chars) {
@@ -755,7 +761,9 @@ RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int socket
   if (pd == NULL) goto failed;
 
   // Queue pair
-  qp = createQueuePair(path, pd, send_cq, recv_cq, qp_type, rdma_port_id, max_send_wr, max_recv_wr, max_send_sges, max_recv_sges, error_message, max_error_message_chars);
+  srand48((long int)clockTimeNanoseconds());
+  uint32_t unicast_local_qkey = lrand48() & 0xffffff;
+  qp = createQueuePair(path, pd, send_cq, recv_cq, qp_type, rdma_port_id, unicast_local_qkey, max_send_wr, max_recv_wr, max_send_sges, max_recv_sges, error_message, max_error_message_chars);
   if (pd == NULL) goto failed;
 
   // Register buffers
@@ -786,11 +794,13 @@ RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int socket
     if (!rdmaEndpointPostRecvs(path, endpoint, recv_request_count, recv_requests, error_message, max_error_message_chars)) goto failed;
   }
 
-  // Exchange QP and port info
-  int gid_index = 0; /*+ get from application: for RoCE */
+  // Get the local endpoint info that will be sent to the remote endpoint
   PortInfo local_port_info;
-  PortInfo remote_port_info;
+  local_port_info.unicast_qkey = unicast_local_qkey;
   if (!getLocalPortInfo(path, context, qp, rdma_port_id, gid_index, &local_port_info, error_message, max_error_message_chars)) goto failed;
+
+  // Exchange QP and port info with the remote endpoint
+  PortInfo remote_port_info;
   if (is_endpointA) {
     if (!socketSend(socket_fd, local_port_info.socket_data, sizeof(local_port_info.socket_data), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to send RDMA port info text: %s\n", error_message);
@@ -812,24 +822,25 @@ RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int socket
   }
 
   // Parse the remote port info
-  int tokens = sscanf(remote_port_info.socket_data, "%x:%x:%x:%s", &remote_port_info.lid, &remote_port_info.qpn, &remote_port_info.psn, remote_port_info.gid_text);
-  if (tokens != 4) {
+  int tokens = sscanf(remote_port_info.socket_data, "%x:%x:%x:%x:%x:%s", &remote_port_info.lid, &remote_port_info.qpn, &remote_port_info.psn, &remote_port_info.max_mtu_mode, &remote_port_info.unicast_qkey, remote_port_info.gid_text);
+  if (tokens != 6) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to parse the remote RDMA port info text\n");
     goto failed;
   }
   textToGid(remote_port_info.gid_text, &remote_port_info.gid);
   if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) {
-    printf("  Remote connection info: LID 0x%04x, QPN 0x%06x, PSN 0x%06x, GID '%s'\n", remote_port_info.lid, remote_port_info.qpn, remote_port_info.psn, remote_port_info.gid_text);
+    printf("  Remote connection info: LID 0x%04x, QPN 0x%06x, PSN 0x%06x, MaxMTU %s, UnicastQKEY 0x%06x, GID '%s'\n",
+           remote_port_info.lid, remote_port_info.qpn, remote_port_info.psn, mtuModeToText(remote_port_info.max_mtu_mode), remote_port_info.unicast_qkey, remote_port_info.gid_text);
   }
 
   // Move the QP state to RTS (ready to send)
-  enum ibv_mtu mtu_mode = IBV_MTU_4096; /*+ get from application, or auto detect? */
-  int service_level = 0; /*+ get from app? What is this for? Ask mellanox */
-  if (!moveQpStateToRTS(qp, pd, qp_type, is_UD_sender, rdma_port_id, &local_port_info, &remote_port_info, mtu_mode, service_level, gid_index, error_message, MAX_ERROR_MESSAGE_CHARS, &unicast_sender_ah)) goto failed;
+  enum ibv_mtu mtu_mode = (remote_port_info.max_mtu_mode < local_port_info.max_mtu_mode) ? remote_port_info.max_mtu_mode : local_port_info.max_mtu_mode; // Use the minimum
+  if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) printf("  Will use %s between endpoints\n", mtuModeToText(remote_port_info.max_mtu_mode));
+  if (!moveQpStateToRTS(qp, pd, qp_type, is_UD_sender, rdma_port_id, &local_port_info, &remote_port_info, mtu_mode, gid_index, error_message, MAX_ERROR_MESSAGE_CHARS, &unicast_sender_ah)) goto failed;
   if (qp_type == IBV_QPT_UD) {
     endpoint->unicast_sender_ah = unicast_sender_ah;
     endpoint->unicast_remote_qp_num = remote_port_info.qpn;
-    endpoint->unicast_remote_qkey = /*++*/0x12341234;
+    endpoint->unicast_remote_qkey = remote_port_info.unicast_qkey;
   }
 
   // Ready to start transfering
@@ -963,8 +974,6 @@ bool rdmaDestroyEndpoint(TakyonPath *path, RdmaEndpoint *endpoint, char *error_m
 }
 
 static bool eventDrivenCompletionWait(struct ibv_comp_channel *comp_ch, unsigned int *num_events_to_ack_inout, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
-  *timed_out_ret = false;
-
   if (timeout_seconds >= 0) {
     // Verbs does not have an API to do a timed wait, so need to use an underlying socket in the completion channel to do it
     struct pollfd poll_fd;
@@ -977,7 +986,7 @@ static bool eventDrivenCompletionWait(struct ibv_comp_channel *comp_ch, unsigned
     int count = poll(&poll_fd, fd_count, timeout_ms);
     if (count == 0) {
       // Timed out
-      if (timed_out_ret != NULL) *timed_out_ret = true;
+      *timed_out_ret = true;
       return true;
     }
     if (count < 0) {
@@ -1088,7 +1097,7 @@ static bool waitForCompletion(bool is_send, RdmaEndpoint *endpoint, uint64_t exp
   if (completion_count == 0) {
     if (timeout_seconds == 0) {
       // Don't wait just return
-      if (timed_out_ret != NULL) *timed_out_ret = true;
+      *timed_out_ret = true;
       return true;
     }
     // Need to wait
@@ -1102,7 +1111,7 @@ static bool waitForCompletion(bool is_send, RdmaEndpoint *endpoint, uint64_t exp
         double elapsed_seconds = clockTimeSeconds() - start_time;
         if (elapsed_seconds >= timeout_seconds) {
           // Timed out
-          if (timed_out_ret != NULL) *timed_out_ret = true;
+          *timed_out_ret = true;
           return true;
         }
       }
@@ -1110,13 +1119,13 @@ static bool waitForCompletion(bool is_send, RdmaEndpoint *endpoint, uint64_t exp
       if (usec_sleep_between_poll_attempts > 0) clockSleepUsecs(usec_sleep_between_poll_attempts);
     } else {
       // Use completion channel to sleep
-      bool timed_out;
+      bool timed_out = false;
       struct ibv_comp_channel *comp_ch = is_send ? endpoint->send_comp_ch : endpoint->recv_comp_ch;
       unsigned int *num_events_to_ack_inout = is_send ? &endpoint->num_send_events_to_ack : &endpoint->num_recv_events_to_ack;
       if (!eventDrivenCompletionWait(comp_ch, num_events_to_ack_inout, timeout_seconds, &timed_out, error_message, max_error_message_chars)) return false;
       if (timed_out) {
 	// Timed out
-	if (timed_out_ret != NULL) *timed_out_ret = true;
+	*timed_out_ret = true;
 	return true;
       }
     }

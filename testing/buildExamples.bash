@@ -30,6 +30,7 @@ mmap="no"
 rdma="no"
 cuda="no"
 clean="no"
+help="no"
 
 for arg in "$@"
 do
@@ -48,7 +49,18 @@ do
     if [ "$arg" == "clean" ]; then
         clean="yes"
     fi
+    if [ "$arg" == "help" ]; then
+        help="yes"
+    fi
 done
+
+if [ "$help" == "yes" ]; then
+    echo "usage: ./buildExamples.bash [debug] [mmap] [rdma] [cuda]"
+    echo "       ./buildExamples.bash debug mmap rdma cuda"
+    echo "       ./buildExamples.bash clean"
+    echo "       ./buildExamples.bash help"
+    exit 0
+fi
 
 if [ "$clean" == "yes" ]; then
     echo "Cleaning Takyon lib and examples..."

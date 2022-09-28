@@ -157,7 +157,7 @@ static ssize_t socket_write_private(int socket, void *addr, size_t bytes_to_writ
 }
 
 static bool socket_send_event_driven(int socket_fd, void *addr, size_t total_bytes_to_write, int64_t timeout_ns, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
-  if (timed_out_ret != NULL) *timed_out_ret = false;
+  *timed_out_ret = false;
 
   // Set the timeout on the socket
   if (!setSocketTimeout(socket_fd, SO_SNDTIMEO, timeout_ns, error_message, max_error_message_chars)) return false;
@@ -175,15 +175,9 @@ static bool socket_send_event_driven(int socket_fd, void *addr, size_t total_byt
       if (errno == EWOULDBLOCK) {
         // Timed out
         if (total_bytes_sent == 0) {
-          // No problem, just return timed out
-          if (timed_out_ret != NULL) {
-            *timed_out_ret = true;
-            return true;
-          } else {
-            // Can't report the timed
-            snprintf(error_message, max_error_message_chars, "Timed out starting the transfer");
-            return false;
-          }
+          // No problem, timed out
+          *timed_out_ret = true;
+          return true;
         } else {
           // This is bad... the connection might have gone down while in the middle of sending
           snprintf(error_message, max_error_message_chars, "Timed out in the middle of a send transfer: total_bytes_sent=%ju", total_bytes_sent);
@@ -207,7 +201,7 @@ static bool socket_send_event_driven(int socket_fd, void *addr, size_t total_byt
 }
 
 static bool socket_send_polling(int socket, void *addr, size_t total_bytes_to_write, int64_t timeout_ns, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
-  if (timed_out_ret != NULL) *timed_out_ret = false;
+  *timed_out_ret = false;
   int64_t start_time = clockTimeNanoseconds();
   bool got_some_data = false;
 
@@ -227,14 +221,8 @@ static bool socket_send_polling(int socket, void *addr, size_t total_bytes_to_wr
           if (ellapsed_time >= timeout_ns) {
             // Timed out
             if (total_bytes_sent == 0) {
-              if (timed_out_ret != NULL) {
-                *timed_out_ret = true;
-                return true;
-              } else {
-                // Can't report the time out
-                snprintf(error_message, max_error_message_chars, "Timed out starting the transfer");
-                return false;
-              }
+              *timed_out_ret = true;
+              return true;
             } else {
               // This is bad... the connection might have gone down while in the middle of sending
               snprintf(error_message, max_error_message_chars, "Timed out in the middle of a send transfer: total_bytes_sent=%ju", total_bytes_sent);
@@ -266,6 +254,7 @@ static bool socket_send_polling(int socket, void *addr, size_t total_bytes_to_wr
 }
 
 bool socketSend(int socket, void *addr, size_t bytes_to_write, bool is_polling, int64_t timeout_ns, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
+  *timed_out_ret = false;
   if (is_polling) {
     return socket_send_polling(socket, addr, bytes_to_write, timeout_ns, timed_out_ret, error_message, max_error_message_chars);
   } else {
@@ -274,7 +263,7 @@ bool socketSend(int socket, void *addr, size_t bytes_to_write, bool is_polling, 
 }
 
 static bool socket_recv_event_driven(int socket_fd, void *data_ptr, size_t bytes_to_read, int64_t timeout_ns, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
-  if (timed_out_ret != NULL) *timed_out_ret = false;
+  *timed_out_ret = false;
 
   // Set the timeout on the socket
   if (!setSocketTimeout(socket_fd, SO_RCVTIMEO, timeout_ns, error_message, max_error_message_chars)) return false;
@@ -293,15 +282,9 @@ static bool socket_recv_event_driven(int socket_fd, void *data_ptr, size_t bytes
       if (errno == EWOULDBLOCK) {
         // Timed out
         if (total_bytes_read == 0) {
-          // No problem, just return timed out
-          if (timed_out_ret != NULL) {
-            *timed_out_ret = true;
-            return true;
-          } else {
-            // Can't report the timed
-            snprintf(error_message, max_error_message_chars, "Timed out starting the transfer");
-            return false;
-          }
+          // No problem, timed out
+          *timed_out_ret = true;
+          return true;
         } else {
           // This is bad... the connection might have gone down while in the middle of receiving
           snprintf(error_message, max_error_message_chars, "Timed out in the middle of a recv transfer");
@@ -322,7 +305,7 @@ static bool socket_recv_event_driven(int socket_fd, void *data_ptr, size_t bytes
 }
 
 static bool socket_recv_polling(int socket_fd, void *data_ptr, size_t bytes_to_read, int64_t timeout_ns, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
-  if (timed_out_ret != NULL) *timed_out_ret = false;
+  *timed_out_ret = false;
   int64_t start_time = clockTimeNanoseconds();
   bool got_some_data = false;
 
@@ -344,14 +327,9 @@ static bool socket_recv_polling(int socket_fd, void *data_ptr, size_t bytes_to_r
           if (ellapsed_time >= timeout_ns) {
             // Timed out
             if (total_bytes_read == 0) {
-              if (timed_out_ret != NULL) {
-                *timed_out_ret = true;
-                return true;
-              } else {
-                // Can't report the time out
-                snprintf(error_message, max_error_message_chars, "Timed out starting the transfer");
-                return false;
-              }
+              // Timed out
+              *timed_out_ret = true;
+              return true;
             } else {
               // This is bad... the connection might have gone down while in the middle of receiving
               snprintf(error_message, max_error_message_chars, "Timed out in the middle of a recv transfer");
@@ -380,6 +358,7 @@ static bool socket_recv_polling(int socket_fd, void *data_ptr, size_t bytes_to_r
 }
 
 bool socketRecv(int socket_fd, void *data_ptr, size_t bytes_to_read, bool is_polling, int64_t timeout_ns, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
+  *timed_out_ret = false;
   if (is_polling) {
     return socket_recv_polling(socket_fd, data_ptr, bytes_to_read, timeout_ns, timed_out_ret, error_message, max_error_message_chars);
   } else {
@@ -1067,7 +1046,7 @@ void socketClose(int socket_fd) {
 }
 
 static bool datagram_send_polling(int socket_fd, void *sock_in_addr, void *addr, size_t bytes_to_write, int64_t timeout_ns, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
-  if (timed_out_ret != NULL) *timed_out_ret = false;
+  *timed_out_ret = false;
   int64_t start_time = clockTimeNanoseconds();
 
   while (1) {
@@ -1084,14 +1063,8 @@ static bool datagram_send_polling(int socket_fd, void *sock_in_addr, void *addr,
           int64_t ellapsed_time = clockTimeNanoseconds() - start_time;
           if (ellapsed_time >= timeout_ns) {
             // Timed out
-            if (timed_out_ret != NULL) {
-              *timed_out_ret = true;
-              return true;
-            } else {
-              // Can't report the time out
-              snprintf(error_message, max_error_message_chars, "Timed out starting the transfer");
-              return false;
-            }
+            *timed_out_ret = true;
+            return true;
           }
         }
         bytes_written = 0;
@@ -1117,8 +1090,7 @@ static bool datagram_send_polling(int socket_fd, void *sock_in_addr, void *addr,
 }
 
 static bool datagram_send_event_driven(int socket_fd, void *sock_in_addr, void *addr, size_t bytes_to_write, int64_t timeout_ns, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
-  if (timed_out_ret != NULL) *timed_out_ret = false;
-
+  *timed_out_ret = false;
   // Set the timeout on the socket
   if (!setSocketTimeout(socket_fd, SO_SNDTIMEO, timeout_ns, error_message, max_error_message_chars)) return false;
 
@@ -1138,14 +1110,8 @@ static bool datagram_send_event_driven(int socket_fd, void *sock_in_addr, void *
         return false;
       } else if (errno == EWOULDBLOCK) {
         // Timed out
-        if (timed_out_ret != NULL) {
-          *timed_out_ret = true;
-          return true;
-        } else {
-          // Can't report the timed
-          snprintf(error_message, max_error_message_chars, "Timed out starting the transfer");
-          return false;
-        }
+        *timed_out_ret = true;
+        return true;
       } else if (errno == EINTR) {
         // Interrupted by external signal. Just try again
       } else {
@@ -1164,8 +1130,7 @@ static bool datagram_send_event_driven(int socket_fd, void *sock_in_addr, void *
 }
 
 static bool datagram_recv_event_driven(int socket_fd, void *data_ptr, size_t buffer_bytes, uint64_t *bytes_read_ret, int64_t timeout_ns, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
-  if (timed_out_ret != NULL) *timed_out_ret = false;
-
+  *timed_out_ret = false;
   // Set the timeout on the socket
   if (!setSocketTimeout(socket_fd, SO_RCVTIMEO, timeout_ns, error_message, max_error_message_chars)) return false;
 
@@ -1185,14 +1150,8 @@ static bool datagram_recv_event_driven(int socket_fd, void *data_ptr, size_t buf
     if (bytes_received == -1) {
       if (errno == EWOULDBLOCK) {
         // Timed out
-        if (timed_out_ret != NULL) {
-          *timed_out_ret = true;
-          return true;
-        } else {
-          // Can't report the timed
-          snprintf(error_message, max_error_message_chars, "Timed out starting the transfer");
-          return false;
-        }
+        *timed_out_ret = true;
+        return true;
       } else if (errno == EINTR) {
         // Interrupted by external signal. Just try again
       } else {
@@ -1204,7 +1163,7 @@ static bool datagram_recv_event_driven(int socket_fd, void *data_ptr, size_t buf
 }
 
 static bool datagram_recv_polling(int socket_fd, void *data_ptr, size_t buffer_bytes, uint64_t *bytes_read_ret, int64_t timeout_ns, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
-  if (timed_out_ret != NULL) *timed_out_ret = false;
+  *timed_out_ret = false;
   int64_t start_time = clockTimeNanoseconds();
 
   while (1) {
@@ -1227,14 +1186,8 @@ static bool datagram_recv_polling(int socket_fd, void *data_ptr, size_t buffer_b
           int64_t ellapsed_time = clockTimeNanoseconds() - start_time;
           if (ellapsed_time >= timeout_ns) {
             // Timed out
-            if (timed_out_ret != NULL) {
-              *timed_out_ret = true;
-              return true;
-            } else {
-              // Can't report the time out
-              snprintf(error_message, max_error_message_chars, "Timed out starting the transfer");
-              return false;
-            }
+            *timed_out_ret = true;
+            return true;
           }
         }
       } else if (errno == EINTR) {
@@ -1296,6 +1249,7 @@ bool socketCreateUnicastSender(const char *ip_addr, uint16_t port_number, Takyon
 }
 
 bool socketDatagramSend(TakyonSocket socket_fd, void *sock_in_addr, void *addr, size_t bytes_to_write, bool is_polling, int64_t timeout_ns, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
+  *timed_out_ret = false;
   if (is_polling) {
     return datagram_send_polling(socket_fd, sock_in_addr, addr, bytes_to_write, timeout_ns, timed_out_ret, error_message, max_error_message_chars);
   } else {
@@ -1371,6 +1325,7 @@ bool socketCreateUnicastReceiver(const char *ip_addr, uint16_t port_number, bool
 }
 
 bool socketDatagramRecv(TakyonSocket socket_fd, void *data_ptr, size_t buffer_bytes, uint64_t *bytes_read_ret, bool is_polling, int64_t timeout_ns, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
+  *timed_out_ret = false;
   *bytes_read_ret = 0;
   if (is_polling) {
     return datagram_recv_polling(socket_fd, data_ptr, buffer_bytes, bytes_read_ret, timeout_ns, timed_out_ret, error_message, max_error_message_chars);
