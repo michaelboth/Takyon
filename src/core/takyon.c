@@ -317,7 +317,7 @@ bool takyonIsOneSidedDone(TakyonPath *path, TakyonOneSidedRequest *request, doub
 
   // Verbosity
   if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS) {
-    printf("%-15s (%s:%s) Waiting '%s message' to complete\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider, request->is_write_request ? "write" : "read");
+    printf("%-15s (%s:%s) Waiting for '%s message' to complete\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider, request->is_write_request ? "write" : "read");
   }
 
   // Initiate the send

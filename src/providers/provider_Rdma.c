@@ -339,12 +339,8 @@ bool rdmaCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *r
   }
 
   // RDMA send requests and SGEs
-  {
+  if (path->attrs.max_pending_send_and_one_sided_requests > 0) {
     if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) printf("  Max send requests=%d, sub buffers per request=%d\n", path->attrs.max_pending_send_and_one_sided_requests, path->attrs.max_sub_buffers_per_send_request);
-    if (path->attrs.max_pending_send_and_one_sided_requests == 0) {
-      TAKYON_RECORD_ERROR(path->error_message, "path->attrs.max_pending_send_and_one_sided_requests must be > 0 for Rdma\n");
-      goto failed;
-    }
     private_path->rdma_send_request_list = (RdmaSendRequest *)calloc(path->attrs.max_pending_send_and_one_sided_requests, sizeof(RdmaSendRequest));
     if (private_path->rdma_send_request_list == NULL) {
       TAKYON_RECORD_ERROR(path->error_message, "Out of memory\n");
@@ -364,12 +360,12 @@ bool rdmaCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *r
   }
 
   // RDMA recv requests and SGEs
-  {
+  if (post_recv_count > 0 && path->attrs.max_pending_recv_requests == 0) {
+    TAKYON_RECORD_ERROR(path->error_message, "path->attrs.max_pending_recv_requests must be > 0 when post_recv_count > 0\n");
+    goto failed;
+  }
+  if (path->attrs.max_pending_recv_requests > 0) {
     if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) printf("  Max recv requests=%d, sub buffers per request=%d\n", path->attrs.max_pending_recv_requests, path->attrs.max_sub_buffers_per_recv_request);
-    if (path->attrs.max_pending_recv_requests == 0) {
-      TAKYON_RECORD_ERROR(path->error_message, "path->attrs.max_pending_recv_requests must be > 0 for Rdma\n");
-      goto failed;
-    }
     private_path->rdma_recv_request_list = (RdmaRecvRequest *)calloc(path->attrs.max_pending_recv_requests, sizeof(RdmaRecvRequest));
     if (private_path->rdma_recv_request_list == NULL) {
       TAKYON_RECORD_ERROR(path->error_message, "Out of memory\n");
@@ -543,6 +539,12 @@ bool rdmaOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double timeo
     return false;
   }
 
+  // See if trying to read with UC
+  if (!request->is_write_request && endpoint->protocol == RDMA_PROTOCOL_UC) {
+    TAKYON_RECORD_ERROR(path->error_message, "RDMA UC does not allow reading\n");
+    return false;
+  }
+
 #ifdef EXTRA_ERROR_CHECKING
   // Make sure at least one buffer
   if (request->sub_buffer_count == 0) {
@@ -628,7 +630,8 @@ bool rdmaIsOneSidedDone(TakyonPath *path, TakyonOneSidedRequest *request, double
 
   // See if the RDMA message is sent
   uint64_t expected_transfer_id = (uint64_t)request;
-  if (!rdmaEndpointIsSent(endpoint, expected_transfer_id, request->use_polling_completion, request->usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+  enum ibv_wc_opcode expected_opcode = (request->is_write_request) ? IBV_WC_RDMA_WRITE : IBV_WC_RDMA_READ;
+  if (!rdmaEndpointIsSent(endpoint, expected_transfer_id, expected_opcode, request->use_polling_completion, request->usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, MAX_ERROR_MESSAGE_CHARS)) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to wait for RDMA %s to complete: %s\n", request->is_write_request ? "write" : "read", error_message);
     return false;
   }
@@ -705,7 +708,8 @@ bool rdmaIsSent(TakyonPath *path, TakyonSendRequest *request, double timeout_sec
 
   // See if the RDMA message is sent
   uint64_t expected_transfer_id = (uint64_t)request;
-  if (!rdmaEndpointIsSent(endpoint, expected_transfer_id, request->use_polling_completion, request->usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+  enum ibv_wc_opcode expected_opcode = IBV_WC_SEND;
+  if (!rdmaEndpointIsSent(endpoint, expected_transfer_id, expected_opcode, request->use_polling_completion, request->usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, MAX_ERROR_MESSAGE_CHARS)) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to wait for RDMA send to complete: %s\n", error_message);
     return false;
   }

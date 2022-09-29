@@ -85,7 +85,7 @@ static void sendMessage(TakyonPath *path, uint32_t i) {
   // Start the send
   uint32_t piggy_back_message = (path->capabilities.piggy_back_messages_supported) ? i : 0;
   takyonSend(path, &send_request, piggy_back_message, TAKYON_WAIT_FOREVER, NULL);
-  if (!path->capabilities.IsRecved_supported) {
+  if (path->capabilities.is_unreliable) {
     printf("Message %d sent (one way, %d %s)\n", i+1, path->capabilities.multi_sub_buffers_supported ? 2 : 1, path->capabilities.multi_sub_buffers_supported ? "sub buffers" : "sub buffer");
   }
 
@@ -93,7 +93,7 @@ static void sendMessage(TakyonPath *path, uint32_t i) {
   if (path->capabilities.IsSent_supported && send_request.use_is_sent_notification) takyonIsSent(path, &send_request, TAKYON_WAIT_FOREVER, NULL);
 }
 
-static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, uint32_t message_count) {
+static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, bool is_rdma_UD, uint32_t message_count) {
   // Wait for data to arrive
   //   - Recv request only has a single sub buffer, regardless of what the sender has
   uint64_t bytes_received;
@@ -105,7 +105,8 @@ static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, uint3
 
   // Process the data; i.e. print the received greeting
   TakyonSubBuffer *recver_sub_buffer = &recv_request->sub_buffers[0];
-  char *message_addr = (char *)path->attrs.buffers[recver_sub_buffer->buffer_index].addr + recver_sub_buffer->offset;
+  char *message_addr = (char *)path->attrs.buffers[recver_sub_buffer->buffer_index].addr + recver_sub_buffer->offset + (is_rdma_UD ? 40 : 0);
+  if (is_rdma_UD) bytes_received -= 40;
 #ifdef ENABLE_CUDA
   char message_addr_cpu[MAX_MESSAGE_BYTES];
   cudaError_t cuda_status = cudaMemcpy(message_addr_cpu, message_addr, bytes_received, cudaMemcpyDefault);
@@ -132,10 +133,12 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
 
   // Create the memory buffers used with transfering data
   //   - The first 2 are for the sender, and the 3rd is for the receiver
+  //   - If the provider is RDMA UD, then receiver needs to allocate more memory for receiving the GRH 40 byte header
+  bool is_rdma_UD = (strncmp(provider, "RdmaUD", 6) == 0);
   TakyonBuffer buffers[NUM_TAKYON_BUFFERS];
   for (uint32_t i=0; i<NUM_TAKYON_BUFFERS; i++) {
     TakyonBuffer *buffer = &buffers[i];
-    buffer->bytes = MAX_MESSAGE_BYTES;
+    buffer->bytes = MAX_MESSAGE_BYTES + (is_rdma_UD ? 40 : 0);
     buffer->app_data = NULL;
 #ifdef ENABLE_CUDA
     cudaError_t cuda_status = cudaMalloc(&buffer->addr, buffer->bytes);
@@ -162,7 +165,7 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
   strncpy(attrs.provider, provider, TAKYON_MAX_PROVIDER_CHARS-1);
   attrs.is_endpointA                            = is_endpointA;
   attrs.failure_mode                            = TAKYON_EXIT_ON_ERROR;
-  attrs.verbosity                               = TAKYON_VERBOSITY_ERRORS;
+  attrs.verbosity                               = TAKYON_VERBOSITY_ERRORS; //  | TAKYON_VERBOSITY_CREATE_DESTROY | TAKYON_VERBOSITY_CREATE_DESTROY_MORE | TAKYON_VERBOSITY_TRANSFERS | TAKYON_VERBOSITY_TRANSFERS_MORE;
   attrs.buffer_count                            = NUM_TAKYON_BUFFERS;
   attrs.buffers                                 = buffers;
   attrs.max_pending_send_and_one_sided_requests = 1;
@@ -172,7 +175,7 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
 
   // Setup the receive request and it's sub buffer
   //   - This is done before the path is setup in the case the receiver needs the recieves posted before sending can start
-  TakyonSubBuffer recver_sub_buffer = { .buffer_index = 2, .bytes = MAX_MESSAGE_BYTES, .offset = 0 };
+  TakyonSubBuffer recver_sub_buffer = { .buffer_index = 2, .bytes = MAX_MESSAGE_BYTES + (is_rdma_UD ? 40 : 0), .offset = 0 };
   TakyonRecvRequest recv_request = { .sub_buffer_count = 1,
                                      .sub_buffers = &recver_sub_buffer,
                                      .use_polling_completion = false,
@@ -191,10 +194,10 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
       // Send message
       sendMessage(path, i);
       // Wait for the message to arrive (will reuse the recv_request that was already prepared)
-      if (!path->capabilities.is_unreliable) recvMessage(path, &recv_request, i+2);
+      if (!path->capabilities.is_unreliable) recvMessage(path, &recv_request, is_rdma_UD, i+2);
     } else {
       // Wait for the message to arrive (will reuse the recv_request that was already prepared)
-      recvMessage(path, &recv_request, i);
+      recvMessage(path, &recv_request, is_rdma_UD, i+1);
       // Send message
       if (!path->capabilities.is_unreliable) sendMessage(path, i+1);
     }

@@ -130,7 +130,7 @@ static const char *linkLayerToText(uint8_t link_layer) {
   }
 }
 
-static bool getLocalPortInfo(TakyonPath *path, struct ibv_context *context, struct ibv_qp *qp, uint32_t rdma_port_id, int gid_index, PortInfo *port_info_ret, char *error_message, int max_error_message_chars) {
+static bool getLocalPortInfo(TakyonPath *path, struct ibv_context *context, struct ibv_qp *qp, uint32_t rdma_port_id, uint32_t unicast_local_qkey, int gid_index, PortInfo *port_info_ret, char *error_message, int max_error_message_chars) {
   PortInfo port_info = {}; // Zero the structure
 
   struct ibv_port_attr port_attrs;
@@ -150,6 +150,7 @@ static bool getLocalPortInfo(TakyonPath *path, struct ibv_context *context, stru
     printf("    Link Layer:       %s\n", linkLayerToText(port_attrs.link_layer));
   }
 
+  port_info.unicast_qkey = unicast_local_qkey;
   port_info.max_mtu_mode = port_attrs.max_mtu;
   port_info.qpn = qp->qp_num;
   srand48((long int)clockTimeNanoseconds());
@@ -173,7 +174,8 @@ static bool getLocalPortInfo(TakyonPath *path, struct ibv_context *context, stru
     return false;
   }
   if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) {
-    printf("  Local connection info: LID 0x%04x, QPN 0x%06x, PSN 0x%06x, GID '%s'\n", port_info.lid, port_info.qpn, port_info.psn, port_info.gid_text);
+    printf("  Local connection info: LID 0x%04x, QPN 0x%06x, PSN 0x%06x, MaxMTU %s, UnicastQKEY 0x%06x, GID '%s'\n",
+	   port_info.lid, port_info.qpn, port_info.psn, mtuModeToText(port_info.max_mtu_mode), port_info.unicast_qkey, port_info.gid_text);
   }
 
   gidToText(&port_info.gid, port_info.gid_text);
@@ -229,6 +231,7 @@ static struct ibv_comp_channel *createCompletionChannel(struct ibv_context *cont
 static struct ibv_cq *createCompletionQueue(struct ibv_context *context, int min_completions, struct ibv_comp_channel *comp_ch, char *error_message, int max_error_message_chars) {
   void *app_data = NULL;
   int comp_vector = 0;
+  if (min_completions == 0) min_completions = 1; // This may occur for RC or UC where the endpoint only does one of 'send' or 'recv', but QPs need value send and recv completion queues.
   struct ibv_cq *cq = ibv_create_cq(context, min_completions, app_data, comp_ch, comp_vector);
   if (cq == NULL) {
     snprintf(error_message, max_error_message_chars, "ibv_create_cq() failed");
@@ -277,14 +280,20 @@ static struct ibv_qp *createQueuePair(TakyonPath *path, struct ibv_pd *pd, struc
       ibv_destroy_qp(qp);
       return false;
     }
-    printf("  Max Inline Bytes = %u, but current set to 0 in case GPU memory is used\n", init_attrs.cap.max_inline_data);
+    printf("  Max Inline Bytes = %u, but currently set to 0 in the case GPU memory is used\n", init_attrs.cap.max_inline_data);
   }
 
   // Move the QP state to INIT
+  int qp_access_flags = 0;
+  if (qp_type == IBV_QPT_UC) {
+    qp_access_flags = IBV_ACCESS_REMOTE_WRITE;
+  } else if (qp_type == IBV_QPT_RC) {
+    qp_access_flags = IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ;
+  }
   struct ibv_qp_attr attrs = { .qp_state        = IBV_QPS_INIT,
                                .pkey_index      = 0,
                                .port_num        = rdma_port_id,
-                               .qp_access_flags = 0 };
+                               .qp_access_flags = qp_access_flags };
   if (qp_type == IBV_QPT_UD) {
     attrs.qkey = unicast_local_qkey;
   }
@@ -664,9 +673,9 @@ RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *local_NI
     TakyonBuffer *takyon_buffer = &path->attrs.buffers[i];
     RdmaBuffer *rdma_buffer = (RdmaBuffer *)takyon_buffer->private;
     // IMPORTANT: assuming buffers are zeroed at init
-    if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) printf("  Registering memory region: addr=0x%jx, bytes=%ju\n", (uint64_t)takyon_buffer->addr, takyon_buffer->bytes);
     rdma_buffer->mr = registerMemoryRegion(id->pd, takyon_buffer->addr, takyon_buffer->bytes, access, error_message, max_error_message_chars);
     if (rdma_buffer->mr == NULL) goto failed;
+    if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) printf("  Registered memory region: addr=0x%jx, bytes=%ju, lkey=%u, rkey=%u\n", (uint64_t)takyon_buffer->addr, takyon_buffer->bytes, rdma_buffer->mr->lkey, rdma_buffer->mr->rkey);
   }
 
   // Build the endpoint structure before posting recvs
@@ -734,6 +743,7 @@ RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int socket
   struct ibv_ah *unicast_sender_ah = NULL;
   RdmaEndpoint *endpoint = NULL;
   int64_t timeout_nano_seconds = (int64_t)(timeout_seconds * NANOSECONDS_PER_SECOND_DOUBLE);
+  bool timed_out = false;
 
   if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) printf("  Create RDMA UC, max_send_wr=%u, max_recv_wr=%u, max_send_sges=%u, max_recv_sges=%u\n", max_send_wr, max_recv_wr, max_send_sges, max_recv_sges);
 
@@ -764,17 +774,22 @@ RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int socket
   srand48((long int)clockTimeNanoseconds());
   uint32_t unicast_local_qkey = lrand48() & 0xffffff;
   qp = createQueuePair(path, pd, send_cq, recv_cq, qp_type, rdma_port_id, unicast_local_qkey, max_send_wr, max_recv_wr, max_send_sges, max_recv_sges, error_message, max_error_message_chars);
-  if (pd == NULL) goto failed;
+  if (qp == NULL) goto failed;
 
   // Register buffers
-  enum ibv_access_flags access = IBV_ACCESS_LOCAL_WRITE; // Local write is needed for receiving
+  enum ibv_access_flags access = IBV_ACCESS_LOCAL_WRITE;
+  if (qp_type == IBV_QPT_UC) {
+    access |= IBV_ACCESS_REMOTE_WRITE;
+  } else if (qp_type == IBV_QPT_RC) {
+    access |= IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ;
+  }
   for (uint32_t i=0; i<path->attrs.buffer_count; i++) {
     TakyonBuffer *takyon_buffer = &path->attrs.buffers[i];
     RdmaBuffer *rdma_buffer = (RdmaBuffer *)takyon_buffer->private;
     // IMPORTANT: assuming buffers are zeroed at init
-    if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) printf("  Registering memory region: addr=0x%jx, bytes=%ju\n", (uint64_t)takyon_buffer->addr, takyon_buffer->bytes);
     rdma_buffer->mr = registerMemoryRegion(pd, takyon_buffer->addr, takyon_buffer->bytes, access, error_message, max_error_message_chars);
     if (rdma_buffer->mr == NULL) goto failed;
+    if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) printf("  Registered memory region: addr=0x%jx, bytes=%ju, lkey=%u, rkey=%u\n", (uint64_t)takyon_buffer->addr, takyon_buffer->bytes, rdma_buffer->mr->lkey, rdma_buffer->mr->rkey);
   }
 
   // Build the endpoint structure before posting recvs
@@ -796,26 +811,25 @@ RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int socket
 
   // Get the local endpoint info that will be sent to the remote endpoint
   PortInfo local_port_info;
-  local_port_info.unicast_qkey = unicast_local_qkey;
-  if (!getLocalPortInfo(path, context, qp, rdma_port_id, gid_index, &local_port_info, error_message, max_error_message_chars)) goto failed;
+  if (!getLocalPortInfo(path, context, qp, rdma_port_id, unicast_local_qkey, gid_index, &local_port_info, error_message, max_error_message_chars)) goto failed;
 
   // Exchange QP and port info with the remote endpoint
   PortInfo remote_port_info;
   if (is_endpointA) {
-    if (!socketSend(socket_fd, local_port_info.socket_data, sizeof(local_port_info.socket_data), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    if (!socketSend(socket_fd, local_port_info.socket_data, sizeof(local_port_info.socket_data), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to send RDMA port info text: %s\n", error_message);
       goto failed;
     }
-    if (!socketRecv(socket_fd, remote_port_info.socket_data, sizeof(remote_port_info.socket_data), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    if (!socketRecv(socket_fd, remote_port_info.socket_data, sizeof(remote_port_info.socket_data), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to recv remote RDMA port info text: %s\n", error_message);
       goto failed;
     }
   } else {
-    if (!socketRecv(socket_fd, remote_port_info.socket_data, sizeof(remote_port_info.socket_data), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    if (!socketRecv(socket_fd, remote_port_info.socket_data, sizeof(remote_port_info.socket_data), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to recv remote RDMA port info text: %s\n", error_message);
       goto failed;
     }
-    if (!socketSend(socket_fd, local_port_info.socket_data, sizeof(local_port_info.socket_data), false, timeout_nano_seconds, NULL, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    if (!socketSend(socket_fd, local_port_info.socket_data, sizeof(local_port_info.socket_data), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to send RDMA port info text: %s\n", error_message);
       goto failed;
     }
@@ -1077,7 +1091,8 @@ static const char *wcOpcodeToText(enum ibv_wc_opcode opcode_val) {
 }
 #endif
 
-static bool waitForCompletion(bool is_send, RdmaEndpoint *endpoint, uint64_t expected_wr_id, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret) {
+static bool waitForCompletion(bool is_send, RdmaEndpoint *endpoint, uint64_t expected_wr_id, enum ibv_wc_opcode expected_opcode, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret) {
+  (void)expected_opcode; // Quiet compiler
   bool got_start_time = false;
   double start_time = 0;
   struct ibv_wc wc;
@@ -1146,13 +1161,13 @@ static bool waitForCompletion(bool is_send, RdmaEndpoint *endpoint, uint64_t exp
   }
 #ifdef EXTRA_ERROR_CHECKING
   if (is_send) {
-    if (wc.opcode != IBV_WC_SEND) {
-      snprintf(error_message, max_error_message_chars, "Work completion was for '%s' but expected 'IBV_WC_SEND'", wcOpcodeToText(wc.opcode));
+    if (wc.opcode != expected_opcode) {
+      snprintf(error_message, max_error_message_chars, "Work completion was for '%s' but expected '%s'", wcOpcodeToText(wc.opcode), wcOpcodeToText(expected_opcode));
       return false;
     }
   } else {
-    if (wc.opcode != IBV_WC_RECV) {
-      snprintf(error_message, max_error_message_chars, "Work completion was for '%s' but expected 'IBV_WC_RECV'", wcOpcodeToText(wc.opcode));
+    if (wc.opcode != expected_opcode) {
+      snprintf(error_message, max_error_message_chars, "Work completion was for '%s' but expected '%s'", wcOpcodeToText(wc.opcode), wcOpcodeToText(expected_opcode));
       return false;
     }
     if (!(wc.wc_flags & IBV_WC_WITH_IMM)) {
@@ -1219,8 +1234,13 @@ bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr
     send_wr.wr.ud.remote_qpn = endpoint->unicast_remote_qp_num;
     send_wr.wr.ud.remote_qkey = endpoint->unicast_remote_qkey;
   } else if (endpoint->protocol == RDMA_PROTOCOL_UC || endpoint->protocol == RDMA_PROTOCOL_RC) {
-    send_wr.wr.rdma.rkey = rkey;
-    send_wr.wr.rdma.remote_addr = remote_addr;
+    if (transfer_mode == IBV_WR_RDMA_WRITE || transfer_mode == IBV_WR_RDMA_READ) {
+#ifdef EXTRA_ERROR_CHECKING
+      if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  RDMA %s: rkey=%u, raddr=0x%jx\n", (transfer_mode == IBV_WR_RDMA_WRITE) ? "write" : "read", rkey, remote_addr);
+#endif
+      send_wr.wr.rdma.rkey = rkey;
+      send_wr.wr.rdma.remote_addr = remote_addr;
+    }
   }
 
   // Signaling
@@ -1245,10 +1265,11 @@ bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr
 
 bool rdmaEndpointIsRecved(RdmaEndpoint *endpoint, uint64_t expected_transfer_id, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret) {
   bool is_send = false;
-  return waitForCompletion(is_send, endpoint, expected_transfer_id, use_polling_completion, usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, max_error_message_chars, bytes_received_ret, piggy_back_message_ret);
+  enum ibv_wc_opcode expected_opcode = IBV_WC_RECV;
+  return waitForCompletion(is_send, endpoint, expected_transfer_id, expected_opcode, use_polling_completion, usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, max_error_message_chars, bytes_received_ret, piggy_back_message_ret);
 }
 
-bool rdmaEndpointIsSent(RdmaEndpoint *endpoint, uint64_t expected_transfer_id, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
+bool rdmaEndpointIsSent(RdmaEndpoint *endpoint, uint64_t expected_transfer_id, enum ibv_wc_opcode expected_opcode, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
   bool is_send = true;
-  return waitForCompletion(is_send, endpoint, expected_transfer_id, use_polling_completion, usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, max_error_message_chars, NULL, NULL);
+  return waitForCompletion(is_send, endpoint, expected_transfer_id, expected_opcode, use_polling_completion, usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, max_error_message_chars, NULL, NULL);
 }

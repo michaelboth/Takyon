@@ -298,7 +298,8 @@ bool rdmaUDMulticastIsSent(TakyonPath *path, TakyonSendRequest *request, double 
 
   // See if the RDMA message is sent
   uint64_t expected_transfer_id = (uint64_t)request;
-  if (!rdmaEndpointIsSent(endpoint, expected_transfer_id, request->use_polling_completion, request->usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+  enum ibv_wc_opcode expected_opcode = IBV_WC_SEND;
+  if (!rdmaEndpointIsSent(endpoint, expected_transfer_id, expected_opcode, request->use_polling_completion, request->usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, MAX_ERROR_MESSAGE_CHARS)) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to wait for RDMA send to complete: %s\n", error_message);
     return false;
   }
