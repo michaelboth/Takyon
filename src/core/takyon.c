@@ -255,6 +255,11 @@ bool takyonOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double tim
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
+  if (request->sub_buffer_count > path->attrs.max_sub_buffers_per_send_and_one_sided_request) {
+    TAKYON_RECORD_ERROR(path->error_message, "path->attrs.max_sub_buffers_per_send_and_one_sided_request is less than request->sub_buffer_count\n");
+    handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
+    return false;
+  }
   if (request->sub_buffer_count >= 1 && request->sub_buffers == NULL) {
     TAKYON_RECORD_ERROR(path->error_message, "request->sub_buffer_count >= 1 but request->sub_buffers == NULL\n");
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
@@ -360,6 +365,11 @@ bool takyonSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_bac
   }
   if (request->sub_buffer_count > 1 && !path->capabilities.multi_sub_buffers_supported) {
     TAKYON_RECORD_ERROR(path->error_message, "This provider does not support request->sub_buffer_count > 1.\n");
+    handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
+    return false;
+  }
+  if (request->sub_buffer_count > path->attrs.max_sub_buffers_per_send_and_one_sided_request) {
+    TAKYON_RECORD_ERROR(path->error_message, "path->attrs.max_sub_buffers_per_send_and_one_sided_request is less than request->sub_buffer_count\n");
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
@@ -469,6 +479,11 @@ bool takyonPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvRequest
     TakyonRecvRequest *request = &requests[i];
     if (request->sub_buffer_count > 1 && !path->capabilities.multi_sub_buffers_supported) {
       TAKYON_RECORD_ERROR(path->error_message, "This provider does not support request->sub_buffer_count > 1.\n");
+      handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
+      return false;
+    }
+    if (request->sub_buffer_count > path->attrs.max_sub_buffers_per_recv_request) {
+      TAKYON_RECORD_ERROR(path->error_message, "path->attrs.max_sub_buffers_per_recv_request is less than request->sub_buffer_count\n");
       handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
       return false;
     }

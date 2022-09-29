@@ -13,7 +13,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <assert.h>
 #if defined(__APPLE__)
   #define UINT64_FORMAT "%llu"
 #else
@@ -47,7 +46,7 @@ int main(int argc, char **argv) {
   }
 
   // Process the arguments
-  assert(strlen(argv[1]) == 1 && (argv[1][0] == 'A' || argv[1][0] == 'B'));
+  if (strlen(argv[1]) != 1 || (argv[1][0] != 'A' && argv[1][0] != 'B')) { printf("First arg must be 'A' or 'B'.\n"); printUsageAndExit(argv[0]); }
   const bool is_endpointA = (argv[1][0] == 'A');
   const char *provider = argv[2];
   for (int i=3; i<argc; i++) {
@@ -59,19 +58,19 @@ int main(int argc, char **argv) {
       L_two_sided = false;
     } else if (strncmp(argv[i], "-n=", 3) == 0) {
       int tokens = sscanf(argv[i], "-n=%u", &L_iterations);
-      assert(tokens == 1);
-      assert(L_iterations > 0);
+      if (tokens != 1) { printf("Arg -n='%s' is invalid.\n", argv[i]); printUsageAndExit(argv[0]); }
+      if (L_iterations == 0) { printf("Arg -n='%s' must be greater than zero.\n", argv[i]); printUsageAndExit(argv[0]); }
     } else if (strncmp(argv[i], "-s=", 3) == 0) {
       int tokens = sscanf(argv[i], "-s=%u", &L_send_buffer_count);
-      assert(tokens == 1);
-      assert(L_send_buffer_count > 0);
+      if (tokens != 1) { printf("Arg -s='%s' is invalid.\n", argv[i]); printUsageAndExit(argv[0]); }
+      if (L_send_buffer_count == 0) { printf("Arg -s='%s' must be greater than zero.\n", argv[i]); printUsageAndExit(argv[0]); }
     } else if (strncmp(argv[i], "-r=", 3) == 0) {
       int tokens = sscanf(argv[i], "-r=%u", &L_recv_buffer_count);
-      assert(tokens == 1);
-      assert(L_recv_buffer_count > 0);
+      if (tokens != 1) { printf("Arg -r='%s' is invalid.\n", argv[i]); printUsageAndExit(argv[0]); }
+      if (L_recv_buffer_count == 0) { printf("Arg -r='%s' must be greater than zero.\n", argv[i]); printUsageAndExit(argv[0]); }
     } else if (strncmp(argv[i], "-b=", 3) == 0) {
       int tokens = sscanf(argv[i], "-b=" UINT64_FORMAT, &L_message_bytes);
-      assert(tokens == 1);
+      if (tokens != 1) { printf("Arg -b='%s' is invalid.\n", argv[i]); printUsageAndExit(argv[0]); }
     } else {
       printUsageAndExit(argv[0]);
     }

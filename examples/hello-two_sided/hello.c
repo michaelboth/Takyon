@@ -163,15 +163,15 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
   //   - Can't be changed after path creation
   TakyonPathAttributes attrs;
   strncpy(attrs.provider, provider, TAKYON_MAX_PROVIDER_CHARS-1);
-  attrs.is_endpointA                            = is_endpointA;
-  attrs.failure_mode                            = TAKYON_EXIT_ON_ERROR;
-  attrs.verbosity                               = TAKYON_VERBOSITY_ERRORS; //  | TAKYON_VERBOSITY_CREATE_DESTROY | TAKYON_VERBOSITY_CREATE_DESTROY_MORE | TAKYON_VERBOSITY_TRANSFERS | TAKYON_VERBOSITY_TRANSFERS_MORE;
-  attrs.buffer_count                            = NUM_TAKYON_BUFFERS;
-  attrs.buffers                                 = buffers;
-  attrs.max_pending_send_and_one_sided_requests = 1;
-  attrs.max_pending_recv_requests               = 1;
-  attrs.max_sub_buffers_per_send_request        = 2; // Will send two blocks if supported, otherwise one block.
-  attrs.max_sub_buffers_per_recv_request        = 1; // Receiver will always get a single block
+  attrs.is_endpointA                                   = is_endpointA;
+  attrs.failure_mode                                   = TAKYON_EXIT_ON_ERROR;
+  attrs.verbosity                                      = TAKYON_VERBOSITY_ERRORS; //  | TAKYON_VERBOSITY_CREATE_DESTROY | TAKYON_VERBOSITY_CREATE_DESTROY_MORE | TAKYON_VERBOSITY_TRANSFERS | TAKYON_VERBOSITY_TRANSFERS_MORE;
+  attrs.buffer_count                                   = NUM_TAKYON_BUFFERS;
+  attrs.buffers                                        = buffers;
+  attrs.max_pending_send_and_one_sided_requests        = 1;
+  attrs.max_pending_recv_requests                      = 1;
+  attrs.max_sub_buffers_per_send_and_one_sided_request = 2; // Will send two blocks if supported, otherwise one block.
+  attrs.max_sub_buffers_per_recv_request               = 1; // Receiver will always get a single block
 
   // Setup the receive request and it's sub buffer
   //   - This is done before the path is setup in the case the receiver needs the recieves posted before sending can start

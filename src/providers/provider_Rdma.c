@@ -340,13 +340,13 @@ bool rdmaCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *r
 
   // RDMA send requests and SGEs
   if (path->attrs.max_pending_send_and_one_sided_requests > 0) {
-    if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) printf("  Max send requests=%d, sub buffers per request=%d\n", path->attrs.max_pending_send_and_one_sided_requests, path->attrs.max_sub_buffers_per_send_request);
+    if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) printf("  Max send requests=%d, sub buffers per request=%d\n", path->attrs.max_pending_send_and_one_sided_requests, path->attrs.max_sub_buffers_per_send_and_one_sided_request);
     private_path->rdma_send_request_list = (RdmaSendRequest *)calloc(path->attrs.max_pending_send_and_one_sided_requests, sizeof(RdmaSendRequest));
     if (private_path->rdma_send_request_list == NULL) {
       TAKYON_RECORD_ERROR(path->error_message, "Out of memory\n");
       goto failed;
     }
-    uint32_t num_sges = path->attrs.max_pending_send_and_one_sided_requests * path->attrs.max_sub_buffers_per_send_request;
+    uint32_t num_sges = path->attrs.max_pending_send_and_one_sided_requests * path->attrs.max_sub_buffers_per_send_and_one_sided_request;
     if (num_sges > 0) {
       private_path->send_sge_list = (struct ibv_sge *)calloc(num_sges, sizeof(struct ibv_sge));
       if (private_path->send_sge_list == NULL) {
@@ -354,7 +354,7 @@ bool rdmaCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *r
         goto failed;
       }
       for (uint32_t i=0; i<path->attrs.max_pending_send_and_one_sided_requests; i++) {
-        private_path->rdma_send_request_list[i].sges = &private_path->send_sge_list[i*path->attrs.max_sub_buffers_per_send_request];
+        private_path->rdma_send_request_list[i].sges = &private_path->send_sge_list[i*path->attrs.max_sub_buffers_per_send_and_one_sided_request];
       }
     }
   }
@@ -406,7 +406,7 @@ bool rdmaCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *r
   enum ibv_qp_type qp_type = (is_RC) ? IBV_QPT_RC : (is_UC) ? IBV_QPT_UC : IBV_QPT_UD;
   private_path->endpoint = rdmaCreateEndpoint(path, path->attrs.is_endpointA, private_path->socket_fd, qp_type, is_UD_sender, rdma_device_name, rdma_port_number, gid_index,
 					      path->attrs.max_pending_send_and_one_sided_requests, path->attrs.max_pending_recv_requests,
-					      path->attrs.max_sub_buffers_per_send_request, path->attrs.max_sub_buffers_per_recv_request,
+					      path->attrs.max_sub_buffers_per_send_and_one_sided_request, path->attrs.max_sub_buffers_per_recv_request,
 					      post_recv_count, recv_requests, timeout_seconds, error_message, MAX_ERROR_MESSAGE_CHARS);
   if (private_path->endpoint == NULL) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to create RDMA endpoint: %s\n", error_message);

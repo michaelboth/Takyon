@@ -1,6 +1,8 @@
 To DO
   - BUG: OSX ephemeral sockets (seems the multicast packets are being blocked)
   - Allow InterThread and InterProcess to have unreliable modes; i.e. if recv not posted, data is dropped.
+  - GitHub README
+    - Show how to run testing
 
 Promote To
   - Khronos, as a new proposal

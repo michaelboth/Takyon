@@ -15,7 +15,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <assert.h>
 #ifdef ENABLE_CUDA
   #include "cuda_runtime.h"
 #endif
@@ -215,8 +214,8 @@ static void recvSignal(TakyonPath *path, TakyonRecvRequest *recv_request) {
   uint64_t bytes_received;
   bool timed_out;
   takyonIsRecved(path, recv_request, ACTIVE_RECV_TIMEOUT_SECONDS, &timed_out, &bytes_received, NULL);
-  if (timed_out)  { printf("\nTimed out waiting for signal. Make sure both endpoints define the same number of recv buffers\n"); exit(EXIT_SUCCESS); }
-  assert(bytes_received == 0);
+  if (timed_out) { printf("\nTimed out waiting for signal. Make sure both endpoints define the same number of recv buffers\n"); exit(EXIT_SUCCESS); }
+  if (bytes_received != 0) { printf("\nExpected a zero-byte message, but got " UINT64_FORMAT " bytes.\n", bytes_received); exit(EXIT_SUCCESS); }
 
   // If the provider supports pre-posting, then need to post the recv to be ready for the next send, before the send starts
   if (path->capabilities.PostRecvs_supported) takyonPostRecvs(path, 1, recv_request);
@@ -229,15 +228,15 @@ static void twoSidedThroughput(const bool is_endpointA, const char *provider, co
   //   - Can't be changed after path creation
   TakyonPathAttributes attrs;
   strncpy(attrs.provider, provider, TAKYON_MAX_PROVIDER_CHARS-1);
-  attrs.is_endpointA                            = is_endpointA;
-  attrs.failure_mode                            = TAKYON_EXIT_ON_ERROR;
-  attrs.verbosity                               = TAKYON_VERBOSITY_ERRORS; //  | TAKYON_VERBOSITY_CREATE_DESTROY | TAKYON_VERBOSITY_CREATE_DESTROY_MORE | TAKYON_VERBOSITY_TRANSFERS | TAKYON_VERBOSITY_TRANSFERS_MORE;
-  attrs.buffer_count                            = (message_bytes==0) ? 0 : 1;
-  attrs.buffers                                 = (message_bytes==0) ? NULL : buffer;
-  attrs.max_pending_send_and_one_sided_requests = is_endpointA ? send_buffer_count : 1;
-  attrs.max_pending_recv_requests               = is_endpointA ? 1 : recv_buffer_count;
-  attrs.max_sub_buffers_per_send_request        = is_endpointA ? 1 : 0;  // 0 means zero-byte message
-  attrs.max_sub_buffers_per_recv_request        = is_endpointA ? 0 : 1;  // 0 means zero-byte message
+  attrs.is_endpointA                                   = is_endpointA;
+  attrs.failure_mode                                   = TAKYON_EXIT_ON_ERROR;
+  attrs.verbosity                                      = TAKYON_VERBOSITY_ERRORS; //  | TAKYON_VERBOSITY_CREATE_DESTROY | TAKYON_VERBOSITY_CREATE_DESTROY_MORE | TAKYON_VERBOSITY_TRANSFERS | TAKYON_VERBOSITY_TRANSFERS_MORE;
+  attrs.buffer_count                                   = (message_bytes==0) ? 0 : 1;
+  attrs.buffers                                        = (message_bytes==0) ? NULL : buffer;
+  attrs.max_pending_send_and_one_sided_requests        = is_endpointA ? send_buffer_count : 1;
+  attrs.max_pending_recv_requests                      = is_endpointA ? 1 : recv_buffer_count;
+  attrs.max_sub_buffers_per_send_and_one_sided_request = is_endpointA ? 1 : 0;  // 0 means zero-byte message
+  attrs.max_sub_buffers_per_recv_request               = is_endpointA ? 0 : 1;  // 0 means zero-byte message
 
   // Setup the receive request and it's sub buffer
   //   - This is done before the path is setup in the case the receiver needs the recvs posted before sending can start
@@ -358,15 +357,15 @@ static void oneSidedThroughput(const bool is_endpointA, const char *provider, co
   //   - Can't be changed after path creation
   TakyonPathAttributes attrs;
   strncpy(attrs.provider, provider, TAKYON_MAX_PROVIDER_CHARS-1);
-  attrs.is_endpointA                            = is_endpointA;
-  attrs.failure_mode                            = TAKYON_EXIT_ON_ERROR;
-  attrs.verbosity                               = TAKYON_VERBOSITY_ERRORS; //  | TAKYON_VERBOSITY_CREATE_DESTROY | TAKYON_VERBOSITY_CREATE_DESTROY_MORE | TAKYON_VERBOSITY_TRANSFERS | TAKYON_VERBOSITY_TRANSFERS_MORE;
-  attrs.buffer_count                            = 1;
-  attrs.buffers                                 = buffer;
-  attrs.max_pending_send_and_one_sided_requests = send_buffer_count;
-  attrs.max_pending_recv_requests               = 0;
-  attrs.max_sub_buffers_per_send_request        = 0;
-  attrs.max_sub_buffers_per_recv_request        = 0;
+  attrs.is_endpointA                                   = is_endpointA;
+  attrs.failure_mode                                   = TAKYON_EXIT_ON_ERROR;
+  attrs.verbosity                                      = TAKYON_VERBOSITY_ERRORS; //  | TAKYON_VERBOSITY_CREATE_DESTROY | TAKYON_VERBOSITY_CREATE_DESTROY_MORE | TAKYON_VERBOSITY_TRANSFERS | TAKYON_VERBOSITY_TRANSFERS_MORE;
+  attrs.buffer_count                                   = 1;
+  attrs.buffers                                        = buffer;
+  attrs.max_pending_send_and_one_sided_requests        = send_buffer_count;
+  attrs.max_pending_recv_requests                      = 0;
+  attrs.max_sub_buffers_per_send_and_one_sided_request = 1;
+  attrs.max_sub_buffers_per_recv_request               = 0;
 
   // Create one side of the path
   //   - The other side will be created in a different thread/process
@@ -384,7 +383,7 @@ static void oneSidedThroughput(const bool is_endpointA, const char *provider, co
       writeMessage(path, message_bytes, use_polling_completion, validate, i+1);
       readMessage(path, message_bytes, use_polling_completion, validate, i+1);
     } else {
-      // Enpoint B is not involved
+      // Endpoint B is not involved
     }
 
     // Print the current throughput
