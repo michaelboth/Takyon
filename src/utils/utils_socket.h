@@ -87,7 +87,7 @@ extern void ephemeralPortManagerRemoveLocally(const char *provider_name, uint32_
 // Pipes (helpful with closing sockets that are sleeping while waiting for activity)
 extern bool pipeCreate(int *read_pipe_fd_ret, int *write_pipe_fd_ret, char *error_message, int max_error_message_chars);
 extern bool socketWaitForDisconnectActivity(TakyonSocket socket_fd, int read_pipe_fd, bool *got_socket_activity_ret, char *error_message, int max_error_message_chars);
-extern bool pipeWakeUpSelect(int write_pipe_fd, char *error_message, int max_error_message_chars);
+extern bool pipeWakeUpPollFunction(int write_pipe_fd, char *error_message, int max_error_message_chars);
 extern void pipeDestroy(int read_pipe_fd, int write_pipe_fd);
 
 #ifdef __cplusplus

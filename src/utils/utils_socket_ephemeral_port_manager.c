@@ -316,7 +316,7 @@ static void ephemeralPortManagerFinalizePrivate(void) {
   pthread_mutex_unlock(L_mutex);
 #else
   // Wake up thread by signalling the pipe
-  if (!pipeWakeUpSelect(L_write_pipe_fd, L_error_message, MAX_PRIVATE_ERROR_MESSAGE_CHARS)) {
+  if (!pipeWakeUpPollFunction(L_write_pipe_fd, L_error_message, MAX_PRIVATE_ERROR_MESSAGE_CHARS)) {
     // Failed to read the message
     fprintf(stderr, "Failed to use pipe to wake up ephemeral port manager thread: %s\n", L_error_message);
     exit(EXIT_FAILURE);

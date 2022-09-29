@@ -742,7 +742,7 @@ RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *local_NI
   return NULL;
 }
 
-RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int socket_fd, enum ibv_qp_type qp_type, bool is_UD_sender, const char *rdma_device_name, uint32_t rdma_port_id, uint32_t gid_index,
+RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int read_pipe_fd, enum ibv_qp_type qp_type, bool is_UD_sender, const char *rdma_device_name, uint32_t rdma_port_id, uint32_t gid_index,
 				 uint32_t max_send_wr, uint32_t max_recv_wr, uint32_t max_send_sges, uint32_t max_recv_sges,
 				 uint32_t recv_request_count, TakyonRecvRequest *recv_requests,
 				 double timeout_seconds, char *error_message, int max_error_message_chars) {
@@ -829,20 +829,20 @@ RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int socket
   // Exchange QP and port info with the remote endpoint
   PortInfo remote_port_info;
   if (is_endpointA) {
-    if (!socketSend(socket_fd, local_port_info.socket_data, sizeof(local_port_info.socket_data), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    if (!socketSend(read_pipe_fd, local_port_info.socket_data, sizeof(local_port_info.socket_data), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to send RDMA port info text: %s\n", error_message);
       goto failed;
     }
-    if (!socketRecv(socket_fd, remote_port_info.socket_data, sizeof(remote_port_info.socket_data), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    if (!socketRecv(read_pipe_fd, remote_port_info.socket_data, sizeof(remote_port_info.socket_data), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to recv remote RDMA port info text: %s\n", error_message);
       goto failed;
     }
   } else {
-    if (!socketRecv(socket_fd, remote_port_info.socket_data, sizeof(remote_port_info.socket_data), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    if (!socketRecv(read_pipe_fd, remote_port_info.socket_data, sizeof(remote_port_info.socket_data), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to recv remote RDMA port info text: %s\n", error_message);
       goto failed;
     }
-    if (!socketSend(socket_fd, local_port_info.socket_data, sizeof(local_port_info.socket_data), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    if (!socketSend(read_pipe_fd, local_port_info.socket_data, sizeof(local_port_info.socket_data), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to send RDMA port info text: %s\n", error_message);
       goto failed;
     }
@@ -1005,21 +1005,25 @@ bool rdmaDestroyEndpoint(TakyonPath *path, RdmaEndpoint *endpoint, char *error_m
   return true;
 }
 
-static bool eventDrivenCompletionWait(struct ibv_comp_channel *comp_ch, int socket_fd, unsigned int *num_events_to_ack_inout, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
+static bool eventDrivenCompletionWait(RdmaEndpoint *endpoint, struct ibv_comp_channel *comp_ch, int read_pipe_fd, unsigned int *num_events_to_ack_inout, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
   // Verbs does not have an API to do a timed wait, so need to use an underlying socket in the completion channel to do it
   struct pollfd poll_fds[2];
  retry:
   poll_fds[0].fd      = comp_ch->fd; // RDMA's completion channel socket
   poll_fds[0].events  = POLLIN;      // Requested events: POLLIN means there is data to read
   poll_fds[0].revents = 0;           // Returned events that will be filled in after the call to poll()
-  poll_fds[1].fd      = socket_fd; // The Takyon connection socket (to detect disconnects and then do a shut down barrier)
+  poll_fds[1].fd      = read_pipe_fd; // The Takyon connection socket (to detect disconnects and then do a shut down barrier)
   poll_fds[1].events  = POLLIN;    // Requested events: POLLIN means there is activity
   poll_fds[1].revents = 0;         // Returned events that will be filled in after the call to poll()
   nfds_t fd_count = 1;
-  if (socket_fd > 0) {
+  if (read_pipe_fd > 0) {
     fd_count = 2;
   }
   int timeout_ms = (timeout_seconds < 0) ? -1 : (int)(timeout_seconds * 1000);
+  if (endpoint->connection_broken) {
+    snprintf(error_message, max_error_message_chars, "Looks like the remote endpoint may have disconnected");
+    return false;
+  }
   int count = poll(poll_fds, fd_count, timeout_ms);
   if (count == 0) {
     // Timed out
@@ -1041,7 +1045,7 @@ static bool eventDrivenCompletionWait(struct ibv_comp_channel *comp_ch, int sock
   }
   // Got activity
   if (poll_fds[1].revents != 0) {
-    snprintf(error_message, max_error_message_chars, "Looks like the remote endpoint may have disconnected: revents=%d, POLLIN=%d", poll_fds[1].revents, POLLIN);
+    snprintf(error_message, max_error_message_chars, "Looks like the remote endpoint may have disconnected: revents=%d, POLLIN=%d, POLLOUT=%d", poll_fds[1].revents, POLLIN, POLLOUT);
     return false;
   }
   if (poll_fds[0].revents != POLLIN) {
@@ -1117,7 +1121,7 @@ static const char *wcOpcodeToText(enum ibv_wc_opcode opcode_val) {
 }
 #endif
 
-static bool waitForCompletion(bool is_send, RdmaEndpoint *endpoint, uint64_t expected_wr_id, enum ibv_wc_opcode expected_opcode, int socket_fd, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret) {
+static bool waitForCompletion(bool is_send, RdmaEndpoint *endpoint, uint64_t expected_wr_id, enum ibv_wc_opcode expected_opcode, int read_pipe_fd, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret) {
   (void)expected_opcode; // Quiet compiler
   bool got_start_time = false;
   double start_time = 0;
@@ -1166,7 +1170,7 @@ static bool waitForCompletion(bool is_send, RdmaEndpoint *endpoint, uint64_t exp
       bool timed_out = false;
       struct ibv_comp_channel *comp_ch = is_send ? endpoint->send_comp_ch : endpoint->recv_comp_ch;
       unsigned int *num_events_to_ack_inout = is_send ? &endpoint->num_send_events_to_ack : &endpoint->num_recv_events_to_ack;
-      if (!eventDrivenCompletionWait(comp_ch, socket_fd, num_events_to_ack_inout, timeout_seconds, &timed_out, error_message, max_error_message_chars)) return false;
+      if (!eventDrivenCompletionWait(endpoint, comp_ch, read_pipe_fd, num_events_to_ack_inout, timeout_seconds, &timed_out, error_message, max_error_message_chars)) return false;
       if (timed_out) {
 	// Timed out
 	*timed_out_ret = true;
@@ -1301,13 +1305,13 @@ bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr
   return true;
 }
 
-bool rdmaEndpointIsRecved(RdmaEndpoint *endpoint, uint64_t expected_transfer_id, int socket_fd, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret) {
+bool rdmaEndpointIsRecved(RdmaEndpoint *endpoint, uint64_t expected_transfer_id, int read_pipe_fd, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret) {
   bool is_send = false;
   enum ibv_wc_opcode expected_opcode = IBV_WC_RECV;
-  return waitForCompletion(is_send, endpoint, expected_transfer_id, expected_opcode, socket_fd, use_polling_completion, usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, max_error_message_chars, bytes_received_ret, piggy_back_message_ret);
+  return waitForCompletion(is_send, endpoint, expected_transfer_id, expected_opcode, read_pipe_fd, use_polling_completion, usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, max_error_message_chars, bytes_received_ret, piggy_back_message_ret);
 }
 
-bool rdmaEndpointIsSent(RdmaEndpoint *endpoint, uint64_t expected_transfer_id, enum ibv_wc_opcode expected_opcode, int socket_fd, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
+bool rdmaEndpointIsSent(RdmaEndpoint *endpoint, uint64_t expected_transfer_id, enum ibv_wc_opcode expected_opcode, int read_pipe_fd, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars) {
   bool is_send = true;
-  return waitForCompletion(is_send, endpoint, expected_transfer_id, expected_opcode, socket_fd, use_polling_completion, usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, max_error_message_chars, NULL, NULL);
+  return waitForCompletion(is_send, endpoint, expected_transfer_id, expected_opcode, read_pipe_fd, use_polling_completion, usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, max_error_message_chars, NULL, NULL);
 }

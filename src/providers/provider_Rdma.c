@@ -88,7 +88,7 @@ static void *disconnectDetectionThread(void *user_data) {
   if (!socketRecv(private_path->socket_fd, &dummy, sizeof(dummy), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
     private_path->connection_failed = true;
     endpoint->connection_broken = true;
-    pipeWakeUpSelect(private_path->write_pipe_fd, error_message, MAX_ERROR_MESSAGE_CHARS); // Wake up poll() in RDMA's completion event handler: eventDrivenCompletionWait()
+    pipeWakeUpPollFunction(private_path->write_pipe_fd, error_message, MAX_ERROR_MESSAGE_CHARS); // Wake up poll() in RDMA's completion event handler: eventDrivenCompletionWait()
   }
   return NULL;
 }
@@ -647,7 +647,7 @@ bool rdmaIsOneSidedDone(TakyonPath *path, TakyonOneSidedRequest *request, double
   // See if the RDMA message is sent
   uint64_t expected_transfer_id = (uint64_t)request;
   enum ibv_wc_opcode expected_opcode = (request->is_write_request) ? IBV_WC_RDMA_WRITE : IBV_WC_RDMA_READ;
-  if (!rdmaEndpointIsSent(endpoint, expected_transfer_id, expected_opcode, private_path->write_pipe_fd, request->use_polling_completion, request->usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+  if (!rdmaEndpointIsSent(endpoint, expected_transfer_id, expected_opcode, private_path->read_pipe_fd, request->use_polling_completion, request->usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, MAX_ERROR_MESSAGE_CHARS)) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to wait for RDMA %s to complete: %s\n", request->is_write_request ? "write" : "read", error_message);
     return false;
   }
@@ -725,7 +725,7 @@ bool rdmaIsSent(TakyonPath *path, TakyonSendRequest *request, double timeout_sec
   // See if the RDMA message is sent
   uint64_t expected_transfer_id = (uint64_t)request;
   enum ibv_wc_opcode expected_opcode = IBV_WC_SEND;
-  if (!rdmaEndpointIsSent(endpoint, expected_transfer_id, expected_opcode, private_path->write_pipe_fd, request->use_polling_completion, request->usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+  if (!rdmaEndpointIsSent(endpoint, expected_transfer_id, expected_opcode, private_path->read_pipe_fd, request->use_polling_completion, request->usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, MAX_ERROR_MESSAGE_CHARS)) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to wait for RDMA send to complete: %s\n", error_message);
     return false;
   }
@@ -801,7 +801,7 @@ bool rdmaIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_s
 
   // Wait for the message
   uint64_t expected_transfer_id = (uint64_t)request;
-  if (!rdmaEndpointIsRecved(endpoint, expected_transfer_id, private_path->write_pipe_fd, request->use_polling_completion, request->usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, MAX_ERROR_MESSAGE_CHARS, bytes_received_ret, piggy_back_message_ret)) {
+  if (!rdmaEndpointIsRecved(endpoint, expected_transfer_id, private_path->read_pipe_fd, request->use_polling_completion, request->usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, MAX_ERROR_MESSAGE_CHARS, bytes_received_ret, piggy_back_message_ret)) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to recv RDMA message: %s\n", error_message);
     return false;
   }

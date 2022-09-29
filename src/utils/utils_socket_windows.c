@@ -1112,8 +1112,8 @@ bool socketWaitForDisconnectActivity(TakyonSocket socket_fd, int read_pipe_fd, b
   }
 }
 
-bool pipeWakeUpSelect(int write_pipe_fd, char *error_message, int max_error_message_chars) {
-  // IMPORTANT: Nothing to do since WSAPoll will be set to wake up periodically to check if the thread should shut down */
+bool pipeWakeUpPollFunction(int write_pipe_fd, char *error_message, int max_error_message_chars) {
+  // IMPORTANT: Nothing to do since WSAPoll function should bewoken up periodically to check if the thread should shut down */
   return true;
 }
 

@@ -1008,7 +1008,8 @@ bool socketWaitForDisconnectActivity(int socket_fd, int read_pipe_fd, bool *got_
   }
 }
 
-bool pipeWakeUpSelect(int write_pipe_fd, char *error_message, int max_error_message_chars) {
+bool pipeWakeUpPollFunction(int write_pipe_fd, char *error_message, int max_error_message_chars) {
+  // Goal is to write to the right pipe, and then the read pipe will get activity from the poll() function, waking it up
   int data = 1;
   size_t msg_size = sizeof(int);
   // NOTE: use this instead of can be broken from a sigpipe: size_t bytes_written = send(write_pipe_fd, (void *)&data, msg_size, MSG_NOSIGNAL);
