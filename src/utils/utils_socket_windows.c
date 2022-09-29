@@ -1066,7 +1066,6 @@ bool socketCreateEphemeralTcpServer(const char *ip_addr, const char *provider_na
 }
 #endif
 
-#ifdef ENABLE_EPHEMERAL_PORT_MANAGER
 bool pipeCreate(int *read_pipe_fd_ret, int *write_pipe_fd_ret, char *error_message, int max_error_message_chars) {
   // IMPORTANT: Windows does not have pipes, so may need to poll on connection to see if it's disconnected
   *read_pipe_fd_ret = -1;
@@ -1121,7 +1120,6 @@ bool pipeWakeUpSelect(int write_pipe_fd, char *error_message, int max_error_mess
 void pipeDestroy(int read_pipe_fd, int write_pipe_fd) {
   // Nothing to do
 }
-#endif
 
 bool socketSetBlocking(TakyonSocket socket_fd, bool is_blocking, char *error_message, int max_error_message_chars) {
   unsigned long blocking_mode = is_blocking ? 0 : 1;

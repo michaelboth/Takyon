@@ -956,6 +956,7 @@ bool socketCreateEphemeralTcpServer(const char *ip_addr, const char *provider_na
 
   return true;
 }
+#endif
 
 bool pipeCreate(int *read_pipe_fd_ret, int *write_pipe_fd_ret, char *error_message, int max_error_message_chars) {
   int fds[2];
@@ -1024,7 +1025,6 @@ void pipeDestroy(int read_pipe_fd, int write_pipe_fd) {
   close(read_pipe_fd);
   close(write_pipe_fd);
 }
-#endif
 
 bool socketSetBlocking(int socket_fd, bool is_blocking, char *error_message, int max_error_message_chars) {
   int flags = fcntl(socket_fd, F_GETFL);

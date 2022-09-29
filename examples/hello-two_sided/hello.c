@@ -79,7 +79,7 @@ static void sendMessage(TakyonPath *path, uint32_t i) {
   TakyonSendRequest send_request = { .sub_buffer_count = path->capabilities.multi_sub_buffers_supported ? 2 : 1,
                                      .sub_buffers = sender_sub_buffers,
                                      .use_is_sent_notification = true,
-                                     .use_polling_completion = false,
+				     .use_polling_completion = false,
                                      .usec_sleep_between_poll_attempts = 0 };
 
   // Start the send
@@ -178,7 +178,7 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
   TakyonSubBuffer recver_sub_buffer = { .buffer_index = 2, .bytes = MAX_MESSAGE_BYTES + (is_rdma_UD ? 40 : 0), .offset = 0 };
   TakyonRecvRequest recv_request = { .sub_buffer_count = 1,
                                      .sub_buffers = &recver_sub_buffer,
-                                     .use_polling_completion = false,
+				     .use_polling_completion = false,
                                      .usec_sleep_between_poll_attempts = 0 };
 
   // Create one side of the path

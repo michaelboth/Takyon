@@ -82,13 +82,13 @@ extern void ephemeralPortManagerSet(const char *provider_name, uint32_t path_id,
 extern uint16_t ephemeralPortManagerGet(const char *provider_name, uint32_t path_id, int64_t timeout_ns, bool *timed_out_ret, uint64_t verbosity, char *error_message, int max_error_message_chars);
 extern void ephemeralPortManagerRemove(const char *provider_name, uint32_t path_id, uint16_t ephemeral_port_number);
 extern void ephemeralPortManagerRemoveLocally(const char *provider_name, uint32_t path_id);
+#endif
 
 // Pipes (helpful with closing sockets that are sleeping while waiting for activity)
 extern bool pipeCreate(int *read_pipe_fd_ret, int *write_pipe_fd_ret, char *error_message, int max_error_message_chars);
 extern bool socketWaitForDisconnectActivity(TakyonSocket socket_fd, int read_pipe_fd, bool *got_socket_activity_ret, char *error_message, int max_error_message_chars);
 extern bool pipeWakeUpSelect(int write_pipe_fd, char *error_message, int max_error_message_chars);
 extern void pipeDestroy(int read_pipe_fd, int write_pipe_fd);
-#endif
 
 #ifdef __cplusplus
 }

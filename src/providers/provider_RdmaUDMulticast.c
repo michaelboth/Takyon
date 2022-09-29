@@ -299,7 +299,8 @@ bool rdmaUDMulticastIsSent(TakyonPath *path, TakyonSendRequest *request, double 
   // See if the RDMA message is sent
   uint64_t expected_transfer_id = (uint64_t)request;
   enum ibv_wc_opcode expected_opcode = IBV_WC_SEND;
-  if (!rdmaEndpointIsSent(endpoint, expected_transfer_id, expected_opcode, request->use_polling_completion, request->usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+  int socket_fd = -1; // Multicast is completely disconnected, so no ability to know if remote side has stopped
+  if (!rdmaEndpointIsSent(endpoint, expected_transfer_id, expected_opcode, socket_fd, request->use_polling_completion, request->usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, MAX_ERROR_MESSAGE_CHARS)) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to wait for RDMA send to complete: %s\n", error_message);
     return false;
   }
@@ -379,7 +380,8 @@ bool rdmaUDMulticastIsRecved(TakyonPath *path, TakyonRecvRequest *request, doubl
 
   // Wait for the message
   uint64_t expected_transfer_id = (uint64_t)request;
-  if (!rdmaEndpointIsRecved(endpoint, expected_transfer_id, request->use_polling_completion, request->usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, MAX_ERROR_MESSAGE_CHARS, bytes_received_ret, piggy_back_message_ret)) {
+  int socket_fd = -1; // Multicast is completely disconnected, so no ability to know if remote side has stopped
+  if (!rdmaEndpointIsRecved(endpoint, expected_transfer_id, socket_fd, request->use_polling_completion, request->usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, MAX_ERROR_MESSAGE_CHARS, bytes_received_ret, piggy_back_message_ret)) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to recv RDMA message: %s\n", error_message);
     return false;
   }

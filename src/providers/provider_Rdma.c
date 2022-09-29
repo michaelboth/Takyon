@@ -59,6 +59,8 @@ typedef struct {
   bool thread_started;
   pthread_t disconnect_detection_thread_id;
   bool connection_failed;
+  int read_pipe_fd;
+  int write_pipe_fd;
 
   // Rdma
   RdmaEndpoint *endpoint;
@@ -77,6 +79,7 @@ typedef struct {
 
 static void *disconnectDetectionThread(void *user_data) {
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)user_data;
+  RdmaEndpoint *endpoint = private_path->endpoint;
   // Wait for either a socket disconnect, or for takyonDestroy() to get called
   uint32_t dummy;
   int64_t timeout_nano_seconds = -1; // Wait forever
@@ -84,6 +87,8 @@ static void *disconnectDetectionThread(void *user_data) {
   char error_message[MAX_ERROR_MESSAGE_CHARS];
   if (!socketRecv(private_path->socket_fd, &dummy, sizeof(dummy), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
     private_path->connection_failed = true;
+    endpoint->connection_broken = true;
+    pipeWakeUpSelect(private_path->write_pipe_fd, error_message, MAX_ERROR_MESSAGE_CHARS); // Wake up poll() in RDMA's completion event handler: eventDrivenCompletionWait()
   }
   return NULL;
 }
@@ -422,6 +427,12 @@ bool rdmaCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *r
     if (!sendRdmaBufferInfo(path, private_path, timeout_nano_seconds)) goto failed;
   }
 
+  // Create a pipe that will be used for disconnect detection
+  if (!pipeCreate(&private_path->read_pipe_fd, &private_path->write_pipe_fd, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    TAKYON_RECORD_ERROR(path->error_message, "Failed to create pipe used for disconnect detection: %s\n", error_message);
+    goto failed;
+  }
+
   // Start the thread to detect if the socket is disconnected
   int rc = pthread_create(&private_path->disconnect_detection_thread_id, NULL, disconnectDetectionThread, private_path);
   if (rc != 0) {
@@ -434,6 +445,7 @@ bool rdmaCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *r
   return true;
 
  failed:
+  if (private_path->read_pipe_fd != 0 && private_path->write_pipe_fd != 0) pipeDestroy(private_path->read_pipe_fd, private_path->write_pipe_fd);
   if (private_path->endpoint != NULL) (void)rdmaDestroyEndpoint(path, private_path->endpoint, error_message, MAX_ERROR_MESSAGE_CHARS);
   if (private_path->rdma_send_request_list != NULL) free(private_path->rdma_send_request_list);
   if (private_path->rdma_recv_request_list != NULL) free(private_path->rdma_recv_request_list);
@@ -453,6 +465,9 @@ bool rdmaDestroy(TakyonPath *path, double timeout_seconds) {
   int64_t timeout_nano_seconds = (int64_t)(timeout_seconds * NANOSECONDS_PER_SECOND_DOUBLE);
   char error_message[MAX_ERROR_MESSAGE_CHARS];
   bool timed_out = false;
+
+  // Provide some time for the remote side to get any in-transit data before disconnecting
+  clockSleepYield(MICROSECONDS_TO_SLEEP_BEFORE_DISCONNECTING);
 
   // Wake up thread
   if (private_path->thread_started) {
@@ -514,6 +529,7 @@ bool rdmaDestroy(TakyonPath *path, double timeout_seconds) {
   }
 
   // Free memory
+  if (private_path->read_pipe_fd != 0 && private_path->write_pipe_fd != 0) pipeDestroy(private_path->read_pipe_fd, private_path->write_pipe_fd);
   if (private_path->rdma_send_request_list != NULL) free(private_path->rdma_send_request_list);
   if (private_path->rdma_recv_request_list != NULL) free(private_path->rdma_recv_request_list);
   if (private_path->send_sge_list != NULL) free(private_path->send_sge_list);
@@ -631,7 +647,7 @@ bool rdmaIsOneSidedDone(TakyonPath *path, TakyonOneSidedRequest *request, double
   // See if the RDMA message is sent
   uint64_t expected_transfer_id = (uint64_t)request;
   enum ibv_wc_opcode expected_opcode = (request->is_write_request) ? IBV_WC_RDMA_WRITE : IBV_WC_RDMA_READ;
-  if (!rdmaEndpointIsSent(endpoint, expected_transfer_id, expected_opcode, request->use_polling_completion, request->usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+  if (!rdmaEndpointIsSent(endpoint, expected_transfer_id, expected_opcode, private_path->write_pipe_fd, request->use_polling_completion, request->usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, MAX_ERROR_MESSAGE_CHARS)) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to wait for RDMA %s to complete: %s\n", request->is_write_request ? "write" : "read", error_message);
     return false;
   }
@@ -709,7 +725,7 @@ bool rdmaIsSent(TakyonPath *path, TakyonSendRequest *request, double timeout_sec
   // See if the RDMA message is sent
   uint64_t expected_transfer_id = (uint64_t)request;
   enum ibv_wc_opcode expected_opcode = IBV_WC_SEND;
-  if (!rdmaEndpointIsSent(endpoint, expected_transfer_id, expected_opcode, request->use_polling_completion, request->usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+  if (!rdmaEndpointIsSent(endpoint, expected_transfer_id, expected_opcode, private_path->write_pipe_fd, request->use_polling_completion, request->usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, MAX_ERROR_MESSAGE_CHARS)) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to wait for RDMA send to complete: %s\n", error_message);
     return false;
   }
@@ -785,7 +801,7 @@ bool rdmaIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_s
 
   // Wait for the message
   uint64_t expected_transfer_id = (uint64_t)request;
-  if (!rdmaEndpointIsRecved(endpoint, expected_transfer_id, request->use_polling_completion, request->usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, MAX_ERROR_MESSAGE_CHARS, bytes_received_ret, piggy_back_message_ret)) {
+  if (!rdmaEndpointIsRecved(endpoint, expected_transfer_id, private_path->write_pipe_fd, request->use_polling_completion, request->usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, MAX_ERROR_MESSAGE_CHARS, bytes_received_ret, piggy_back_message_ret)) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to recv RDMA message: %s\n", error_message);
     return false;
   }
