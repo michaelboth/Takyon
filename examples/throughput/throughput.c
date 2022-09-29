@@ -74,13 +74,15 @@ static void validateMessage(TakyonPath *path, TakyonBuffer *buffer, uint64_t byt
   if (bytes_received != message_bytes) { printf("Message %u: Received " UINT64_FORMAT " bytes, but expect " UINT64_FORMAT " bytes\n", message_count, bytes_received, message_bytes); exit(EXIT_FAILURE); }
   if (message_bytes > 0) {
     uint32_t previous_start_value = *previous_start_value_inout;
-    if (previous_start_value >= data_cpu[0]) { printf("Message %u: Message start value=%u did not increase from previous message value=%u. Is the sender also using '-v'?\n", message_count, data_cpu[0], previous_start_value); exit(EXIT_FAILURE); }
+    if (previous_start_value == data_cpu[0]) { printf("Message %u: Message start value=%u did not change from previous message value=%u. Is the sender also using '-v', or is this a duplicate multicast packet?\n", message_count, data_cpu[0], previous_start_value); exit(EXIT_FAILURE); }
     uint64_t elements = message_bytes / sizeof(uint32_t);
     for (uint64_t i=1; i<elements; i++) {
       if ((data_cpu[i-1]+1) != data_cpu[i]) { printf("Message %u: data[" UINT64_FORMAT "]=%u and data[" UINT64_FORMAT "]=%u did not increase by 1\n", message_count, i-1, data_cpu[i-1], i, data_cpu[i]); exit(EXIT_FAILURE); }
     }
     // Count drops
-    L_detected_drops += data_cpu[0] - (previous_start_value+1);
+    if (data_cpu[0] > previous_start_value) {
+      L_detected_drops += data_cpu[0] - (previous_start_value+1);
+    }
     *previous_start_value_inout = data_cpu[0];
   }
 }
@@ -96,7 +98,7 @@ static void sendMessage(TakyonPath *path, const uint64_t message_bytes, const bo
   bool use_sent_notification = (message_count % path->attrs.max_pending_send_and_one_sided_requests) == 0; // Need to get sent notification before out of send_requests or else the provider will get a buffer overflow
   TakyonSubBuffer sender_sub_buffer = { .buffer_index = 0, .bytes = message_bytes, .offset = message_offset };
   TakyonSendRequest send_request = { .sub_buffer_count = (message_bytes==0) ? 0 : 1,
-                                     .sub_buffers = (message_bytes==0) ? 0 : &sender_sub_buffer,
+                                     .sub_buffers = (message_bytes==0) ? NULL : &sender_sub_buffer,
                                      .use_is_sent_notification = use_sent_notification,
                                      .use_polling_completion = use_polling_completion,
                                      .usec_sleep_between_poll_attempts = 0 };
@@ -135,6 +137,7 @@ static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, const
   } else if (path->capabilities.piggy_back_messages_supported) {
     // Drop detection if validation is turned off
     static uint32_t previous_start_value = 0;
+    if (previous_start_value == piggy_back_message) { printf("Message %u: Piggy back message=%u did not change from previous message. Is this a duplicate multicast packet?\n", message_count, piggy_back_message); exit(EXIT_FAILURE); }
     L_detected_drops += piggy_back_message - (previous_start_value+1);
     previous_start_value = piggy_back_message;
   }

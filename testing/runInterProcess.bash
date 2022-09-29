@@ -241,21 +241,21 @@ if [ "$socket" == "yes" ]; then
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         sleep 1
         echo ""
-        ./throughput_mp $endpoint "SocketUdpSend -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23457" -n=100000 -b=1024
+        ./throughput_mp $endpoint "SocketUdpSend -multicast -localIP=127.0.0.1 -groupIP=233.23.33.57 -port=23457" -n=100000 -b=1024
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         sleep 1
         echo ""
-        ./throughput_mp $endpoint "SocketUdpSend -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23457" -n=100000 -b=1024 -e
+        ./throughput_mp $endpoint "SocketUdpSend -multicast -localIP=127.0.0.1 -groupIP=233.23.33.58 -port=23457" -n=100000 -b=1024 -e
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     else
         echo ""
         ./throughput_mp $endpoint "SocketUdpRecv -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23457 -reuse" -n=100000 -b=1024 -v
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
-        ./throughput_mp $endpoint "SocketUdpRecv -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23457 -reuse" -n=100000 -b=1024
+        ./throughput_mp $endpoint "SocketUdpRecv -multicast -localIP=127.0.0.1 -groupIP=233.23.33.57 -port=23457 -reuse" -n=100000 -b=1024
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
-        ./throughput_mp $endpoint "SocketUdpRecv -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23457 -reuse" -n=100000 -b=1024 -e
+        ./throughput_mp $endpoint "SocketUdpRecv -multicast -localIP=127.0.0.1 -groupIP=233.23.33.58 -port=23457 -reuse" -n=100000 -b=1024 -e
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     fi
 fi

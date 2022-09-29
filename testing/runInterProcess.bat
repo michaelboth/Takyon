@@ -191,19 +191,19 @@ if %socket% == yes (
     if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
     rem sleep 1
     CHOICE /N /C YN /T 1 /D Y >NUL
-    throughput_mp %endpoint% "SocketUdpSend -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23457" -n=100000 -b=1024
+    throughput_mp %endpoint% "SocketUdpSend -multicast -localIP=127.0.0.1 -groupIP=233.23.33.57 -port=23457" -n=100000 -b=1024
     if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
     rem sleep 1
     CHOICE /N /C YN /T 1 /D Y >NUL
-    throughput_mp %endpoint% "SocketUdpSend -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23457" -n=100000 -b=1024 -e
+    throughput_mp %endpoint% "SocketUdpSend -multicast -localIP=127.0.0.1 -groupIP=233.23.33.58 -port=23457" -n=100000 -b=1024 -e
     if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
   )
   if %endpoint% == B (
     throughput_mp %endpoint% "SocketUdpRecv -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23457 -reuse" -n=100000 -b=1024 -v
     if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
-    throughput_mp %endpoint% "SocketUdpRecv -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23457 -reuse" -n=100000 -b=1024
+    throughput_mp %endpoint% "SocketUdpRecv -multicast -localIP=127.0.0.1 -groupIP=233.23.33.57 -port=23457 -reuse" -n=100000 -b=1024
     if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
-    throughput_mp %endpoint% "SocketUdpRecv -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23457 -reuse" -n=100000 -b=1024 -e
+    throughput_mp %endpoint% "SocketUdpRecv -multicast -localIP=127.0.0.1 -groupIP=233.23.33.58 -port=23457 -reuse" -n=100000 -b=1024 -e
     if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
   )
 )

@@ -37,6 +37,7 @@ typedef struct {
   unsigned int num_send_events_to_ack;
   unsigned int num_recv_events_to_ack;
   bool connection_broken;
+  uint32_t mtu_bytes;
   // Multicast
   struct ibv_ah *multicast_ah;
   struct sockaddr multicast_addr;

@@ -31,6 +31,7 @@
 
 /*+
   MELLANOX:
+    - r3u04 is duplicating multicast packets
     - Is MLNX OFED Verbs also ported to Windows or still need to use Network Direct?
     - When testing two processes on a single node: UD multicast can send up to 10,000 bytes message without getting IBV_WC_LOC_LEN_ERR. Recv can get 8960 bytes. How is this posible.
     - Can't register CUDA memory is access is
@@ -46,7 +47,7 @@ typedef struct  {
   int psn;
   union ibv_gid gid; // For RoCE
   char gid_text[33]; // For RoCE
-  enum ibv_mtu max_mtu_mode;
+  enum ibv_mtu mtu_mode;
   uint32_t unicast_qkey;
   char socket_data[PORT_INFO_TEXT_BYTES]; // Use for transferring to remote side regardless of endian
 } PortInfo;
@@ -110,6 +111,17 @@ static const char *portStateToText(enum ibv_port_state state) {
   }
 }
 
+static uint32_t mtuModeToBytes(enum ibv_mtu mtu_mode) {
+  switch (mtu_mode) {
+  case IBV_MTU_256 : return 256;
+  case IBV_MTU_512 : return 512;
+  case IBV_MTU_1024 : return 1024;
+  case IBV_MTU_2048 : return 2048;
+  case IBV_MTU_4096 : return 4096;
+  default : return 0;
+  }
+}
+
 static const char *mtuModeToText(enum ibv_mtu mtu_mode) {
   switch (mtu_mode) {
   case IBV_MTU_256 : return "IBV_MTU_256";
@@ -151,7 +163,7 @@ static bool getLocalPortInfo(TakyonPath *path, struct ibv_context *context, stru
   }
 
   port_info.unicast_qkey = unicast_local_qkey;
-  port_info.max_mtu_mode = port_attrs.max_mtu;
+  port_info.mtu_mode = port_attrs.active_mtu;
   port_info.qpn = qp->qp_num;
   srand48((long int)clockTimeNanoseconds());
   port_info.psn = lrand48() & 0xffffff;
@@ -174,12 +186,12 @@ static bool getLocalPortInfo(TakyonPath *path, struct ibv_context *context, stru
     return false;
   }
   if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) {
-    printf("  Local connection info: LID 0x%04x, QPN 0x%06x, PSN 0x%06x, MaxMTU %s, UnicastQKEY 0x%06x, GID '%s'\n",
-	   port_info.lid, port_info.qpn, port_info.psn, mtuModeToText(port_info.max_mtu_mode), port_info.unicast_qkey, port_info.gid_text);
+    printf("  Local connection info: LID 0x%04x, QPN 0x%06x, PSN 0x%06x, MTU %s, UnicastQKEY 0x%06x, GID '%s'\n",
+	   port_info.lid, port_info.qpn, port_info.psn, mtuModeToText(port_info.mtu_mode), port_info.unicast_qkey, port_info.gid_text);
   }
 
   gidToText(&port_info.gid, port_info.gid_text);
-  sprintf(port_info.socket_data, "%04x:%06x:%06x:%04x:%06x:%s", port_info.lid, port_info.qpn, port_info.psn, port_info.max_mtu_mode, port_info.unicast_qkey, port_info.gid_text);
+  sprintf(port_info.socket_data, "%04x:%06x:%06x:%04x:%06x:%s", port_info.lid, port_info.qpn, port_info.psn, port_info.mtu_mode, port_info.unicast_qkey, port_info.gid_text);
 
   *port_info_ret = port_info;
 
@@ -693,6 +705,7 @@ RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *local_NI
     endpoint->recv_cq = cq;
   }
   endpoint->multicast_addr = multicast_addr;
+  endpoint->mtu_bytes = mtu_bytes;
 
   // Post recvs
   if (!is_sender && recv_request_count > 0) {
@@ -836,20 +849,25 @@ RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int socket
   }
 
   // Parse the remote port info
-  int tokens = sscanf(remote_port_info.socket_data, "%x:%x:%x:%x:%x:%s", &remote_port_info.lid, &remote_port_info.qpn, &remote_port_info.psn, &remote_port_info.max_mtu_mode, &remote_port_info.unicast_qkey, remote_port_info.gid_text);
+  int tokens = sscanf(remote_port_info.socket_data, "%x:%x:%x:%x:%x:%s", &remote_port_info.lid, &remote_port_info.qpn, &remote_port_info.psn, &remote_port_info.mtu_mode, &remote_port_info.unicast_qkey, remote_port_info.gid_text);
   if (tokens != 6) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to parse the remote RDMA port info text\n");
     goto failed;
   }
   textToGid(remote_port_info.gid_text, &remote_port_info.gid);
   if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) {
-    printf("  Remote connection info: LID 0x%04x, QPN 0x%06x, PSN 0x%06x, MaxMTU %s, UnicastQKEY 0x%06x, GID '%s'\n",
-           remote_port_info.lid, remote_port_info.qpn, remote_port_info.psn, mtuModeToText(remote_port_info.max_mtu_mode), remote_port_info.unicast_qkey, remote_port_info.gid_text);
+    printf("  Remote connection info: LID 0x%04x, QPN 0x%06x, PSN 0x%06x, MTU %s, UnicastQKEY 0x%06x, GID '%s'\n",
+           remote_port_info.lid, remote_port_info.qpn, remote_port_info.psn, mtuModeToText(remote_port_info.mtu_mode), remote_port_info.unicast_qkey, remote_port_info.gid_text);
   }
 
   // Move the QP state to RTS (ready to send)
-  enum ibv_mtu mtu_mode = (remote_port_info.max_mtu_mode < local_port_info.max_mtu_mode) ? remote_port_info.max_mtu_mode : local_port_info.max_mtu_mode; // Use the minimum
-  if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) printf("  Will use %s between endpoints\n", mtuModeToText(remote_port_info.max_mtu_mode));
+  enum ibv_mtu mtu_mode = (remote_port_info.mtu_mode < local_port_info.mtu_mode) ? remote_port_info.mtu_mode : local_port_info.mtu_mode; // Use the minimum
+  endpoint->mtu_bytes = mtuModeToBytes(mtu_mode);
+  if (endpoint->mtu_bytes == 0) {
+    TAKYON_RECORD_ERROR(path->error_message, "Could not determine MTU bytes\n");
+    goto failed;
+  }
+  if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) printf("  Will use %s between endpoints\n", mtuModeToText(mtu_mode));
   if (!moveQpStateToRTS(qp, pd, qp_type, is_UD_sender, rdma_port_id, &local_port_info, &remote_port_info, mtu_mode, gid_index, error_message, MAX_ERROR_MESSAGE_CHARS, &unicast_sender_ah)) goto failed;
   if (qp_type == IBV_QPT_UD) {
     endpoint->unicast_sender_ah = unicast_sender_ah;
@@ -1217,6 +1235,7 @@ bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr
     if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Posting %s: nSGEs=%d\n", (transfer_mode == IBV_WR_RDMA_WRITE) ? "write" : "read", send_wr.num_sge);
 #endif
   }
+  uint32_t total_bytes = 0;
   for (uint32_t j=0; j<sub_buffer_count; j++) {
     TakyonSubBuffer *sub_buffer = &sub_buffers[j];
     TakyonBuffer *buffer = &path->attrs.buffers[sub_buffer->buffer_index];
@@ -1225,9 +1244,16 @@ bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr
     sge->addr = (uint64_t)buffer->addr + sub_buffer->offset;
     sge->length = sub_buffer->bytes;
     sge->lkey = rdma_buffer->mr->lkey;
+    total_bytes += sub_buffer->bytes;
 #ifdef EXTRA_ERROR_CHECKING
     if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("    SGE[%d]: addr=0x%jx, bytes=%u, lkey=%u\n", j, (uint64_t)sge->addr, sge->length, sge->lkey);
 #endif
+  }
+  if (endpoint->protocol == RDMA_PROTOCOL_UD_MULTICAST || endpoint->protocol == RDMA_PROTOCOL_UD_UNICAST) {
+    if (total_bytes > endpoint->mtu_bytes) {
+      snprintf(error_message, max_error_message_chars, "Message bytes=%u is larger than MTU bytes=%u", total_bytes, endpoint->mtu_bytes);
+      return false;
+    }
   }
 
   // Protocal specific stuff
