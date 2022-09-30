@@ -27,68 +27,89 @@
 #endif
 
 #define MAX_MESSAGE_BYTES 100 // Just need enough to transfer a nice text greeting
-#define NUM_TAKYON_BUFFERS 3
+#define MAX_TAKYON_BUFFERS 3
 
-static void writeMessage(TakyonPath *path, uint32_t i) {
-  // Fill in the data to write
+static uint64_t buildMessage(TakyonPath *path, uint32_t message_index) {
+  // STEP 1: Get address for the message from the Takyon buffer
   char *message_addr = (char *)path->attrs.buffers[0].addr;
+
+  // STEP 2: Fill in the message data
 #ifdef ENABLE_CUDA
+  // Cuda memory: first put in temporary CPU memory, then copy to CUDA
   char message_addr_cpu[MAX_MESSAGE_BYTES];
-  snprintf(message_addr_cpu, MAX_MESSAGE_BYTES, "--- Iteration %u: Hello (CUDA) ---", i+1);
+  snprintf(message_addr_cpu, MAX_MESSAGE_BYTES, "--- Iteration %u: Hello (CUDA) ---", message_index+1);
   uint64_t message_bytes = strlen(message_addr_cpu) + 1;
   cudaError_t cuda_status = cudaMemcpy(message_addr, message_addr_cpu, message_bytes, cudaMemcpyDefault);
   if (cuda_status != cudaSuccess) { printf("cudaMemcpy() failed: %s\n", cudaGetErrorString(cuda_status)); exit(EXIT_FAILURE); }
 #else
-  snprintf(message_addr, MAX_MESSAGE_BYTES, "--- Iteration %u: Hello (CPU) ---", i+1);
+  // CPU memory
+  snprintf(message_addr, MAX_MESSAGE_BYTES, "--- Iteration %u: Hello (CPU) ---", message_index+1);
   uint64_t message_bytes = strlen(message_addr) + 1;
 #endif
 
-  // Setup the one-sided write request
+  return message_bytes;
+}
+
+static void writeMessage(TakyonPath *path, uint64_t message_bytes, uint32_t message_index) {
+  // STEP 1: Setup the Takyon sub buffer list (only one entry in the list)
   TakyonSubBuffer sub_buffer = { .buffer_index = 0, .bytes = message_bytes, .offset = 0 };
+
+  // STEP 2: Setup the Takyon write request
   TakyonOneSidedRequest write_request = { .is_write_request = true,
                                           .sub_buffer_count = 1,
                                           .sub_buffers = &sub_buffer,
-                                          .remote_buffer_index = 1,
+                                          .remote_buffer_index = 0, // This is not the same buffer as the local buffer at index 0
                                           .remote_offset = 0,
                                           .use_is_done_notification = true,
                                           .use_polling_completion = false,
                                           .usec_sleep_between_poll_attempts = 0 };
 
-  // Start the send
+  // STEP 3: Start the Takyon one-sided write
   takyonOneSided(path, &write_request, TAKYON_WAIT_FOREVER, NULL);
 
-  // If the provider supports non blocking transfers, then need to know when it's complete
-  if (path->capabilities.IsOneSidedDone_supported && write_request.use_is_done_notification) takyonIsOneSidedDone(path, &write_request, TAKYON_WAIT_FOREVER, NULL);
-  printf("Message %d written\n", i+1);
+  // STEP 4: If the Takyon Provider supports non-blocking writes, then need to know when it's complete
+  if (path->capabilities.IsOneSidedDone_supported && write_request.use_is_done_notification) {
+    takyonIsOneSidedDone(path, &write_request, TAKYON_WAIT_FOREVER, NULL);
+  }
+
+  printf("Message %d written\n", message_index+1);
 }
 
-static void readMessage(TakyonPath *path) {
-  // Setup the one-sided write request
-  TakyonSubBuffer sub_buffer = { .buffer_index = 2, .bytes = MAX_MESSAGE_BYTES, .offset = 0 };
+static void *readMessage(TakyonPath *path) {
+  // STEP 1: Setup the Takyon sub buffer list (only one entry in the list)
+  TakyonSubBuffer sub_buffer = { .buffer_index = 1, .bytes = MAX_MESSAGE_BYTES, .offset = 0 };
+
+  // STEP 2: Setup the Takyon read request
   TakyonOneSidedRequest read_request = { .is_write_request = false,
                                          .sub_buffer_count = 1,
                                          .sub_buffers = &sub_buffer,
-                                         .remote_buffer_index = 1,
+                                         .remote_buffer_index = 0,
                                          .remote_offset = 0,
                                          .use_is_done_notification = true,
                                          .use_polling_completion = false,
                                          .usec_sleep_between_poll_attempts = 0 };
 
-  // Start the read
+  // STEP 3: Start the Takyon one-sided read
   takyonOneSided(path, &read_request, TAKYON_WAIT_FOREVER, NULL);
 
-  // If the provider supports non blocking transfers, then need to know when it's complete
-  if (path->capabilities.IsOneSidedDone_supported && read_request.use_is_done_notification) takyonIsOneSidedDone(path, &read_request, TAKYON_WAIT_FOREVER, NULL);
+  // STEP 4: If the Takyon Provider supports non-blocking reads, then need to know when it's complete
+  if (path->capabilities.IsOneSidedDone_supported && read_request.use_is_done_notification) {
+    takyonIsOneSidedDone(path, &read_request, TAKYON_WAIT_FOREVER, NULL);
+  }
 
-  // Process the data; i.e. print the received greeting
-  char *message_addr = (char *)path->attrs.buffers[2].addr;
+  return (char *)path->attrs.buffers[sub_buffer.buffer_index].addr + sub_buffer.offset;
+}
+
+static void processMessage(void *message_addr) {
 #ifdef ENABLE_CUDA
+  // CUDA memory: need to copy the GPU data to a temp CPU buffer
   char message_addr_cpu[MAX_MESSAGE_BYTES];
   cudaError_t cuda_status = cudaMemcpy(message_addr_cpu, message_addr, MAX_MESSAGE_BYTES, cudaMemcpyDefault);
   if (cuda_status != cudaSuccess) { printf("cudaMemcpy() failed: %s\n", cudaGetErrorString(cuda_status)); exit(EXIT_FAILURE); }
   printf("(CUDA): Read message '%s'\n", message_addr_cpu);
 #else
-  printf("(CPU): Read message '%s'\n", message_addr);
+  // CPU memory
+  printf("(CPU): Read message '%s'\n", (char *)message_addr);
 #endif
 }
 
@@ -96,10 +117,13 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
   printf("Hello Takyon Example (one-sided): endpoint %s: provider '%s'\n", is_endpointA ? "A" : "B", provider);
 
   // Create the memory buffers used with transfering data
-  //   1. A writes from buffers[0] to buffer[1]
-  //   2. A reads from buffers[1] to buffer[2]
-  TakyonBuffer buffers[NUM_TAKYON_BUFFERS];
-  for (uint32_t i=0; i<NUM_TAKYON_BUFFERS; i++) {
+  // Endpoint 'A' need 2 buffer:
+  //   Buffer 0: source message to be written to 'B'
+  //   Buffer 1: destination message to be read from 'B'
+  // Endpoint 'B' needs 1 buffer
+  TakyonBuffer buffers[MAX_TAKYON_BUFFERS];
+  uint32_t num_buffers = is_endpointA ? 2 : 1;
+  for (uint32_t i=0; i<num_buffers; i++) {
     TakyonBuffer *buffer = &buffers[i];
     buffer->bytes = MAX_MESSAGE_BYTES;
     buffer->app_data = NULL;
@@ -129,24 +153,27 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
   attrs.is_endpointA                                   = is_endpointA;
   attrs.failure_mode                                   = TAKYON_EXIT_ON_ERROR;
   attrs.verbosity                                      = TAKYON_VERBOSITY_ERRORS; //  | TAKYON_VERBOSITY_CREATE_DESTROY | TAKYON_VERBOSITY_CREATE_DESTROY_MORE | TAKYON_VERBOSITY_TRANSFERS | TAKYON_VERBOSITY_TRANSFERS_MORE;
-  attrs.buffer_count                                   = NUM_TAKYON_BUFFERS;
+  attrs.buffer_count                                   = num_buffers;
   attrs.buffers                                        = buffers;
-  attrs.max_pending_send_and_one_sided_requests        = is_endpointA ? 1 : 0;
-  attrs.max_pending_recv_requests                      = 0;
+  attrs.max_pending_send_and_one_sided_requests        = is_endpointA ? 1 : 0; // Only endpoint 'A' will be writing and reading
+  attrs.max_pending_recv_requests                      = 0;                    // Endpoint 'B' isn't doing anyting transfers
   attrs.max_sub_buffers_per_send_and_one_sided_request = is_endpointA ? 1 : 0;
   attrs.max_sub_buffers_per_recv_request               = 0;
 
-  // Create one side of the path
-  //   - The other side will be created in a different thread/process
+  // Create one side of the path: the other side will be created in a different thread/process
   TakyonPath *path;
   (void)takyonCreate(&attrs, 0, NULL, TAKYON_WAIT_FOREVER, &path);
 
-  // Transfer the greeting multiple times
-  // Do the one-sided transfers, but only from endpoint A. B will not be involved
+  // Do the transfers
+  //   1. Endpoint 'A' writes from local buffers[0] to remote buffer[1]
+  //   2. Endpoint 'A' reads from remote buffers[1] to local buffer[2]
+  //   Endpoint 'B' is just not involved
   if (path->attrs.is_endpointA) {
     for (uint32_t i=0; i<iterations; i++) {
-      writeMessage(path, i);
-      readMessage(path);
+      uint64_t message_bytes = buildMessage(path, i);
+      writeMessage(path, message_bytes, i);
+      void *message_addr = readMessage(path);
+      processMessage(message_addr);
     }
   } else {
     printf("FYI: All the transfer activity is on endpoint A\n");
@@ -156,7 +183,7 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
   takyonDestroy(path, TAKYON_WAIT_FOREVER);
 
   // Free the takyon buffers
-  for (uint32_t i=0; i<NUM_TAKYON_BUFFERS; i++) {
+  for (uint32_t i=0; i<num_buffers; i++) {
     TakyonBuffer *buffer = &buffers[i];
 #ifdef ENABLE_CUDA
     cudaFree(buffer->addr);

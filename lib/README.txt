@@ -3,9 +3,9 @@ instead of directly compiling the Takyon source code into your application.
 
 Linux and Mac
   Required:
-    - gcc and make
+    - Linux: gcc and make, Mac: xCode
   Extras:
-    - CUDA Toolkit: https://developer.nvidia.com/cuda-toolkit
+    - Linux: CUDA Toolkit: https://developer.nvidia.com/cuda-toolkit
   Build:
     > cd takyon/lib
     Specification

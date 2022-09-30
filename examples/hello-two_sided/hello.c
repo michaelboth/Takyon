@@ -26,88 +26,106 @@
   #define UINT64_FORMAT "%ju"
 #endif
 
-#define MAX_MESSAGE_BYTES 100 // Just need enough to transfer a nice text greeting
 #define NUM_TAKYON_BUFFERS 3
-#define FIRST_RECV_TIMEOUT_SECONDS TAKYON_WAIT_FOREVER
-#define ACTIVE_RECV_TIMEOUT_SECONDS 0.25
+#define MAX_MESSAGE_BYTES 100
+#define MESSAGE_SPLIT_BYTES 10
+#define FIRST_RECV_TIMEOUT_SECONDS TAKYON_WAIT_FOREVER // Wait regardless if the connection is reliable or unreliable
+#define ACTIVE_RECV_TIMEOUT_SECONDS 0.25               // After the first message is received, don't want to sit around waiting if the connection is unreliable
 
-static void sendMessage(TakyonPath *path, uint32_t i) {
-  // Fill in the data to send
-  //   - If multiple sub buffers are supported by the interconect, this send request
-  //     will use two separate sub buffers to send the single text greeting: the
-  //     first 10 characters will be in the second sub buffers, and the remaining
-  //     part of the message will be in the first sub buffer.
-  //   - If one one sub buffer is supported, then the greeting will be in a single
-  //     sub buffer
-  //   - Receiver does not need to match the sender's sub buffer count
+static uint64_t buildMultiBufferMessage(TakyonPath *path, uint32_t message_index) {
+  // STEP 1: Get addresses for the multi-buffer message
   char *message_addr1 = (char *)path->attrs.buffers[0].addr;
-  char *message_addr2 = (char *)path->attrs.buffers[1].addr;
-  uint64_t split_bytes = 10;
+  char *message_addr2 = (char *)path->attrs.buffers[1].addr; // Won't be used if Provider doesn't support multi-buffers
+
+  // STEP 2: Fill in the message data (the entire greeting) in the first Takyon buffer
 #ifdef ENABLE_CUDA
+  // Cuda memory: first put in temporary CPU memory, then copy to CUDA
   char message_addr_cpu[MAX_MESSAGE_BYTES];
-  snprintf(message_addr_cpu, MAX_MESSAGE_BYTES, "--- Iteration %u: Hello from %s (CUDA, %d %s) ---", i+1, path->attrs.is_endpointA ? "A" : "B",
+  snprintf(message_addr_cpu, MAX_MESSAGE_BYTES, "--- Iteration %u: Hello from %s (CUDA, %d %s) ---", message_index+1, path->attrs.is_endpointA ? "A" : "B",
            path->capabilities.multi_sub_buffers_supported ? 2 : 1, path->capabilities.multi_sub_buffers_supported ? "sub buffers" : "sub buffer");
   uint64_t message_bytes = strlen(message_addr_cpu) + 1;
   cudaError_t cuda_status = cudaMemcpy(message_addr1, message_addr_cpu, message_bytes, cudaMemcpyDefault);
   if (cuda_status != cudaSuccess) { printf("cudaMemcpy() failed: %s\n", cudaGetErrorString(cuda_status)); exit(EXIT_FAILURE); }
-  if (path->capabilities.multi_sub_buffers_supported) {
-    // Multiple sub buffers are supported: copy the beginning of the message to second buffer
-    cuda_status = cudaMemcpy(message_addr2, message_addr1, split_bytes, cudaMemcpyDefault);
-    if (cuda_status != cudaSuccess) { printf("cudaMemcpy() failed: %s\n", cudaGetErrorString(cuda_status)); exit(EXIT_FAILURE); }
-  }
 #else
-  snprintf(message_addr1, MAX_MESSAGE_BYTES, "--- Iteration %u: Hello from %s (CPU, %d %s) ---", i+1, path->attrs.is_endpointA ? "A" : "B",
+  // CPU memory
+  snprintf(message_addr1, MAX_MESSAGE_BYTES, "--- Iteration %u: Hello from %s (CPU, %d %s) ---", message_index+1, path->attrs.is_endpointA ? "A" : "B",
            path->capabilities.multi_sub_buffers_supported ? 2 : 1, path->capabilities.multi_sub_buffers_supported ? "sub buffers" : "sub buffer");
   uint64_t message_bytes = strlen(message_addr1) + 1;
-  if (path->capabilities.multi_sub_buffers_supported) {
-    // Multiple sub buffers are supported: copy the beginning of the message to second buffer
-    memcpy(message_addr2, message_addr1, split_bytes);
-    memset(message_addr1, 'x', split_bytes); // Clear the unsent bytes to prove multi sub buffers is working
-  }
 #endif
 
-  // Setup the send request
-  //  - Initially defined with 2 sub buffers, but will only use the first if multiple sub buffers are not supported
-  TakyonSubBuffer sender_sub_buffers[2] = {{ .buffer_index = 1, .bytes = split_bytes, .offset = 0 },
-                                           { .buffer_index = 0, .bytes = message_bytes-split_bytes, .offset = split_bytes }};
+  // STEP 3: If transferring multi buffers is supported, then split the message up into two Takyon buffers
+  if (path->capabilities.multi_sub_buffers_supported) {
+#ifdef ENABLE_CUDA
+    cuda_status = cudaMemcpy(message_addr2, message_addr1, MESSAGE_SPLIT_BYTES, cudaMemcpyDefault);
+    if (cuda_status != cudaSuccess) { printf("cudaMemcpy() failed: %s\n", cudaGetErrorString(cuda_status)); exit(EXIT_FAILURE); }
+    // Clear the unsent bytes to prove multi sub buffers is working
+    memset(message_addr_cpu, 'x', MESSAGE_SPLIT_BYTES);
+    cudaError_t cuda_status = cudaMemcpy(message_addr1, message_addr_cpu, MESSAGE_SPLIT_BYTES, cudaMemcpyDefault);
+    if (cuda_status != cudaSuccess) { printf("cudaMemcpy() failed: %s\n", cudaGetErrorString(cuda_status)); exit(EXIT_FAILURE); }
+#else
+    memcpy(message_addr2, message_addr1, MESSAGE_SPLIT_BYTES);
+    // Clear the unsent bytes to prove multi sub buffers is working
+    memset(message_addr1, 'x', MESSAGE_SPLIT_BYTES);
+#endif
+  }
+
+  return message_bytes;
+}
+
+static void sendMessage(TakyonPath *path, uint64_t message_bytes, uint32_t message_index) {
+  // STEP 1: Setup the Takyon sub buffer list assuming multi-buffers are supported
+  TakyonSubBuffer sender_sub_buffers[2] = {{ .buffer_index = 1, .bytes = MESSAGE_SPLIT_BYTES, .offset = 0 },
+                                           { .buffer_index = 0, .bytes = message_bytes-MESSAGE_SPLIT_BYTES, .offset = MESSAGE_SPLIT_BYTES }};
+  // See if the provider only supports a single sub buffer
   if (!path->capabilities.multi_sub_buffers_supported) {
-    // Provider only supports a single sub buffer
     sender_sub_buffers[0].buffer_index = 0;
     sender_sub_buffers[0].bytes = message_bytes;
     sender_sub_buffers[0].offset = 0;
   }
+
+  // STEP 2: Setup the Takyon send request
   TakyonSendRequest send_request = { .sub_buffer_count = path->capabilities.multi_sub_buffers_supported ? 2 : 1,
                                      .sub_buffers = sender_sub_buffers,
                                      .use_is_sent_notification = true,
 				     .use_polling_completion = false,
                                      .usec_sleep_between_poll_attempts = 0 };
 
-  // Start the send
-  uint32_t piggy_back_message = (path->capabilities.piggy_back_messages_supported) ? i : 0;
+  // STEP 3: Start the Takyon send
+  uint32_t piggy_back_message = (path->capabilities.piggy_back_messages_supported) ? message_index : 0;
   takyonSend(path, &send_request, piggy_back_message, TAKYON_WAIT_FOREVER, NULL);
   if (path->capabilities.is_unreliable) {
-    printf("Message %d sent (one way, %d %s)\n", i+1, path->capabilities.multi_sub_buffers_supported ? 2 : 1, path->capabilities.multi_sub_buffers_supported ? "sub buffers" : "sub buffer");
+    printf("Message %d sent (one way, %d %s)\n", message_index+1, path->capabilities.multi_sub_buffers_supported ? 2 : 1, path->capabilities.multi_sub_buffers_supported ? "sub buffers" : "sub buffer");
   }
 
-  // If the provider supports non blocking sends, then need to know when it's complete
-  if (path->capabilities.IsSent_supported && send_request.use_is_sent_notification) takyonIsSent(path, &send_request, TAKYON_WAIT_FOREVER, NULL);
+  // STEP 4: If the Takyon Provider supports non-blocking sends, then need to know when it's complete
+  if (path->capabilities.IsSent_supported && send_request.use_is_sent_notification) {
+    takyonIsSent(path, &send_request, TAKYON_WAIT_FOREVER, NULL);
+  }
 }
 
-static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, bool is_rdma_UD, uint32_t message_count) {
+static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, double timeout, uint64_t *bytes_received_out, uint32_t *piggy_back_message_out) {
   // Wait for data to arrive
-  //   - Recv request only has a single sub buffer, regardless of what the sender has
-  uint64_t bytes_received;
-  uint32_t piggy_back_message;
+  // NOTES:
+  //  - The recv request was already setup before the Takyon path was created
+  //  - The recv request only has a single sub buffer, regardless of what the sender has
   bool timed_out;
-  double timeout = (message_count==1) ? FIRST_RECV_TIMEOUT_SECONDS : ACTIVE_RECV_TIMEOUT_SECONDS;
-  takyonIsRecved(path, recv_request, timeout, &timed_out, &bytes_received, &piggy_back_message);
+  takyonIsRecved(path, recv_request, timeout, &timed_out, bytes_received_out, piggy_back_message_out);
   if (timed_out)  { printf("\nTimed out waiting for remaining messages\n"); exit(EXIT_SUCCESS); }
+}
 
-  // Process the data; i.e. print the received greeting
+static void processSingleBufferMessage(TakyonPath *path, TakyonRecvRequest *recv_request, bool is_rdma_UD, uint64_t bytes_received, uint32_t piggy_back_message) {
+  // STEP 1: Get the message address
   TakyonSubBuffer *recver_sub_buffer = &recv_request->sub_buffers[0];
-  char *message_addr = (char *)path->attrs.buffers[recver_sub_buffer->buffer_index].addr + recver_sub_buffer->offset + (is_rdma_UD ? 40 : 0);
-  if (is_rdma_UD) bytes_received -= 40;
+  char *message_addr = (char *)path->attrs.buffers[recver_sub_buffer->buffer_index].addr + recver_sub_buffer->offset;
+  // IMPORTANT: if this is an RDMA UD (unreliable datagram) transfer, the first 40 bytes will contain the RDMA's Global Routing Header. Need to skip over this!
+  if (is_rdma_UD) {
+    message_addr += 40;
+    bytes_received -= 40;
+  }
+
+  // STEP 2: Print the greeting contained in the Takyon buffer
 #ifdef ENABLE_CUDA
+  // CUDA memory: need to copy the GPU data to a temp CPU buffer
   char message_addr_cpu[MAX_MESSAGE_BYTES];
   cudaError_t cuda_status = cudaMemcpy(message_addr_cpu, message_addr, bytes_received, cudaMemcpyDefault);
   if (cuda_status != cudaSuccess) { printf("cudaMemcpy() failed: %s\n", cudaGetErrorString(cuda_status)); exit(EXIT_FAILURE); }
@@ -117,15 +135,13 @@ static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, bool 
     printf("%s (CUDA): Got message '%s', bytes=" UINT64_FORMAT ", piggy_back_message=NOT SUPPORTED\n", path->attrs.is_endpointA ? "A" : "B", message_addr_cpu, bytes_received);
   }
 #else
+  // CPU memory
   if (path->capabilities.piggy_back_messages_supported) {
     printf("%s (CPU): Got message '%s', bytes=" UINT64_FORMAT ", piggy_back_message=%u\n", path->attrs.is_endpointA ? "A" : "B", message_addr, bytes_received, piggy_back_message);
   } else {
     printf("%s (CPU): Got message '%s', bytes=" UINT64_FORMAT ", piggy_back_message=NOT SUPPORTED\n", path->attrs.is_endpointA ? "A" : "B", message_addr, bytes_received);
   }
 #endif
-
-  // If the provider supports pre-posting, then need to post the recv to be ready for the next send, before the send starts
-  if (path->capabilities.PostRecvs_supported) takyonPostRecvs(path, 1, recv_request);
 }
 
 void hello(const bool is_endpointA, const char *provider, const uint32_t iterations) {
@@ -133,7 +149,7 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
 
   // Create the memory buffers used with transfering data
   //   - The first 2 are for the sender, and the 3rd is for the receiver
-  //   - If the provider is RDMA UD, then receiver needs to allocate more memory for receiving the GRH 40 byte header
+  //   - If the provider is RDMA UD (unreliable datagram), then receiver needs to allocate 40 extra bytes for RDMA's global routing header
   bool is_rdma_UD = (strncmp(provider, "RdmaUD", 6) == 0);
   TakyonBuffer buffers[NUM_TAKYON_BUFFERS];
   for (uint32_t i=0; i<NUM_TAKYON_BUFFERS; i++) {
@@ -159,8 +175,7 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
 #endif
   }
 
-  // Define the path attributes
-  //   - Can't be changed after path creation
+  // Define the path attributes; can't be changed after path creation
   TakyonPathAttributes attrs;
   strncpy(attrs.provider, provider, TAKYON_MAX_PROVIDER_CHARS-1);
   attrs.is_endpointA                                   = is_endpointA;
@@ -168,9 +183,9 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
   attrs.verbosity                                      = TAKYON_VERBOSITY_ERRORS; //  | TAKYON_VERBOSITY_CREATE_DESTROY | TAKYON_VERBOSITY_CREATE_DESTROY_MORE | TAKYON_VERBOSITY_TRANSFERS | TAKYON_VERBOSITY_TRANSFERS_MORE;
   attrs.buffer_count                                   = NUM_TAKYON_BUFFERS;
   attrs.buffers                                        = buffers;
-  attrs.max_pending_send_and_one_sided_requests        = 1;
-  attrs.max_pending_recv_requests                      = 1;
-  attrs.max_sub_buffers_per_send_and_one_sided_request = 2; // Will send two blocks if supported, otherwise one block.
+  attrs.max_pending_send_and_one_sided_requests        = 1; // Only one message will be in transit at any point in time
+  attrs.max_pending_recv_requests                      = 1; // Only one recv request will ever be posted at any point in time
+  attrs.max_sub_buffers_per_send_and_one_sided_request = 2; // Will send two blocks if supported, otherwise only one block will be used
   attrs.max_sub_buffers_per_recv_request               = 1; // Receiver will always get a single block
 
   // Setup the receive request and it's sub buffer
@@ -181,25 +196,42 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
 				     .use_polling_completion = false,
                                      .usec_sleep_between_poll_attempts = 0 };
 
-  // Create one side of the path
-  //   - The other side will be created in a different thread/process
+  // Create one side of the path; the other side will be created in a different thread/process
   TakyonPath *path;
   (void)takyonCreate(&attrs, 1, &recv_request, TAKYON_WAIT_FOREVER, &path);
 
-  // Take turns sending the greeting multiple times
+  // Do the transfers
   //  - If this is a reliable connection, then messages are sent in both directions and are self synchronizing to avoid race conditions
-  //  - If this is an unrelaible connection, then messages are only sent from A to B and will be dropped if B is not running before the sender
+  //  - If this is an unrelaible connection, then messages are only sent from A to B and will be dropped if B doesn't re-post the recv before the message arrives
   for (uint32_t i=0; i<iterations; i++) {
     if (path->attrs.is_endpointA) {
-      // Send message
-      sendMessage(path, i);
-      // Wait for the message to arrive (will reuse the recv_request that was already prepared)
-      if (!path->capabilities.is_unreliable) recvMessage(path, &recv_request, is_rdma_UD, i+2);
+      // Prepare the message and send it
+      uint64_t message_bytes = buildMultiBufferMessage(path, i);
+      sendMessage(path, message_bytes, i);
+
+      if (!path->capabilities.is_unreliable) {
+        // Recv the message, process it, then re-post the recv requewst
+        uint64_t bytes_received;
+        uint32_t piggy_back_message;
+        recvMessage(path, &recv_request, ACTIVE_RECV_TIMEOUT_SECONDS, &bytes_received, &piggy_back_message);
+        processSingleBufferMessage(path, &recv_request, is_rdma_UD, bytes_received, piggy_back_message);
+        if (path->capabilities.PostRecvs_supported) { takyonPostRecvs(path, 1, &recv_request); }
+      }
+
     } else {
-      // Wait for the message to arrive (will reuse the recv_request that was already prepared)
-      recvMessage(path, &recv_request, is_rdma_UD, i+1);
-      // Send message
-      if (!path->capabilities.is_unreliable) sendMessage(path, i+1);
+      // Recv the message, process it, then re-post the recv requewst
+      uint64_t bytes_received;
+      uint32_t piggy_back_message;
+      double timeout = (i==0) ? FIRST_RECV_TIMEOUT_SECONDS : ACTIVE_RECV_TIMEOUT_SECONDS;
+      recvMessage(path, &recv_request, timeout, &bytes_received, &piggy_back_message);
+      processSingleBufferMessage(path, &recv_request, is_rdma_UD, bytes_received, piggy_back_message);
+      if (path->capabilities.PostRecvs_supported) { takyonPostRecvs(path, 1, &recv_request); }
+
+      if (!path->capabilities.is_unreliable) {
+        // Prepare the message and send it
+        uint64_t message_bytes = buildMultiBufferMessage(path, i);
+        sendMessage(path, message_bytes, i);
+      }
     }
   }
 
