@@ -33,10 +33,10 @@ Provider      | Type       | Message Bytes | Non-Blocking | Supports One-Sided |
 Inter-Thread  | Reliable   | 0 .. >4 GB    | No           | Yes                | Yes           | All
 Inter-Process | Reliable   | 0 .. >4 GB    | No           | Yes                | Yes           | All
 Socket Tcp    | Reliable   | 0 .. 1 GB     | No           | No                 | No            | All
-Socket Udp    | Unreliable | 1 .. 64 KB    | No           | No                 | No            | All
+Socket Udp    | Unreliable | Unicast: 1 .. 64 KB<br>Multicast: 1 .. MTU | No           | No                 | No            | All
 Rdma RC       | Reliable   | 0 .. 1 GB     | Yes          | Yes                | Yes           | Linux
 Rdma UC       | Unreliable | 0 .. 1 GB     | Yes          | Yes                | Yes           | Linux
-Rdma UD       | Unreliable | 0 .. MTU      | Yes          | No                 | Yes           | Linux
+Rdma UD       | Unreliable | 0 .. RDMA_MTU | Yes          | No                 | Yes           | Linux
 
 ## Prepare the Build Environment
 To build the Takyon examples, the following is needed:
