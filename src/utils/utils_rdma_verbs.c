@@ -34,9 +34,7 @@
     - r3u04 is duplicating multicast packets
     - Is MLNX OFED Verbs also ported to Windows or still need to use Network Direct?
     - When testing two processes on a single node: UD multicast can send up to 10,000 bytes message without getting IBV_WC_LOC_LEN_ERR. Recv can get 8960 bytes. How is this posible.
-    - Can't register CUDA memory is access is
-    - Current the smaller of the max MTU from both endpoints is automatically used. Should the user set it in the provider spec instead?
-    - Which QP options should be set in provider spec? see moveQpStateToRTS()
+    - Currently the smaller of the max MTU from both endpoints is automatically used. Should the user set it in the provider spec instead?
 */
 
 #define PORT_INFO_TEXT_BYTES 100
@@ -680,7 +678,7 @@ RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *local_NI
   qp_created = true;
 
   // Register buffers
-  enum ibv_access_flags access = is_sender ? 0 : IBV_ACCESS_LOCAL_WRITE /*+ BUG: not working for CUDA recv memory */;
+  enum ibv_access_flags access = IBV_ACCESS_LOCAL_WRITE; // Need write access even for the sender since CUDA send memory needs write access
   for (uint32_t i=0; i<path->attrs.buffer_count; i++) {
     TakyonBuffer *takyon_buffer = &path->attrs.buffers[i];
     RdmaBuffer *rdma_buffer = (RdmaBuffer *)takyon_buffer->private;
