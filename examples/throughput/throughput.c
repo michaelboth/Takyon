@@ -28,7 +28,7 @@
   #define UINT64_FORMAT "%ju"
 #endif
 
-#define FIRST_RECV_TIMEOUT_SECONDS 5.0 /*+TAKYON_WAIT_FOREVER*/ // Wait longer regardless if the connection is reliable or unreliable
+#define FIRST_RECV_TIMEOUT_SECONDS 5.0 // Wait longer regardless if the connection is reliable or unreliable
 #define ACTIVE_RECV_TIMEOUT_SECONDS 0.25
 
 #ifdef ENABLE_CUDA

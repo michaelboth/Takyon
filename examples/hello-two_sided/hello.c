@@ -30,8 +30,8 @@
 #define NUM_TAKYON_BUFFERS 3
 #define MAX_MESSAGE_BYTES 100
 #define MESSAGE_SPLIT_BYTES 10
-#define FIRST_RECV_TIMEOUT_SECONDS 5.0 /*+TAKYON_WAIT_FOREVER*/ // Wait longer regardless if the connection is reliable or unreliable
-#define ACTIVE_RECV_TIMEOUT_SECONDS 0.25               // After the first message is received, don't want to sit around waiting if the connection is unreliable
+#define FIRST_RECV_TIMEOUT_SECONDS 5.0    // Wait longer regardless if the connection is reliable or unreliable
+#define ACTIVE_RECV_TIMEOUT_SECONDS 0.25  // After the first message is received, don't want to sit around waiting if the connection is unreliable
 
 static uint64_t buildMultiBufferMessage(TakyonPath *path, uint32_t message_index) {
   // STEP 1: Get addresses for the multi-buffer message
@@ -95,7 +95,7 @@ static void sendMessage(TakyonPath *path, uint64_t message_bytes, uint32_t messa
   uint32_t piggy_back_message = (path->capabilities.piggy_back_messages_supported) ? message_index : 0;
   takyonSend(path, &send_request, piggy_back_message, TAKYON_WAIT_FOREVER, NULL);
   if (path->capabilities.is_unreliable) {
-    printf("Message %d sent (one way, %d %s)\n", message_index+1, path->capabilities.multi_sub_buffers_supported ? 2 : 1, path->capabilities.multi_sub_buffers_supported ? "sub buffers" : "sub buffer");
+    printf("Message %d sent (one way, %d %s, " UINT64_FORMAT " bytes)\n", message_index+1, path->capabilities.multi_sub_buffers_supported ? 2 : 1, path->capabilities.multi_sub_buffers_supported ? "sub buffers" : "sub buffer", message_bytes);
   }
 
   // STEP 4: If the Takyon Provider supports non-blocking sends, then need to know when it's complete
