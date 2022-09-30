@@ -1,6 +1,6 @@
 <img src="docs/Takyon_Logo.png" alt="Logo" style="width:400px;"/>
 
-The future of high performance heterogeneous point-to-point communication for the eHPC industry (embedded High Performance Communication)<br>
+The future of high performance heterogeneous point-to-point communication for the eHPC industry (embedded High Performance Communication)<br><br>
 Takyon is currently the only proposal for a new Khronos open standard for communication: www.khronos.org/exploratory/heterogeneous-communication/<br>
 
 ## Takyon Presentation
