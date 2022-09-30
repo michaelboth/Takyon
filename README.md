@@ -28,15 +28,15 @@ View this presentation to learn about Takyon
 ## Takyon's Currently Supported Providers
 A provider gives access to a specific communication interconnect.<br>
 Add your own providers as needed.
-Provider      | Type       | Message Bytes | Non-Blocking | Supports One-Sided | CUDA | Platforms
---------------|------------|---------------|--------------|--------------------|------|----------
-Inter-Thread  | Reliable   | 0 .. >4 GB    | No           | Yes                | Yes  | All
-Inter-Process | Reliable   | 0 .. >4 GB    | No           | Yes                | Yes  | All
-Socket Tcp    | Reliable   | 0 .. 1 GB     | No           | No                 | No   | All
-Socket Udp    | Unreliable | 1 .. 64 KB    | No           | No                 | No   | All
-Rdma RC       | Reliable   | 0 .. 1 GB     | Yes          | Yes                | Yes  | Linux
-Rdma UC       | Unreliable | 0 .. 1 GB     | Yes          | Yes                | Yes  | Linux
-Rdma UD       | Unreliable | 0 .. MTU      | Yes          | No                 | Yes  | Linux
+Provider      | Type       | Message Bytes | Non-Blocking | Supports One-Sided | Supports CUDA | Platforms
+--------------|------------|---------------|--------------|--------------------|---------------|----------
+Inter-Thread  | Reliable   | 0 .. >4 GB    | No           | Yes                | Yes           | All
+Inter-Process | Reliable   | 0 .. >4 GB    | No           | Yes                | Yes           | All
+Socket Tcp    | Reliable   | 0 .. 1 GB     | No           | No                 | No            | All
+Socket Udp    | Unreliable | 1 .. 64 KB    | No           | No                 | No            | All
+Rdma RC       | Reliable   | 0 .. 1 GB     | Yes          | Yes                | Yes           | Linux
+Rdma UC       | Unreliable | 0 .. 1 GB     | Yes          | Yes                | Yes           | Linux
+Rdma UD       | Unreliable | 0 .. MTU      | Yes          | No                 | Yes           | Linux
 
 ## Prepare the Build Environment
 To build Takyon into your application, the following is needed:
