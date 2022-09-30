@@ -51,6 +51,6 @@ Windows | Visual Studio<br><br> Takyon requires Posix threads (not supported in 
 To help you get started, some examples are provided. Each example has a ```README.txt``` to know how to build and run the example. The examples cover most of Takyon's features.
 Example | Description
 --------|------------
-hello-two_sided | Transfer a simple greeting between two endpoints using 'send' -> 'recv'
-hello-one_sided | Transfer a simple greeting between two endpoints using a one-sided 'read','write'
-throughput | Determine transfer speed of a provider; 'send' -> 'recv' or 'write','read'
+hello-two_sided | Transfer a simple greeting between two endpoints using 'send' -> 'recv'.<br>Supports all Providers, CUDA, MMAPs, relialbe, unrelaible, and multiple memory blocks.
+hello-one_sided | Transfer a simple greeting between two endpoints using a one-sided 'read','write'.<br>Optionally supports CUDA & MMAPs. Only works will Proivers that support read and write.
+throughput | Determine transfer speed of a provider; 'send' -> 'recv' or 'write','read'.<br>Supports all Providers, CUDA, and MMAPs.
