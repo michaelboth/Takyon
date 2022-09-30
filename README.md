@@ -26,8 +26,8 @@ View this presentation to learn about Takyon
 - Tested on Windows, Mac, & Linux
 
 ## Takyon's Currently Supported Providers
-A provider gives access to a specific communication interconnect.<br>
-Add your own providers as needed.
+A Takyon Provider gives access to a specific communication interconnect.<br>
+Add your own providers as needed (see ```src/providers/supported_providers.h```).
 Provider      | Type       | Message Bytes | Non-Blocking | Supports One-Sided | Supports CUDA | Platforms
 --------------|------------|---------------|--------------|--------------------|---------------|----------
 Inter-Thread  | Reliable   | 0 .. >4 GB    | No           | Yes                | Yes           | All
@@ -39,7 +39,7 @@ Rdma UC       | Unreliable | 0 .. 1 GB     | Yes          | Yes                |
 Rdma UD       | Unreliable | 0 .. MTU      | Yes          | No                 | Yes           | Linux
 
 ## Prepare the Build Environment
-To build Takyon into your application, the following is needed:
+To build the Takyon examples, the following is needed:
 
 OS | Requirements
 --------|------------
