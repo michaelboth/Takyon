@@ -28,7 +28,7 @@ View this presentation to learn about Takyon
 ## Takyon's Currently Supported Providers
 A Takyon Provider gives access to a specific communication interconnect.<br>
 Add your own providers as needed (see ```src/providers/supported_providers.h```).
-Provider      | Type       | Message Bytes | Non-Blocking | Supports One-Sided | Supports CUDA | Platforms
+Provider      | Type       | Message Bytes | Non-Blocking | Includes One-Sided | Supports CUDA | Platforms
 --------------|------------|---------------|--------------|--------------------|---------------|----------
 Inter-Thread  | Reliable   | 0 .. >4 GB    | No           | Yes                | Yes           | All
 Inter-Process | Reliable   | 0 .. >4 GB    | No           | Yes                | Yes           | All
