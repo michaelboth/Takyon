@@ -53,4 +53,4 @@ Example | Description
 --------|------------
 hello-two_sided | Transfer a simple greeting between two endpoints using 'send' -> 'recv'.<br>Supports all Providers, CUDA, MMAPs, relialbe, unrelaible, and multiple memory blocks.
 hello-one_sided | Transfer a simple greeting between two endpoints using a one-sided 'read','write'.<br>Optionally supports CUDA & MMAPs. Only works will Proivers that support read and write.
-throughput | Determine transfer speed of a provider; 'send' -> 'recv' or 'write','read'.<br>Supports all Providers, CUDA, and MMAPs.
+throughput | Determine transfer speed of a provider; 'send' -> 'recv' or 'write','read'.<br>Supports all Providers, CUDA, and MMAPs.<br>Run with '-h' to see all the options.
