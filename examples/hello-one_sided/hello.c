@@ -15,6 +15,7 @@
 #include <string.h>
 #include <stdlib.h>
 #ifdef ENABLE_CUDA
+  #include "cuda.h"
   #include "cuda_runtime.h"
 #endif
 #ifdef ENABLE_MMAP
@@ -130,6 +131,12 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
 #ifdef ENABLE_CUDA
     cudaError_t cuda_status = cudaMalloc(&buffer->addr, buffer->bytes);
     if (cuda_status != cudaSuccess) { printf("cudaMalloc() failed: %s\n", cudaGetErrorString(cuda_status)); exit(EXIT_FAILURE); }
+    if (strncmp(provider, "Rdma", 4) == 0) {
+      // Since this memory will transfer asynchronously via GPUDirect, need to mark the memory to be synchronous when accessing it after being received
+      unsigned int flag = 1;
+      CUresult cuda_result = cuPointerSetAttribute(&flag, CU_POINTER_ATTRIBUTE_SYNC_MEMOPS, (CUdeviceptr)buffer->addr);
+      if (cuda_result != CUDA_SUCCESS) { printf("cuPointerSetAttribute() cuda_result: %d\n", cuda_result); exit(EXIT_FAILURE); }
+    }
 #else
 #ifdef ENABLE_MMAP
     if (strncmp(provider, "InterProcess ", 13) == 0) {

@@ -31,7 +31,7 @@ endif
 
 ifeq ($(CUDA),Yes)
     C_FLAGS += -DENABLE_CUDA -I/usr/local/cuda/include
-    C_LIBS  += -L/usr/local/cuda/lib64 -lcudart
+    C_LIBS  += -L/usr/local/cuda/lib64 -lcuda -lcudart
 endif
 
 vpath %.h ../../inc

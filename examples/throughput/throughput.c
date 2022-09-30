@@ -16,6 +16,7 @@
 #include <string.h>
 #include <stdlib.h>
 #ifdef ENABLE_CUDA
+  #include "cuda.h"
   #include "cuda_runtime.h"
 #endif
 #ifdef ENABLE_MMAP
@@ -27,7 +28,7 @@
   #define UINT64_FORMAT "%ju"
 #endif
 
-#define FIRST_RECV_TIMEOUT_SECONDS TAKYON_WAIT_FOREVER
+#define FIRST_RECV_TIMEOUT_SECONDS 5.0 /*+TAKYON_WAIT_FOREVER*/ // Wait longer regardless if the connection is reliable or unreliable
 #define ACTIVE_RECV_TIMEOUT_SECONDS 0.25
 
 #ifdef ENABLE_CUDA
@@ -118,7 +119,7 @@ static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, const
   uint32_t piggy_back_message;
   double timeout = (message_count==1) ? FIRST_RECV_TIMEOUT_SECONDS : ACTIVE_RECV_TIMEOUT_SECONDS;
   takyonIsRecved(path, recv_request, timeout, &timed_out, &bytes_received, &piggy_back_message);
-  if (timed_out)  { printf("\nTimed out waiting for remaining messages\n"); exit(EXIT_SUCCESS); }
+  if (timed_out)  { printf("\nTimed out waiting for messages\n"); exit(EXIT_SUCCESS); }
   if (bytes_received != recv_request->sub_buffers[0].bytes) {
     if (strncmp(path->attrs.provider, "RdmaUD", 6) == 0) {
       printf("\nGot " UINT64_FORMAT " bytes but expected " UINT64_FORMAT ". Make sure the sender matches byte size (RDMA UD receiver needs 40 extra bytes)\n", bytes_received-40, recv_request->sub_buffers[0].bytes-40);
@@ -442,9 +443,15 @@ void throughput(const bool is_endpointA, const char *provider, const uint32_t it
     }
     buffer.app_data = NULL;
 #ifdef ENABLE_CUDA
+    buffer.app_data = calloc(1, buffer.bytes); // Need a temp buffer for data validation
     cudaError_t cuda_status = cudaMalloc(&buffer.addr, buffer.bytes);
     if (cuda_status != cudaSuccess) { printf("cudaMalloc() failed: %s\n", cudaGetErrorString(cuda_status)); exit(EXIT_FAILURE); }
-    buffer.app_data = calloc(1, buffer.bytes); // Need a temp buffer for data validation
+    if (strncmp(provider, "Rdma", 4) == 0) {
+      // Since this memory will transfer asynchronously via GPUDirect, need to mark the memory to be synchronous when accessing it after being received
+      unsigned int flag = 1;
+      CUresult cuda_result = cuPointerSetAttribute(&flag, CU_POINTER_ATTRIBUTE_SYNC_MEMOPS, (CUdeviceptr)buffer.addr);
+      if (cuda_result != CUDA_SUCCESS) { printf("cuPointerSetAttribute() cuda_result: %d\n", cuda_result); exit(EXIT_FAILURE); }
+    }
 #else
 #ifdef ENABLE_MMAP
     if (strncmp(provider, "InterProcess ", 13) == 0) {
