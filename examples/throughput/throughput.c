@@ -326,7 +326,7 @@ static void twoSidedThroughput(const bool is_endpointA, const char *provider, co
     if (i == (iterations-1) || elapsed_print_time > 0.05) {
       if (path->attrs.is_endpointA) {
         if (!is_multi_threaded) {
-          printf("\rSender (two-sided): sent %u %s message, %0.3f GB/sec, %0.3f Gb/sec", i+1, MEMORY_TYPE, GB_per_sec, Gb_per_sec);
+          printf("\rSender (two-sided): sent %u %s messages, %0.3f GB/sec, %0.3f Gb/sec", i+1, MEMORY_TYPE, GB_per_sec, Gb_per_sec);
         }
       } else {
 	if (validate || path->capabilities.piggy_back_messages_supported) {
