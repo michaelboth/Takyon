@@ -42,6 +42,7 @@
 /*+ Instrument with Unikorn */
 
 static uint32_t L_detected_drops = 0;
+static uint32_t L_messages_recved = 0;
 
 static void fillInMessage(TakyonPath *path, const uint64_t message_bytes, const uint64_t message_offset, const uint32_t message_count) {
 #ifdef ENABLE_CUDA
@@ -114,14 +115,14 @@ static void sendMessage(TakyonPath *path, const uint64_t message_bytes, const bo
   if (path->capabilities.IsSent_supported && send_request.use_is_sent_notification) takyonIsSent(path, &send_request, TAKYON_WAIT_FOREVER, NULL);
 }
 
-static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, const bool validate, const uint32_t message_count) {
+static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, const bool validate, const uint32_t message_count, uint32_t iterations) {
   // Wait for data to arrive
   uint64_t bytes_received;
   bool timed_out;
   uint32_t piggy_back_message;
   double timeout = (message_count==1) ? FIRST_RECV_TIMEOUT_SECONDS : ACTIVE_RECV_TIMEOUT_SECONDS;
   takyonIsRecved(path, recv_request, timeout, &timed_out, &bytes_received, &piggy_back_message);
-  if (timed_out)  { printf("\nTimed out waiting for messages\n"); exit(EXIT_SUCCESS); }
+  if (timed_out)  { printf("\nTimed out waiting for messages: %u of %u dropped\n", iterations-L_messages_recved, iterations); exit(EXIT_SUCCESS); }
   if (bytes_received != recv_request->sub_buffers[0].bytes) {
     if (strncmp(path->attrs.provider, "RdmaUD", 6) == 0) {
       printf("\nGot " UINT64_FORMAT " bytes but expected " UINT64_FORMAT ". Make sure the sender matches byte size (RDMA UD receiver needs 40 extra bytes)\n", bytes_received-40, recv_request->sub_buffers[0].bytes-40);
@@ -130,6 +131,7 @@ static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, const
     }
     exit(EXIT_SUCCESS);
   }
+  L_messages_recved++;
 
   if (validate) {
     static uint32_t previous_start_value = 0;
@@ -293,7 +295,7 @@ static void twoSidedThroughput(const bool is_endpointA, const char *provider, co
       sendMessage(path, message_bytes, use_polling_completion, validate, i+1);
     } else {
       // Wait for the message to arrive (will reuse the recv_request that was already prepared)
-      recvMessage(path, &recv_requests[recv_request_index], validate, i+1);
+      recvMessage(path, &recv_requests[recv_request_index], validate, i+1, iterations);
       recv_request_index = (recv_request_index + 1) % recv_buffer_count;
     }
 
