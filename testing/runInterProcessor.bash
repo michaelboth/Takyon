@@ -10,12 +10,12 @@ function toFolder {
 
 # Determine if endpoint A or B
 if [ "$#" -lt "3" ]; then
-    echo "USAGE: runInterProcess.bash <A|B> <local_ip> <remote_ip> [socket] [ephemeral] [rdma]"
+    echo "USAGE: runInterProcess.bash <A|B> <local_ip> <remote_ip> [socket] [ephemeral] [multicast] [rdma]"
     exit 0
 fi
 
 if [[ "$1" != "A" && "$1" != "B" ]]; then
-    echo "USAGE: runInterProcess.bash <A|B> <local_ip> <remote_ip> [socket] [ephemeral] [rdma]"
+    echo "USAGE: runInterProcess.bash <A|B> <local_ip> <remote_ip> [socket] [ephemeral] [multicast] [rdma]"
     exit 0
 fi
 
@@ -27,6 +27,7 @@ remote_ip="$3"
 rdma="no"
 socket="no"
 ephemeral="no"
+multicast="no"
 for arg in "$@"
 do
     if [ "$arg" == "rdma" ]; then
@@ -38,12 +39,16 @@ do
     if [ "$arg" == "ephemeral" ]; then
         ephemeral="yes"
     fi
+    if [ "$arg" == "multicast" ]; then
+        multicast="yes"
+    fi
 done
-echo "rdma  = $rdma"
-echo "socket  = $socket"
-echo "ephemeral  = $ephemeral"
+echo "rdma      = $rdma"
+echo "socket    = $socket"
+echo "ephemeral = $ephemeral"
+echo "multicast = $multicast"
 echo "local_ip  = $local_ip"
-echo "remote_ip  = $remote_ip"
+echo "remote_ip = $remote_ip"
 
 # hello-two_sided
 toFolder ../examples/hello-two_sided
@@ -90,15 +95,17 @@ if [ "$socket" == "yes" ]; then
         ./hello_mp $endpoint "SocketUdpRecv -unicast -localIP=$local_ip -port=23458 -reuse" 10
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     fi
-    if [ "$endpoint" == "A" ]; then
-        sleep 1
-        echo ""
-        ./hello_mp $endpoint "SocketUdpSend -multicast -localIP=$local_ip -groupIP=233.23.33.56 -port=23459" 10
-        if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
-    else
-        echo ""
-        ./hello_mp $endpoint "SocketUdpRecv -multicast -localIP=$local_ip -groupIP=233.23.33.56 -port=23459 -reuse" 10
-        if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+    if [ "$multicast" == "yes" ]; then
+        if [ "$endpoint" == "A" ]; then
+            sleep 1
+            echo ""
+            ./hello_mp $endpoint "SocketUdpSend -multicast -localIP=$local_ip -groupIP=233.23.33.56 -port=23459" 10
+            if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+        else
+            echo ""
+            ./hello_mp $endpoint "SocketUdpRecv -multicast -localIP=$local_ip -groupIP=233.23.33.56 -port=23459 -reuse" 10
+            if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+        fi
     fi
 fi
 
@@ -151,15 +158,17 @@ if [ "$rdma" == "yes" ]; then
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     fi
 
-    if [ "$endpoint" == "A" ]; then
-        sleep 1
-        echo ""
-        ./hello_mp $endpoint "RdmaUDMulticastSend -localIP=$local_ip -groupIP=233.23.33.57" 50
-        if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
-    else
-        echo ""
-        ./hello_mp $endpoint "RdmaUDMulticastRecv -localIP=$local_ip -groupIP=233.23.33.57" 25
-        if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+    if [ "$multicast" == "yes" ]; then
+        if [ "$endpoint" == "A" ]; then
+            sleep 1
+            echo ""
+            ./hello_mp $endpoint "RdmaUDMulticastSend -localIP=$local_ip -groupIP=233.23.33.57" 50
+            if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+        else
+            echo ""
+            ./hello_mp $endpoint "RdmaUDMulticastRecv -localIP=$local_ip -groupIP=233.23.33.57" 25
+            if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+        fi
     fi
 fi
 
@@ -257,29 +266,31 @@ if [ "$socket" == "yes" ]; then
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     fi
 
-    if [ "$endpoint" == "A" ]; then
-        sleep 1
-        echo ""
-        ./throughput_mp $endpoint "SocketUdpSend -multicast -localIP=$local_ip -groupIP=233.23.33.56 -port=23456" -n=10000 -b=1024 -v
-        if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
-        sleep 1
-        echo ""
-        ./throughput_mp $endpoint "SocketUdpSend -multicast -localIP=$local_ip -groupIP=233.23.33.57 -port=23457" -n=10000 -b=1024
-        if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
-        sleep 1
-        echo ""
-        ./throughput_mp $endpoint "SocketUdpSend -multicast -localIP=$local_ip -groupIP=233.23.33.58 -port=23458" -n=10000 -b=1024 -e
-        if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
-    else
-        echo ""
-        ./throughput_mp $endpoint "SocketUdpRecv -multicast -localIP=$local_ip -groupIP=233.23.33.56 -port=23456 -reuse" -n=10000 -b=1024 -v
-        if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
-        echo ""
-        ./throughput_mp $endpoint "SocketUdpRecv -multicast -localIP=$local_ip -groupIP=233.23.33.57 -port=23457 -reuse" -n=10000 -b=1024
-        if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
-        echo ""
-        ./throughput_mp $endpoint "SocketUdpRecv -multicast -localIP=$local_ip -groupIP=233.23.33.58 -port=23458 -reuse" -n=10000 -b=1024 -e
-        if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+    if [ "$multicast" == "yes" ]; then
+        if [ "$endpoint" == "A" ]; then
+            sleep 1
+            echo ""
+            ./throughput_mp $endpoint "SocketUdpSend -multicast -localIP=$local_ip -groupIP=233.23.33.56 -port=23456" -n=10000 -b=1024 -v
+            if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+            sleep 1
+            echo ""
+            ./throughput_mp $endpoint "SocketUdpSend -multicast -localIP=$local_ip -groupIP=233.23.33.57 -port=23457" -n=10000 -b=1024
+            if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+            sleep 1
+            echo ""
+            ./throughput_mp $endpoint "SocketUdpSend -multicast -localIP=$local_ip -groupIP=233.23.33.58 -port=23458" -n=10000 -b=1024 -e
+            if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+        else
+            echo ""
+            ./throughput_mp $endpoint "SocketUdpRecv -multicast -localIP=$local_ip -groupIP=233.23.33.56 -port=23456 -reuse" -n=10000 -b=1024 -v
+            if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+            echo ""
+            ./throughput_mp $endpoint "SocketUdpRecv -multicast -localIP=$local_ip -groupIP=233.23.33.57 -port=23457 -reuse" -n=10000 -b=1024
+            if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+            echo ""
+            ./throughput_mp $endpoint "SocketUdpRecv -multicast -localIP=$local_ip -groupIP=233.23.33.58 -port=23458 -reuse" -n=10000 -b=1024 -e
+            if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+        fi
     fi
 fi
 
@@ -372,29 +383,31 @@ if [ "$rdma" == "yes" ]; then
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     fi
 
-    if [ "$endpoint" == "A" ]; then
-        sleep 1
-        echo ""
-        ./throughput_mp $endpoint "RdmaUDMulticastSend -localIP=$local_ip -groupIP=233.23.33.56" -n=1000000 -b=1024 -s=100 -v
-        if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
-        sleep 1
-        echo ""
-        ./throughput_mp $endpoint "RdmaUDMulticastSend -localIP=$local_ip -groupIP=233.23.33.57" -n=1000000 -b=1024 -s=100
-        if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
-        sleep 1
-        echo ""
-        ./throughput_mp $endpoint "RdmaUDMulticastSend -localIP=$local_ip -groupIP=233.23.33.58" -n=1000000 -b=1024 -s=100 -e
-        if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
-    else
-        echo ""
-        ./throughput_mp $endpoint "RdmaUDMulticastRecv -localIP=$local_ip -groupIP=233.23.33.56" -n=1000000 -b=1064 -r=1000 -v
-        if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
-        echo ""
-        ./throughput_mp $endpoint "RdmaUDMulticastRecv -localIP=$local_ip -groupIP=233.23.33.57" -n=1000000 -b=1064 -r=1000
-        if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
-        echo ""
-        ./throughput_mp $endpoint "RdmaUDMulticastRecv -localIP=$local_ip -groupIP=233.23.33.58" -n=1000000 -b=1064 -r=1000 -e
-        if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+    if [ "$multicast" == "yes" ]; then
+        if [ "$endpoint" == "A" ]; then
+            sleep 1
+            echo ""
+            ./throughput_mp $endpoint "RdmaUDMulticastSend -localIP=$local_ip -groupIP=233.23.33.56" -n=1000000 -b=1024 -s=100 -v
+            if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+            sleep 1
+            echo ""
+            ./throughput_mp $endpoint "RdmaUDMulticastSend -localIP=$local_ip -groupIP=233.23.33.57" -n=1000000 -b=1024 -s=100
+            if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+            sleep 1
+            echo ""
+            ./throughput_mp $endpoint "RdmaUDMulticastSend -localIP=$local_ip -groupIP=233.23.33.58" -n=1000000 -b=1024 -s=100 -e
+            if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+        else
+            echo ""
+            ./throughput_mp $endpoint "RdmaUDMulticastRecv -localIP=$local_ip -groupIP=233.23.33.56" -n=1000000 -b=1064 -r=1000 -v
+            if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+            echo ""
+            ./throughput_mp $endpoint "RdmaUDMulticastRecv -localIP=$local_ip -groupIP=233.23.33.57" -n=1000000 -b=1064 -r=1000
+            if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+            echo ""
+            ./throughput_mp $endpoint "RdmaUDMulticastRecv -localIP=$local_ip -groupIP=233.23.33.58" -n=1000000 -b=1064 -r=1000 -e
+            if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+        fi
     fi
 fi
 
