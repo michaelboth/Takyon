@@ -35,9 +35,8 @@
 #include <stdint.h>
 
 // Takyon version
-#define TAKYON_VERSION_MAJOR 2
-#define TAKYON_VERSION_MINOR 0
-#define TAKYON_VERSION_PATCH 0
+#define TAKYON_API_VERSION_MAJOR 2
+#define TAKYON_API_VERSION_MINOR 0
 
 // Takyon text length limits
 #define TAKYON_MAX_PROVIDER_CHARS 1000      // Max size of text string to define a path's endpoint provider
