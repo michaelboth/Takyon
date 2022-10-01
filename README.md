@@ -4,11 +4,10 @@ The future of high performance heterogeneous point-to-point communication for th
 Takyon is currently the only proposal for a new Khronos open standard for communication: www.khronos.org/exploratory/heterogeneous-communication/<br>
 
 ### Takyon Presentation
+This shows the Takyon features and reasoning behind creating a new point-to-point communication API<br>
 <a href="Takyon_Introduction.pdf">
   <img src="docs/presentation_icon.png" alt="Takyon Introduction" width="256" height="149">
 </a>
-<br>
-View this presentation to learn about Takyon
 <br>
 
 # Key Features
