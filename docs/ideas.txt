@@ -3,17 +3,6 @@ To DO
   - Add Provider for Microsoft's Network Direct 2
   - BUG: OSX ephemeral sockets (seems the multicast packets are being blocked)
 
-Promote To
-  - Khronos, as a new proposal
-  - Intel's RDMA group
-  - Microsoft's Network Direct group
-  - NVIDIA's Mellanox group
-  - OFA: leads to many companies that are members
-  - Mercury computers
-  - Curtiss Wright
-  - Huawei
-  - Abaco
-
 Future Ideas
   - Atomics
   - Collectives: base on Takyon 1.x graph extension
