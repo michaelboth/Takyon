@@ -29,11 +29,11 @@ View this presentation to learn about Takyon
 A Takyon Provider gives access to a specific communication interconnect.<br>
 Add your own providers as needed (see ```src/providers/supported_providers.h```).
 Provider       | Type       | Message Bytes | Non-Blocking | Includes One-Sided | Supports CUDA | Platforms
----------------|------------|-------------|------------|------------|----------|----------
+---------------|------------|---------------|--------------|--------------------|---------------|----------
 InterThread    | Reliable   | 0 .. >4 GB    |              | Yes                | Yes           | All
-InterThread U  | Uneliable  | 0 .. >4 GB    |              |                    | Yes           | All
+InterThread UC | Uneliable  | 0 .. >4 GB    |              |                    | Yes           | All
 InterProcess   | Reliable   | 0 .. >4 GB    |              | Yes                | Yes           | All
-InterProcess U | Unreliable | 0 .. >4 GB    |              |                    | Yes           | All
+InterProcess UC| Unreliable | 0 .. >4 GB    |              |                    | Yes           | All
 Socket Tcp     | Reliable   | 0 .. 1 GB     |              |                    |               | All
 Socket Udp     | Unreliable | Unicast:<br>1 .. 64 KB<br>Multicast:<br>1 .. MTU |     |   |      | All
 Rdma RC        | Reliable   | 0 .. 1 GB     | Yes          | Yes                | Yes           | Linux
