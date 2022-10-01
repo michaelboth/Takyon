@@ -16,7 +16,9 @@
 #include <string.h>
 #include <stdlib.h>
 #ifdef ENABLE_CUDA
-  #include "cuda.h"
+  #ifndef _WIN32
+    #include "cuda.h"
+  #endif
   #include "cuda_runtime.h"
 #endif
 #ifdef ENABLE_MMAP
@@ -50,7 +52,7 @@ static void fillInMessage(TakyonPath *path, const uint64_t message_bytes, const 
 #endif
   uint64_t elements = message_bytes / sizeof(uint32_t);
   for (uint64_t i=0; i<elements; i++) {
-    data_cpu[i] = i + message_count;
+    data_cpu[i] = (uint32_t)i + message_count;
   }
 #ifdef ENABLE_CUDA
   cudaError_t cuda_status = cudaMemcpy(data_gpu, data_cpu, message_bytes, cudaMemcpyDefault);
@@ -446,12 +448,14 @@ void throughput(const bool is_endpointA, const char *provider, const uint32_t it
     buffer.app_data = calloc(1, buffer.bytes); // Need a temp buffer for data validation
     cudaError_t cuda_status = cudaMalloc(&buffer.addr, buffer.bytes);
     if (cuda_status != cudaSuccess) { printf("cudaMalloc() failed: %s\n", cudaGetErrorString(cuda_status)); exit(EXIT_FAILURE); }
+#ifndef _WIN32
     if (strncmp(provider, "Rdma", 4) == 0) {
       // Since this memory will transfer asynchronously via GPUDirect, need to mark the memory to be synchronous when accessing it after being received
       unsigned int flag = 1;
       CUresult cuda_result = cuPointerSetAttribute(&flag, CU_POINTER_ATTRIBUTE_SYNC_MEMOPS, (CUdeviceptr)buffer.addr);
       if (cuda_result != CUDA_SUCCESS) { printf("cuPointerSetAttribute() cuda_result: %d\n", cuda_result); exit(EXIT_FAILURE); }
     }
+#endif
 #else
 #ifdef ENABLE_MMAP
     if (strncmp(provider, "InterProcess", 12) == 0) {
