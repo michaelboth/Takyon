@@ -52,8 +52,8 @@ Windows | Visual Studio<br><br> Takyon requires Posix threads (not supported in 
 
 ### Building and Running
 You can do the direct approach or the more automated approach:
-1. Direct: To compile the library, see ```lib/README.txt```. To build an example, see ```examples/<example>/README.txt```.
-2. Automated: One script will build the Library and all the examples, then a second script will run many variations of the examples to validate the build and providers. See ```testing/README.txt```
+1. **Direct**: To compile the library, see ```lib/README.txt```. To build an example, see ```examples/<example>/README.txt```.
+2. **Automated**: One script will build the Library and all the examples, then a second script will run many variations of the examples to validate the build and providers. See ```testing/README.txt```
 
 ### Examples
 The examples cover most of Takyon's features.
