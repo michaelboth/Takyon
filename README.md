@@ -24,7 +24,7 @@ This shows the Takyon features and reasoning behind creating a new point-to-poin
 - Supports GPU memory via CUDA's cudaMemcpy, CUDA IPC, and GPUDirect
 - Tested on Windows, Mac, & Linux
 
-## Supported Providers
+### Supported Providers
 A Takyon Provider gives access to a specific communication interconnect.<br>
 Add your own providers as needed (see ```src/providers/supported_providers.h```).
 Provider       | Type       | Message Bytes | Non-Blocking | Includes One-Sided | Supports CUDA | Platforms
@@ -50,7 +50,7 @@ Windows | Visual Studio<br><br> Takyon requires Posix threads (not supported in 
 
 To easily build and run all the examples to do some thorough testing, go into the ```testing``` folder and see ```README.txt```
 
-## Examples
+### Examples
 To help you get started, some examples are provided. Each example has a ```README.txt``` to know how to build and run the example. The examples cover most of Takyon's features.
 Example | Description
 --------|------------
