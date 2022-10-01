@@ -28,17 +28,17 @@ View this presentation to learn about Takyon
 ## Takyon's Currently Supported Providers
 A Takyon Provider gives access to a specific communication interconnect.<br>
 Add your own providers as needed (see ```src/providers/supported_providers.h```).
-Provider        | Type       | Message Bytes | Non-Blocking | Includes One-Sided | Supports CUDA | Platforms
-----------------|------------|---------------|--------------|--------------------|---------------|----------
-Inter-Thread    | Reliable   | 0 .. >4 GB    | No           | Yes                | Yes           | All
-Inter-Thread U  | Uneliable  | 0 .. >4 GB    | No           | No                 | Yes           | All
-Inter-Process   | Reliable   | 0 .. >4 GB    | No           | Yes                | Yes           | All
-Inter-Process U | Unreliable | 0 .. >4 GB    | No           | No                 | Yes           | All
-Socket Tcp      | Reliable   | 0 .. 1 GB     | No           | No                 | No            | All
-Socket Udp      | Unreliable | Unicast:<br>1 .. 64 KB<br>Multicast:<br>1 .. MTU | No           | No                 | No            | All
-Rdma RC         | Reliable   | 0 .. 1 GB     | Yes          | Yes                | Yes           | Linux
-Rdma UC         | Unreliable | 0 .. 1 GB     | Yes          | Yes                | Yes           | Linux
-Rdma UD         | Unreliable | 0 .. RDMA_MTU | Yes          | No                 | Yes           | Linux
+Provider       | Type       | Message Bytes | Non-Blocking | Includes One-Sided | Supports CUDA | Platforms
+---------------|------------|-------------|------------|------------|----------|----------
+InterThread    | Reliable   | 0 .. >4 GB    |              | Yes                | Yes           | All
+InterThread U  | Uneliable  | 0 .. >4 GB    |              |                    | Yes           | All
+InterProcess   | Reliable   | 0 .. >4 GB    |              | Yes                | Yes           | All
+InterProcess U | Unreliable | 0 .. >4 GB    |              |                    | Yes           | All
+Socket Tcp     | Reliable   | 0 .. 1 GB     |              |                    |               | All
+Socket Udp     | Unreliable | Unicast:<br>1 .. 64 KB<br>Multicast:<br>1 .. MTU |     |   |      | All
+Rdma RC        | Reliable   | 0 .. 1 GB     | Yes          | Yes                | Yes           | Linux
+Rdma UC        | Unreliable | 0 .. 1 GB     | Yes          | Yes                | Yes           | Linux
+Rdma UD        | Unreliable | 0 .. RDMA_MTU | Yes          |                    | Yes           | Linux
 
 ## Prepare the Build Environment
 To build the Takyon examples, the following is needed:
