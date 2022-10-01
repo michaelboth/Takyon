@@ -26,6 +26,7 @@ This shows the Takyon features and reasoning behind creating a new point-to-poin
 
 ### Supported Providers
 A Takyon Provider gives access to a specific communication interconnect.<br>
+Each Takyon Provider has it's own provider specification. To know the details see ```src/providers/provider_<interconnect>.c```<br>
 Add your own providers as needed (see ```src/providers/supported_providers.h```).
 Provider       | Type       | Message Bytes | Non-Blocking | Includes One-Sided | Supports CUDA | Platforms
 ---------------|------------|---------------|--------------|--------------------|---------------|----------
@@ -38,6 +39,9 @@ Socket Udp     | Unreliable | Unicast:<br>1 .. 64 KB<br>Multicast:<br>1 .. MTU |
 Rdma RC        | Reliable   | 0 .. 1 GB     | Yes          | Yes                | Yes           | Linux
 Rdma UC        | Unreliable | 0 .. 1 GB     | Yes          | Yes                | Yes           | Linux
 Rdma UD        | Unreliable | 0 .. 4 KB     | Yes          |                    | Yes           | Linux
+
+# The API
+The 8 Takyon functions and most of the details are in the single header file: ```inc/takyon.h```<br>
 
 # Building
 Takyon and its examples are provided as C code. Takyon is compiled into a library with only the providers you want, and the examples are linked with the Takyon library.
