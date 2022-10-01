@@ -1,4 +1,6 @@
 To DO
+  - Test with Infiniband and iWarp
+  - Add Provider for Microsoft's Network Direct 2
   - BUG: OSX ephemeral sockets (seems the multicast packets are being blocked)
 
 Promote To
