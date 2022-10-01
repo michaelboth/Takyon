@@ -1,9 +1,9 @@
 <img src="docs/Takyon_Logo.png" alt="Logo" style="width:400px;"/>
 
-The future of high performance heterogeneous point-to-point communication for the eHPC industry (embedded High Performance Communication)<br><br>
+The future of high performance heterogeneous point-to-point communication for the eHPC industry (embedded High Performance Compute)<br><br>
 Takyon is currently the only proposal for a new Khronos open standard for communication: www.khronos.org/exploratory/heterogeneous-communication/<br>
 
-## Takyon Presentation
+### Takyon Presentation
 <a href="Takyon_Introduction.pdf">
   <img src="docs/presentation_icon.png" alt="Takyon Introduction" width="256" height="149">
 </a>
@@ -11,7 +11,7 @@ Takyon is currently the only proposal for a new Khronos open standard for commun
 View this presentation to learn about Takyon
 <br>
 
-# Takyon's Key Features
+# Key Features
 - Point-to-point message passing communication API (reliable and unreliable)
 - Heterogeneous: unifies RDMA, sockets, and many other communication interconnects
 - Takyon's abstration does not compromise performance
@@ -25,7 +25,7 @@ View this presentation to learn about Takyon
 - Supports GPU memory via CUDA's cudaMemcpy, CUDA IPC, and GPUDirect
 - Tested on Windows, Mac, & Linux
 
-## Takyon's Currently Supported Providers
+## Supported Providers (Communication Interconnects)
 A Takyon Provider gives access to a specific communication interconnect.<br>
 Add your own providers as needed (see ```src/providers/supported_providers.h```).
 Provider       | Type       | Message Bytes | Non-Blocking | Includes One-Sided | Supports CUDA | Platforms
@@ -40,7 +40,7 @@ Rdma RC        | Reliable   | 0 .. 1 GB     | Yes          | Yes                
 Rdma UC        | Unreliable | 0 .. 1 GB     | Yes          | Yes                | Yes           | Linux
 Rdma UD        | Unreliable | 0 .. 4 KB     | Yes          |                    | Yes           | Linux
 
-## Prepare the Build Environment
+# Building Takyon Library and Examples
 To build the Takyon examples, the following is needed:
 
 OS | Requirements
