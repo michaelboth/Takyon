@@ -652,31 +652,34 @@ bool interProcessDestroy(TakyonPath *path, double timeout_seconds) {
       // Send
       if (!socketSend(private_path->socket_fd, &x, sizeof(x), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
         TAKYON_RECORD_ERROR(path->error_message, "Failed to send barriar value: %s\n", error_message);
-        barrier_ok = false;
+	return false;
       }
       x = 33;
       // Recv
       if (barrier_ok && !socketRecv(private_path->socket_fd, &x, sizeof(x), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
         TAKYON_RECORD_ERROR(path->error_message, "Failed to recv barrier value: %s\n", error_message);
-        barrier_ok = false;
+	return false;
       }
       if (x != 23) {
         TAKYON_RECORD_ERROR(path->error_message, "Got incorrect barrier value: %s\n", error_message);
-        barrier_ok = false;
+	return false;
       }
     } else {
       uint32_t x = 33;
       // Recv
       if (!socketRecv(private_path->socket_fd, &x, sizeof(x), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
         TAKYON_RECORD_ERROR(path->error_message, "Failed to recv barrier value: %s\n", error_message);
-        barrier_ok = false;
+	return false;
       }
       // Send
       if (barrier_ok && !socketSend(private_path->socket_fd, &x, sizeof(x), false, timeout_nano_seconds, &timed_out, error_message, MAX_ERROR_MESSAGE_CHARS)) {
         TAKYON_RECORD_ERROR(path->error_message, "Failed to send barrier value: %s\n", error_message);
-        barrier_ok = false;
+	return false;
       }
     }
+  } else {
+    TAKYON_RECORD_ERROR(path->error_message, "This endpoint is trying to finalize, but the remote side seems to have disconnected\n");
+    return false;
   }
 
   // Free the resources

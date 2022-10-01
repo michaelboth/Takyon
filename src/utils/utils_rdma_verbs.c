@@ -35,6 +35,8 @@
     - Is MLNX OFED Verbs also ported to Windows or still need to use Network Direct?
     - When testing two processes on a single node: UD multicast can send up to 10,000 bytes message without getting IBV_WC_LOC_LEN_ERR. Recv can get 8960 bytes. How is this posible.
     - Currently the smaller of the max MTU from both endpoints is automatically used. Should the user set it in the provider spec instead?
+    - BUG: RDMA UC will stop receiving messages, even if less than MTU size, if the sender is sending faster than the receiver can consume them.
+           This does not occur with RDMA UD
 */
 
 #define PORT_INFO_TEXT_BYTES 100
@@ -51,7 +53,7 @@ typedef struct  {
 } PortInfo;
 
 static struct ibv_context *getRdmaContextFromNamedDevice(const char *rdma_device_name, char *error_message, int max_error_message_chars) {
-  struct ibv_device **dev_list = ibv_get_device_list(NULL);
+  struct ibv_device **dev_list = ibv_get_device_list(NULL); /*+ valgrind is reporting this memory is never freed even with ibv_free_device_list(dev_list) being called */
   if (dev_list == NULL) {
     snprintf(error_message, max_error_message_chars, "ibv_get_device_list() failed");
     return NULL;
@@ -65,13 +67,13 @@ static struct ibv_context *getRdmaContextFromNamedDevice(const char *rdma_device
         snprintf(error_message, max_error_message_chars, "ibv_open_device() failed for device '%s': errno=%d", rdma_device_name, errno);
         return NULL;
       }
-      free(dev_list);
+      ibv_free_device_list(dev_list);
       return context;
     }
     index++;
   }
 
-  free(dev_list);
+  ibv_free_device_list(dev_list);
   snprintf(error_message, max_error_message_chars, "Failed to find the RDMA device '%s'. Run the command line program 'ibv_devinfo' to see the devices.", rdma_device_name);
   return NULL;
 }

@@ -39,8 +39,6 @@
   static const char *MEMORY_TYPE = "CPU";
 #endif
 
-/*+ Instrument with Unikorn */
-
 static uint32_t L_detected_drops = 0;
 static uint32_t L_messages_recved = 0;
 
@@ -115,7 +113,7 @@ static void sendMessage(TakyonPath *path, const uint64_t message_bytes, const bo
   if (path->capabilities.IsSent_supported && send_request.use_is_sent_notification) takyonIsSent(path, &send_request, TAKYON_WAIT_FOREVER, NULL);
 }
 
-static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, const bool validate, const uint32_t message_count, uint32_t iterations) {
+static bool recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, const bool validate, const uint32_t message_count, uint32_t iterations) {
   // Wait for data to arrive
   uint64_t bytes_received;
   bool timed_out;
@@ -125,8 +123,8 @@ static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, const
   if (timed_out)  {
     uint32_t detected_drops = iterations-L_messages_recved;
     double drop_percent = 100.0 * (detected_drops / (double)iterations);
-    printf("\nTimed out waiting for messages: %u of %u dropped (%0.2f%%)\n", detected_drops, iterations, drop_percent);
-    exit(EXIT_SUCCESS);
+    printf("\nTimed out waiting for messages: dropped %u of %u (%0.2f%%).\n", detected_drops, iterations, drop_percent);
+    return false;
   }
   if (bytes_received != recv_request->sub_buffers[0].bytes) {
     if (strncmp(path->attrs.provider, "RdmaUD", 6) == 0) {
@@ -134,7 +132,7 @@ static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, const
     } else {
       printf("\nGot " UINT64_FORMAT " bytes but expected " UINT64_FORMAT ". Make sure the sender matches byte size\n", bytes_received, recv_request->sub_buffers[0].bytes);
     }
-    exit(EXIT_SUCCESS);
+    exit(EXIT_FAILURE);
   }
   L_messages_recved++;
 
@@ -151,6 +149,8 @@ static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, const
     L_detected_drops += piggy_back_message - (previous_start_value+1);
     previous_start_value = piggy_back_message;
   }
+
+  return true;
 }
 
 static void writeMessage(TakyonPath *path, const uint64_t message_bytes, const bool use_polling_completion, const bool validate, const uint32_t message_count) {
@@ -222,16 +222,21 @@ static void sendSignal(TakyonPath *path, const bool use_polling_completion) {
   if (path->capabilities.IsSent_supported && send_request.use_is_sent_notification) takyonIsSent(path, &send_request, TAKYON_WAIT_FOREVER, NULL);
 }
 
-static void recvSignal(TakyonPath *path, TakyonRecvRequest *recv_request) {
+static bool recvSignal(TakyonPath *path, TakyonRecvRequest *recv_request) {
   // Wait for data to arrive
   uint64_t bytes_received;
   bool timed_out;
   takyonIsRecved(path, recv_request, ACTIVE_RECV_TIMEOUT_SECONDS, &timed_out, &bytes_received, NULL);
-  if (timed_out) { printf("\nTimed out waiting for signal. Make sure both endpoints define the same number of recv buffers\n"); exit(EXIT_SUCCESS); }
-  if (bytes_received != 0) { printf("\nExpected a zero-byte message, but got " UINT64_FORMAT " bytes.\n", bytes_received); exit(EXIT_SUCCESS); }
+  if (timed_out) {
+    printf("\nTimed out waiting for signal. Make sure both endpoints define the same number of recv buffers\n");
+    return false;
+  }
+  if (bytes_received != 0) { printf("\nExpected a zero-byte message, but got " UINT64_FORMAT " bytes.\n", bytes_received); exit(EXIT_FAILURE); }
 
   // If the provider supports pre-posting, then need to post the recv to be ready for the next send, before the send starts
   if (path->capabilities.PostRecvs_supported) takyonPostRecvs(path, 1, recv_request);
+
+  return true;
 }
 
 static void twoSidedThroughput(const bool is_endpointA, const char *provider, const uint32_t iterations, const uint64_t message_bytes, const uint32_t send_buffer_count, const uint32_t recv_buffer_count, const bool use_polling_completion, const bool validate, const bool is_multi_threaded, TakyonBuffer *buffer) {
@@ -300,7 +305,8 @@ static void twoSidedThroughput(const bool is_endpointA, const char *provider, co
       sendMessage(path, message_bytes, use_polling_completion, validate, i+1);
     } else {
       // Wait for the message to arrive (will reuse the recv_request that was already prepared)
-      recvMessage(path, &recv_requests[recv_request_index], validate, i+1, iterations);
+      bool ok = recvMessage(path, &recv_requests[recv_request_index], validate, i+1, iterations);
+      if (!ok) break; // Probably dropped packets and sender is done
       recv_request_index = (recv_request_index + 1) % recv_buffer_count;
     }
 
@@ -310,7 +316,10 @@ static void twoSidedThroughput(const bool is_endpointA, const char *provider, co
       // Used up all the posted recvs. Need to repost
       if (path->attrs.is_endpointA) {
         // Wait for the recvs to be posted, but if the provider is unreliable then no needed since dropped messages are allowed
-        if (!path->capabilities.is_unreliable) recvSignal(path, &repost_recv_request);
+        if (!path->capabilities.is_unreliable) {
+          bool ok = recvSignal(path, &repost_recv_request);
+          if (!ok) break; // Probably dropped packets and sender is done
+        }
       } else {
         // If the provider supports pre-posting, then do it
 	// IMPORTANT: Posting half at a time allows for data to continue arriving (in the old posted recvs) while new recvs are being posted

@@ -263,8 +263,13 @@ bool udpSocketDestroy(TakyonPath *path, double timeout_seconds) {
   TakyonComm *comm = (TakyonComm *)path->private;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
 
+  // See if connection failed
+  if (private_path->connection_failed) {
+    TAKYON_RECORD_ERROR(path->error_message, "This endpoint is trying to finalize, but the remote side seems to have disconnected\n");
+    return false;
+  }
+
   // NOTE: TCP_NODELAY is likely already active, so just need to provide some time for the remote side to get any in-transit data before a disconnect message is sent
-  // NOTE: private_path->connection_failed may be true, but still want to provide time for remote side to handle arriving data
   clockSleepYield(MICROSECONDS_TO_SLEEP_BEFORE_DISCONNECTING);
 
   // Disconnect

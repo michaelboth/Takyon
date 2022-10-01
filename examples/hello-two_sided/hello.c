@@ -106,14 +106,18 @@ static void sendMessage(TakyonPath *path, uint64_t message_bytes, uint32_t messa
   }
 }
 
-static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, double timeout, uint64_t *bytes_received_out, uint32_t *piggy_back_message_out) {
+static bool recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, double timeout, uint64_t *bytes_received_out, uint32_t *piggy_back_message_out) {
   // Wait for data to arrive
   // NOTES:
   //  - The recv request was already setup before the Takyon path was created
   //  - The recv request only has a single sub buffer, regardless of what the sender has
   bool timed_out;
   takyonIsRecved(path, recv_request, timeout, &timed_out, bytes_received_out, piggy_back_message_out);
-  if (timed_out)  { printf("\nTimed out waiting for messages\n"); exit(EXIT_SUCCESS); }
+  if (timed_out)  {
+    printf("Timed out waiting for messages\n");
+    return false; // Failed
+  }
+  return true; // Succes
 }
 
 static void processSingleBufferMessage(TakyonPath *path, TakyonRecvRequest *recv_request, bool is_rdma_UD, uint64_t bytes_received, uint32_t piggy_back_message) {
@@ -224,7 +228,8 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
         // Recv the message, process it, then re-post the recv requewst
         uint64_t bytes_received;
         uint32_t piggy_back_message;
-        recvMessage(path, &recv_request, ACTIVE_RECV_TIMEOUT_SECONDS, &bytes_received, &piggy_back_message);
+        bool ok = recvMessage(path, &recv_request, ACTIVE_RECV_TIMEOUT_SECONDS, &bytes_received, &piggy_back_message);
+        if (!ok) break; // Probably dropped packets and sender is done
         processSingleBufferMessage(path, &recv_request, is_rdma_UD, bytes_received, piggy_back_message);
         if (path->capabilities.PostRecvs_supported) { takyonPostRecvs(path, 1, &recv_request); }
       }
@@ -234,7 +239,8 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
       uint64_t bytes_received;
       uint32_t piggy_back_message;
       double timeout = (i==0) ? FIRST_RECV_TIMEOUT_SECONDS : ACTIVE_RECV_TIMEOUT_SECONDS;
-      recvMessage(path, &recv_request, timeout, &bytes_received, &piggy_back_message);
+      bool ok = recvMessage(path, &recv_request, timeout, &bytes_received, &piggy_back_message);
+      if (!ok) break; // Probably dropped packets and sender is done
       processSingleBufferMessage(path, &recv_request, is_rdma_UD, bytes_received, piggy_back_message);
       if (path->capabilities.PostRecvs_supported) { takyonPostRecvs(path, 1, &recv_request); }
 
