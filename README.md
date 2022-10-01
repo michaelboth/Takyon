@@ -38,7 +38,7 @@ Socket Tcp     | Reliable   | 0 .. 1 GB     |              |                    
 Socket Udp     | Unreliable | Unicast:<br>1 .. 64 KB<br>Multicast:<br>1 .. MTU |     |   |      | All
 Rdma RC        | Reliable   | 0 .. 1 GB     | Yes          | Yes                | Yes           | Linux
 Rdma UC        | Unreliable | 0 .. 1 GB     | Yes          | Yes                | Yes           | Linux
-Rdma UD        | Unreliable | 0 .. 4KB      | Yes          |                    | Yes           | Linux
+Rdma UD        | Unreliable | 0 .. 4 KB     | Yes          |                    | Yes           | Linux
 
 ## Prepare the Build Environment
 To build the Takyon examples, the following is needed:
