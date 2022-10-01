@@ -326,14 +326,14 @@ static void twoSidedThroughput(const bool is_endpointA, const char *provider, co
     if (i == (iterations-1) || elapsed_print_time > 0.05) {
       if (path->attrs.is_endpointA) {
         if (!is_multi_threaded) {
-          printf("\r%s (two-sided): %u %s transfers, %0.3f GB/sec, %0.3f Gb/sec", path->attrs.is_endpointA ? "Sender" : "Recver", i+1, MEMORY_TYPE, GB_per_sec, Gb_per_sec);
+          printf("\rSender (two-sided): sent %u %s message, %0.3f GB/sec, %0.3f Gb/sec", i+1, MEMORY_TYPE, GB_per_sec, Gb_per_sec);
         }
       } else {
 	if (validate || path->capabilities.piggy_back_messages_supported) {
 	  double drop_percent = 100.0 * (L_detected_drops / (double)iterations);
-	  printf("\r%s (two-sided): %u %s transfers, %0.3f GB/sec, %0.3f Gb/sec, dropped messages: %u (%0.2f%%)", path->attrs.is_endpointA ? "Sender" : "Recver", i+1, MEMORY_TYPE, GB_per_sec, Gb_per_sec, L_detected_drops, drop_percent);
+	  printf("\rRecver (two-sided): recved %u %s messages, %0.3f GB/sec, %0.3f Gb/sec, dropped messages: %u (%0.2f%%)", i+1, MEMORY_TYPE, GB_per_sec, Gb_per_sec, L_detected_drops, drop_percent);
 	} else {
-	  printf("\r%s (two-sided): %u %s transfers, %0.3f GB/sec, %0.3f Gb/sec", path->attrs.is_endpointA ? "Sender" : "Recver", i+1, MEMORY_TYPE, GB_per_sec, Gb_per_sec);
+	  printf("\rRecver (two-sided): recved %u %s messages, %0.3f GB/sec, %0.3f Gb/sec", i+1, MEMORY_TYPE, GB_per_sec, Gb_per_sec);
 	}
       }
       fflush(stdout);
@@ -401,7 +401,7 @@ static void oneSidedThroughput(const bool is_endpointA, const char *provider, co
       double Gb_per_sec = GB_per_sec * 8;
       double elapsed_print_time = curr_time - last_print_time;
       if (i == (iterations-1) || elapsed_print_time > 0.05) {
-        printf("\rReader & Writer (one-sided): %u %s transfers, %0.3f GB/sec, %0.3f Gb/sec", i+1, MEMORY_TYPE, GB_per_sec, Gb_per_sec);
+        printf("\rReader & Writer (one-sided): completed %u %s transfers, %0.3f GB/sec, %0.3f Gb/sec", i+1, MEMORY_TYPE, GB_per_sec, Gb_per_sec);
         fflush(stdout);
         last_print_time = curr_time;
       }
