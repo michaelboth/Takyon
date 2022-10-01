@@ -40,7 +40,7 @@ Rdma UC        | Unreliable | 0 .. 1 GB     | Yes          | Yes                
 Rdma UD        | Unreliable | 0 .. 4 KB     | Yes          |                    | Yes           | Linux
 
 # Building
-Takyon and its examples are provided as C code. Takyon is compiled into a library with only the providers you want, and the examples are like with the Takyon library.
+Takyon and its examples are provided as C code. Takyon is compiled into a library with only the providers you want, and the examples are linked with the Takyon library.
 ### Environment
 The following are needed to build the Takyon library and examples:
 
@@ -53,10 +53,10 @@ Windows | Visual Studio<br><br> Takyon requires Posix threads (not supported in 
 ### Building and Running
 You can do the direct approach or the more automated approach:
 1. Direct: To compile the library, see ```lib/README.txt```. To build an example, see ```examples/<example>/README.txt```.
-2. Automated: This will build the Library and all the examples, then run many variations of the examples to validate the build and providers. See ```testing/README.txt```
+2. Automated: One script will build the Library and all the examples, then a second script will run many variations of the examples to validate the build and providers. See ```testing/README.txt```
 
 ### Examples
-To help you get started, some examples are provided. Each example has a ```README.txt``` to know how to build and run the example. The examples cover most of Takyon's features.
+The examples cover most of Takyon's features.
 Example | Description
 --------|------------
 hello-two_sided | Transfer a simple greeting between two endpoints using 'send' -> 'recv'.<br>Supports all Providers, CUDA, MMAPs, relialbe, unrelaible, and multiple memory blocks.
