@@ -122,7 +122,12 @@ static void recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, const
   uint32_t piggy_back_message;
   double timeout = (message_count==1) ? FIRST_RECV_TIMEOUT_SECONDS : ACTIVE_RECV_TIMEOUT_SECONDS;
   takyonIsRecved(path, recv_request, timeout, &timed_out, &bytes_received, &piggy_back_message);
-  if (timed_out)  { printf("\nTimed out waiting for messages: %u of %u dropped\n", iterations-L_messages_recved, iterations); exit(EXIT_SUCCESS); }
+  if (timed_out)  {
+    uint32_t detected_drops = iterations-L_messages_recved;
+    double drop_percent = 100.0 * (detected_drops / (double)iterations);
+    printf("\nTimed out waiting for messages: %u of %u dropped (%0.2f%%)\n", detected_drops, iterations, drop_percent);
+    exit(EXIT_SUCCESS);
+  }
   if (bytes_received != recv_request->sub_buffers[0].bytes) {
     if (strncmp(path->attrs.provider, "RdmaUD", 6) == 0) {
       printf("\nGot " UINT64_FORMAT " bytes but expected " UINT64_FORMAT ". Make sure the sender matches byte size (RDMA UD receiver needs 40 extra bytes)\n", bytes_received-40, recv_request->sub_buffers[0].bytes-40);
