@@ -67,6 +67,20 @@ static CommInterface L_interfaces[] = {
                                          .multi_sub_buffers_supported = true,
                                          .zero_byte_messages_supported = true
                                        },
+                                       { .name = "InterThreadU",
+                                         .create = interThreadCreate,
+                                         .destroy = interThreadDestroy,
+                                         .oneSided = NULL,
+                                         .isOneSidedDone = NULL,
+                                         .send = interThreadSend,
+                                         .isSent = NULL,
+                                         .postRecvs = interThreadPostRecvs,
+                                         .isRecved = interThreadIsRecved,
+					 .is_unreliable = true,
+                                         .piggy_back_messages_supported = true,
+                                         .multi_sub_buffers_supported = true,
+                                         .zero_byte_messages_supported = true
+                                       },
 #endif
 
 #ifdef ENABLE_InterProcess
@@ -80,6 +94,20 @@ static CommInterface L_interfaces[] = {
                                          .postRecvs = interProcessPostRecvs,
                                          .isRecved = interProcessIsRecved,
 					 .is_unreliable = false,
+                                         .piggy_back_messages_supported = true,
+                                         .multi_sub_buffers_supported = true,
+                                         .zero_byte_messages_supported = true
+                                       },
+                                       { .name = "InterProcessU",
+                                         .create = interProcessCreate,
+                                         .destroy = interProcessDestroy,
+                                         .oneSided = NULL,
+                                         .isOneSidedDone = NULL,
+                                         .send = interProcessSend,
+                                         .isSent = NULL,
+                                         .postRecvs = interProcessPostRecvs,
+                                         .isRecved = interProcessIsRecved,
+					 .is_unreliable = true,
                                          .piggy_back_messages_supported = true,
                                          .multi_sub_buffers_supported = true,
                                          .zero_byte_messages_supported = true

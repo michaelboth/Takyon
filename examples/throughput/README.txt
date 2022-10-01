@@ -17,14 +17,19 @@ Mac and Linux
   Build app:
     > make [DEBUG=Yes] [MMAP=Yes] [RDMA=Yes] [CUDA=Yes]
   Testing
-    Inter-Thread
+    Inter-Thread (reliable)
       > ./throughput_mt "InterThread -pathID=1"
       > ./throughput_mt "InterThread -pathID=1" -o
-    Inter-Process
+    Inter-Thread (unreliable)
+      > ./throughput_mt "InterThreadU -pathID=1"
+    Inter-Process (reliable)
       A> ./throughput_mp A "InterProcess -pathID=1"
       B> ./throughput_mp B "InterProcess -pathID=1"
       A> ./throughput_mp A "InterProcess -pathID=1" -o
       B> ./throughput_mp B "InterProcess -pathID=1" -o
+    Inter-Process (unreliable)
+      A> ./throughput_mp A "InterProcessU -pathID=1"
+      B> ./throughput_mp B "InterProcessU -pathID=1"
     Local Socket: avoids full IP stack since runs in the same OS instance
       A> ./throughput_mp A "SocketTcp -local -pathID=1"
       B> ./throughput_mp B "SocketTcp -local -pathID=1"

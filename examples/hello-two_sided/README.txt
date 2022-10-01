@@ -17,11 +17,16 @@ Mac and Linux
   Build app:
     > make [DEBUG=Yes] [MMAP=Yes] [RDMA=Yes] [CUDA=Yes]
   Testing
-    Inter-Thread
+    Inter-Thread (reliable)
       > ./hello_mt "InterThread -pathID=1" 10
-    Inter-Process
+    Inter-Thread (unreliable)
+      > ./hello_mt "InterThreadU -pathID=1" 10
+    Inter-Process (reliable)
       A> ./hello_mp A "InterProcess -pathID=1" 10
       B> ./hello_mp B "InterProcess -pathID=1" 10
+    Inter-Process (unreliable)
+      A> ./hello_mp A "InterProcessU -pathID=1" 10
+      B> ./hello_mp B "InterProcessU -pathID=1" 10
     Local Socket: avoids full IP stack since runs in the same OS instance
       A> ./hello_mp A "SocketTcp -local -pathID=1" 10
       B> ./hello_mp B "SocketTcp -local -pathID=1" 10

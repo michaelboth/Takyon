@@ -53,6 +53,15 @@ if [ "$mmap" == "yes" ]; then
     echo ""
     ./hello_mp $endpoint "InterProcess -pathID=3" 10
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+    echo ""
+    ./hello_mp $endpoint "InterProcessU -pathID=1" 0
+    if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+    echo ""
+    ./hello_mp $endpoint "InterProcessU -pathID=2" 1
+    if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+    echo ""
+    ./hello_mp $endpoint "InterProcessU -pathID=3" 10
+    if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
 fi
 if [ "$socket" == "yes" ]; then
     echo ""
@@ -149,6 +158,15 @@ if [ "$mmap" == "yes" ]; then
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     echo ""
     ./throughput_mp $endpoint "InterProcess -pathID=2" -n=100000 -b=32768 -e -o
+    if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+    echo ""
+    ./throughput_mp $endpoint "InterProcessU -pathID=1" -n=100000 -b=32768 -v
+    if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+    echo ""
+    ./throughput_mp $endpoint "InterProcessU -pathID=2" -n=100000 -b=32768
+    if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+    echo ""
+    ./throughput_mp $endpoint "InterProcessU -pathID=2" -n=100000 -b=32768 -e
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
 fi
 

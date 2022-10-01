@@ -37,6 +37,12 @@ if %mmap% == yes (
   if ERRORLEVEL 1 ( echo "Failed to run hello-two_sided" & GOTO:done )
   hello_mp %endpoint% "InterProcess -pathID=3" 10
   if ERRORLEVEL 1 ( echo "Failed to run hello-two_sided" & GOTO:done )
+  hello_mp %endpoint% "InterProcessU -pathID=1" 0
+  if ERRORLEVEL 1 ( echo "Failed to run hello-two_sided" & GOTO:done )
+  hello_mp %endpoint% "InterProcessU -pathID=2" 1
+  if ERRORLEVEL 1 ( echo "Failed to run hello-two_sided" & GOTO:done )
+  hello_mp %endpoint% "InterProcessU -pathID=3" 10
+  if ERRORLEVEL 1 ( echo "Failed to run hello-two_sided" & GOTO:done )
 )
 if %socket% == yes (
   hello_mp %endpoint% "SocketTcp -local -pathID=1" 0
@@ -114,6 +120,10 @@ if %mmap% == yes (
   throughput_mp %endpoint% "InterProcess -pathID=1" -n=100000 -b=32768 -v -o
   if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
   throughput_mp %endpoint% "InterProcess -pathID=2" -n=100000 -b=32768 -o
+  if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
+  throughput_mp %endpoint% "InterProcessU -pathID=1" -n=100000 -b=32768 -v
+  if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
+  throughput_mp %endpoint% "InterProcessU -pathID=2" -n=100000 -b=32768
   if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
 )
 

@@ -44,7 +44,8 @@
 // attrs->provider[] Specification:
 //   "InterThread -pathID=<non_negative_integer>"
 
-#define THREAD_MANAGER_ID 23 // This must be different from the other providers that use the thread manager
+#define THREAD_MANAGER_ID_RELIABLE   23 // This must be different from the other providers that use the thread manager
+#define THREAD_MANAGER_ID_UNRELIABLE 24 // This must be different from the other providers that use the thread manager
 
 typedef struct {
   bool transfer_complete;
@@ -54,8 +55,8 @@ typedef struct {
 
 typedef struct {
   InterThreadManagerItem *remote_thread_handle;
+  bool is_unreliable;
   uint32_t posted_recv_count;
-  // NOTE: if oldest & newest are equal, then the list is either empty or full
   uint32_t oldest_posted_recv_index;
   uint32_t newest_posted_recv_index;
   TakyonRecvRequest **posted_recvs; // Circular buffer
@@ -65,6 +66,16 @@ typedef struct {
 bool interThreadCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *recv_requests, double timeout_seconds) {
   TakyonComm *comm = (TakyonComm *)path->private;
   char error_message[MAX_ERROR_MESSAGE_CHARS];
+
+  // Get the name of the provider
+  char provider_name[TAKYON_MAX_PROVIDER_CHARS];
+  if (!argGetProvider(path->attrs.provider, provider_name, TAKYON_MAX_PROVIDER_CHARS, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    TAKYON_RECORD_ERROR(path->error_message, "Failed to get provider name: %s\n", error_message);
+    return false;
+  }
+
+  // See if unreliable
+  bool is_unreliable = (strcmp(provider_name, "InterThreadU") == 0);
 
   // Get the path ID
   uint32_t path_id;
@@ -97,6 +108,7 @@ bool interThreadCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReq
     return false;
   }
   comm->data = private_path;
+  private_path->is_unreliable = is_unreliable;
   private_path->posted_recv_count = 0;
   private_path->oldest_posted_recv_index = 0;
   private_path->newest_posted_recv_index = 0;
@@ -138,7 +150,8 @@ bool interThreadCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReq
   }
 
   // Connect to the remote thread
-  private_path->remote_thread_handle = interThreadManagerConnect(THREAD_MANAGER_ID, path_id, path, timeout_seconds);
+  uint32_t provider_id = is_unreliable ? THREAD_MANAGER_ID_UNRELIABLE : THREAD_MANAGER_ID_RELIABLE;
+  private_path->remote_thread_handle = interThreadManagerConnect(provider_id, path_id, path, timeout_seconds);
   if (private_path->remote_thread_handle == NULL) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to connect to remote thread\n");
     goto cleanup;
@@ -203,8 +216,12 @@ static bool doTwoSidedTransfer(TakyonPath *path, TakyonPath *remote_path, Takyon
   TakyonComm *remote_comm = (TakyonComm *)remote_path->private;
   PrivateTakyonPath *remote_private_path = (PrivateTakyonPath *)remote_comm->data;
   if (remote_private_path->posted_recv_count == 0) {
-    TAKYON_RECORD_ERROR(path->error_message, "Remote side has no posted recvs\n");
-    return false;
+    if (remote_private_path->is_unreliable) {
+      return true;
+    } else {
+      TAKYON_RECORD_ERROR(path->error_message, "Remote side has no posted recvs\n");
+      return false;
+    }
   }
   // Pull the request off the list
   TakyonRecvRequest *remote_request = remote_private_path->posted_recvs[remote_private_path->oldest_posted_recv_index];

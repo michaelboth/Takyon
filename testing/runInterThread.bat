@@ -12,6 +12,12 @@ hello_mt "InterThread -pathID=1" 1
 if ERRORLEVEL 1 ( echo "Failed to run hello-two_sided" & GOTO:done )
 hello_mt "InterThread -pathID=1" 10
 if ERRORLEVEL 1 ( echo "Failed to run hello-two_sided" & GOTO:done )
+hello_mt "InterThreadU -pathID=1" 0
+if ERRORLEVEL 1 ( echo "Failed to run hello-two_sided" & GOTO:done )
+hello_mt "InterThreadU -pathID=1" 1
+if ERRORLEVEL 1 ( echo "Failed to run hello-two_sided" & GOTO:done )
+hello_mt "InterThreadU -pathID=1" 10
+if ERRORLEVEL 1 ( echo "Failed to run hello-two_sided" & GOTO:done )
 
 rem hello-one_sided
 cd ..\hello-one_sided
@@ -33,6 +39,10 @@ if ERRORLEVEL 1 ( echo "Failed to run throughput_mt" & GOTO:done )
 throughput_mt "InterThread -pathID=1" -b=32768 -v -o
 if ERRORLEVEL 1 ( echo "Failed to run throughput_mt" & GOTO:done )
 throughput_mt "InterThread -pathID=1" -b=32768 -o
+if ERRORLEVEL 1 ( echo "Failed to run throughput_mt" & GOTO:done )
+throughput_mt "InterThreadU -pathID=1" -b=32768 -v
+if ERRORLEVEL 1 ( echo "Failed to run throughput_mt" & GOTO:done )
+throughput_mt "InterThreadU -pathID=1" -b=32768
 if ERRORLEVEL 1 ( echo "Failed to run throughput_mt" & GOTO:done )
 
 GOTO:done

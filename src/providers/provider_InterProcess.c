@@ -113,6 +113,8 @@ typedef struct {
 } RemotePathInfo;
 
 typedef struct {
+  bool is_unreliable;
+
   // Socket connection to init and finalize the path, also to detect disconnects
   TakyonSocket socket_fd;
   bool thread_started;
@@ -276,6 +278,16 @@ bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRe
   bool timed_out = false;
   char error_message[MAX_ERROR_MESSAGE_CHARS];
 
+  // Get the name of the provider
+  char provider_name[TAKYON_MAX_PROVIDER_CHARS];
+  if (!argGetProvider(path->attrs.provider, provider_name, TAKYON_MAX_PROVIDER_CHARS, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    TAKYON_RECORD_ERROR(path->error_message, "Failed to get provider name: %s\n", error_message);
+    return false;
+  }
+
+  // See if unreliable
+  bool is_unreliable = (strcmp(provider_name, "InterProcessU") == 0);
+
   // -pathID=<non_negative_integer>
   uint32_t path_id = 0;
   bool path_id_found = false;
@@ -309,6 +321,7 @@ bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRe
     return false;
   }
   comm->data = private_path;
+  private_path->is_unreliable = is_unreliable;
   private_path->connection_failed = false;
   private_path->socket_fd = -1;
   private_path->remote_buffer_count = 0;
@@ -816,8 +829,12 @@ bool interProcessSend(TakyonPath *path, TakyonSendRequest *request, uint32_t pig
   uint32_t total_sub_items = private_path->max_remote_pending_recv_requests * MY_MAX(1, private_path->max_remote_sub_buffers_per_recv_request);
   RecvRequestAndCompletion *remote_request = &private_path->remote_recv_request_and_completions[private_path->curr_remote_posted_recv_request_index];
   if (!remote_request->transfer_posted || remote_request->transfer_complete) {
-    TAKYON_RECORD_ERROR(path->error_message, "Remote side has no posted recvs\n");
-    return false;
+    if (private_path->is_unreliable) {
+      return true;
+    } else {
+      TAKYON_RECORD_ERROR(path->error_message, "Remote side has no posted recvs\n");
+      return false;
+    }
   }
 
   // Get total available recv bytes

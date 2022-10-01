@@ -328,7 +328,7 @@ static void twoSidedThroughput(const bool is_endpointA, const char *provider, co
         }
       } else {
 	if (validate || path->capabilities.piggy_back_messages_supported) {
-	  double drop_percent = 100.0 * (L_detected_drops / (i+1.0));
+	  double drop_percent = 100.0 * (L_detected_drops / (double)iterations);
 	  printf("\r%s (two-sided): %u %s transfers, %0.3f GB/sec, %0.3f Gb/sec, dropped messages: %u (%0.2f%%)", path->attrs.is_endpointA ? "Sender" : "Recver", i+1, MEMORY_TYPE, GB_per_sec, Gb_per_sec, L_detected_drops, drop_percent);
 	} else {
 	  printf("\r%s (two-sided): %u %s transfers, %0.3f GB/sec, %0.3f Gb/sec", path->attrs.is_endpointA ? "Sender" : "Recver", i+1, MEMORY_TYPE, GB_per_sec, Gb_per_sec);
@@ -419,7 +419,7 @@ static void oneSidedThroughput(const bool is_endpointA, const char *provider, co
 
 void throughput(const bool is_endpointA, const char *provider, const uint32_t iterations, const uint64_t message_bytes, const uint32_t send_buffer_count, const uint32_t recv_buffer_count, const bool use_polling_completion, const bool two_sided, const bool validate) {
   // Print greeting
-  bool is_multi_threaded = (strncmp(provider, "InterThread ", 12) == 0);
+  bool is_multi_threaded = (strncmp(provider, "InterThread", 11) == 0);
   printf("Takyon Throughput: endpoint %s: provider '%s'\n", is_endpointA ? "A" : "B", provider);
   if (!is_multi_threaded || is_endpointA) {
     printf("  Message Transfer Count:       %u\n", iterations);
@@ -454,7 +454,7 @@ void throughput(const bool is_endpointA, const char *provider, const uint32_t it
     }
 #else
 #ifdef ENABLE_MMAP
-    if (strncmp(provider, "InterProcess ", 13) == 0) {
+    if (strncmp(provider, "InterProcess", 12) == 0) {
       snprintf(buffer.name, TAKYON_MAX_BUFFER_NAME_CHARS, "%s_throughput_buffer_" UINT64_FORMAT, is_endpointA ? "A" : "B", buffer.bytes);
 #define MAX_ERROR_TEXT_BYTES 300
       char error_message[MAX_ERROR_TEXT_BYTES];
