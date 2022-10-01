@@ -43,18 +43,9 @@ Rdma UD        | Unreliable | 0 .. 4 KB     | Yes          |                    
 # The API
 The 8 Takyon functions and most of the details are in the single header file: ```inc/takyon.h```<br>
 
-# Building
-Takyon and its examples are provided as C code. Takyon is compiled into a library with only the providers you want, and the examples are linked with the Takyon library.
-### Environment
-The following are needed to build the Takyon library and examples:
-
-OS | Requirements
---------|------------
-Linux | gcc <br> make
-Mac | xCode
-Windows | Visual Studio<br><br> Takyon requires Posix threads (not supported in Visual Studio). To download and build it:<br> 1. Get the source code from: https://sourceforge.net/projects/pthreads4w/ <br> 2. Unzip, rename to 'pthreads4w' and put in the C:\ folder <br> 3. Start a Visual Studio x64 native shell <br> ```> cd c:\pthreads4w``` <br> ```> nmake VC VC-debug VC-static VC-static-debug install DESTROOT=.\install```
-
-### Building and Running
+# Building and Testing
+Takyon and its examples are provided as C code. Takyon is compiled into a library with only the providers you want, and the examples are linked with the Takyon library.<br>
+<br>
 You can do the direct approach or the more automated approach:
 1. **Direct**: To compile the library, see ```lib/README.txt```. To build an example, see ```examples/<example>/README.txt```.
 2. **Automated**: One script will build the Library and all the examples, then a second script will run many variations of the examples to validate the build and providers. See ```testing/README.txt```
