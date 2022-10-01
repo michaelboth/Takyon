@@ -48,7 +48,8 @@
 #endif
 
 // Supported formats:
-//   "InterProcess -pathID=<non_negative_integer>"
+//   "InterProcessRC -pathID=<non_negative_integer>"
+//   "InterProcessUC -pathID=<non_negative_integer>"
 
 #define KLUDGE_USEC_SLEEP_BETWEEN_POLL_ATTEMPTS 100
 #define MAX_CUDA_EVENTS 100  // Verify does not exceed attrs.max_pending_recv_requests
@@ -286,7 +287,7 @@ bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRe
   }
 
   // See if unreliable
-  bool is_unreliable = (strcmp(provider_name, "InterProcessU") == 0);
+  bool is_unreliable = (strcmp(provider_name, "InterProcessUC") == 0);
 
   // -pathID=<non_negative_integer>
   uint32_t path_id = 0;

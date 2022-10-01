@@ -53,7 +53,7 @@ typedef struct {
 
 static CommInterface L_interfaces[] = {
 #ifdef ENABLE_InterThread
-                                       { .name = "InterThread",
+                                       { .name = "InterThreadRC",
                                          .create = interThreadCreate,
                                          .destroy = interThreadDestroy,
                                          .oneSided = interThreadOneSided,
@@ -67,7 +67,7 @@ static CommInterface L_interfaces[] = {
                                          .multi_sub_buffers_supported = true,
                                          .zero_byte_messages_supported = true
                                        },
-                                       { .name = "InterThreadU",
+                                       { .name = "InterThreadUC",
                                          .create = interThreadCreate,
                                          .destroy = interThreadDestroy,
                                          .oneSided = NULL,
@@ -84,7 +84,7 @@ static CommInterface L_interfaces[] = {
 #endif
 
 #ifdef ENABLE_InterProcess
-                                       { .name = "InterProcess",
+                                       { .name = "InterProcessRC",
                                          .create = interProcessCreate,
                                          .destroy = interProcessDestroy,
                                          .oneSided = interProcessOneSided,
@@ -98,7 +98,7 @@ static CommInterface L_interfaces[] = {
                                          .multi_sub_buffers_supported = true,
                                          .zero_byte_messages_supported = true
                                        },
-                                       { .name = "InterProcessU",
+                                       { .name = "InterProcessUC",
                                          .create = interProcessCreate,
                                          .destroy = interProcessDestroy,
                                          .oneSided = NULL,

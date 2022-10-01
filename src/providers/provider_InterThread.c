@@ -42,7 +42,8 @@
 #endif
 
 // attrs->provider[] Specification:
-//   "InterThread -pathID=<non_negative_integer>"
+//   "InterThreadRC -pathID=<non_negative_integer>"
+//   "InterThreadUC -pathID=<non_negative_integer>"
 
 #define THREAD_MANAGER_ID_RELIABLE   23 // This must be different from the other providers that use the thread manager
 #define THREAD_MANAGER_ID_UNRELIABLE 24 // This must be different from the other providers that use the thread manager
@@ -75,7 +76,7 @@ bool interThreadCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReq
   }
 
   // See if unreliable
-  bool is_unreliable = (strcmp(provider_name, "InterThreadU") == 0);
+  bool is_unreliable = (strcmp(provider_name, "InterThreadUC") == 0);
 
   // Get the path ID
   uint32_t path_id;

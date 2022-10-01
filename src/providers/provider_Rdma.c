@@ -43,9 +43,15 @@
 //     "RdmaUDUnicastRecv -server -localIP=<ip_addr>|<hostname>|Any -port=<port_number> [-reuse] -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number> -gidIndex=<index_number>"
 //
 //   Argument descriptions:
-//     -port=<port_number> = [1024 .. 65535]
-//     -rdmaPort=<local_rdma_port_number> = 1 .. max ports on local RDMA NIC
-//     -gidIndex=<index_number> = RDMA's global address index
+//     -localIP=<ip_addr>|<hostname>|Any     Does not need to be the RDMA network interface
+//     -remoteIP=<ip_addr>|<hostname>        Does not need to be the RDMA network interface; just needs to be at the same endpoint as the RDMA interface
+//     -port=<port_number>                   [1024 .. 65535]
+//     -rdmaDevice=<name>                    Name of the RDMA port; get from running the CLI: ibv_devinfo
+//     -rdmaPort=<local_rdma_port_number>    1 .. max ports on local RDMA NIC; get from running the CLI: ibv_devinfo
+//     -gidIndex=<index_number>              RDMA's global address index
+//
+//   Notes:
+//     - RoCE v2 implicitly uses IP port 4791 for UD destination communications (unicast is unconnected)
 
 typedef struct {
   uint64_t bytes;

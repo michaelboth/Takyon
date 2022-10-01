@@ -30,6 +30,9 @@
 //
 //   Argument descriptions:
 //     -groupIP=<multicast_ip_addr>: Valid multicast addresses: 224.0.0.0 through 239.255.255.255, but some are reserved
+//
+//   Notes:
+//     - RoCE v2 implicitly uses IP port 4791 for UD destination communications (multicast is unconnected)
 
 typedef struct {
   RdmaEndpoint *endpoint;

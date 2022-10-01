@@ -31,17 +31,17 @@ rem hello-two_sided
 cd ..\examples\hello-two_sided
 if ERRORLEVEL 1 ( echo "Failed to cd ..\examples\hello-two_sided" & GOTO:done )
 if %mmap% == yes (
-  hello_mp %endpoint% "InterProcess -pathID=1" 0
+  hello_mp %endpoint% "InterProcessRC -pathID=1" 0
   if ERRORLEVEL 1 ( echo "Failed to run hello-two_sided" & GOTO:done )
-  hello_mp %endpoint% "InterProcess -pathID=2" 1
+  hello_mp %endpoint% "InterProcessRC -pathID=2" 1
   if ERRORLEVEL 1 ( echo "Failed to run hello-two_sided" & GOTO:done )
-  hello_mp %endpoint% "InterProcess -pathID=3" 10
+  hello_mp %endpoint% "InterProcessRC -pathID=3" 10
   if ERRORLEVEL 1 ( echo "Failed to run hello-two_sided" & GOTO:done )
-  hello_mp %endpoint% "InterProcessU -pathID=1" 0
+  hello_mp %endpoint% "InterProcessUC -pathID=1" 0
   if ERRORLEVEL 1 ( echo "Failed to run hello-two_sided" & GOTO:done )
-  hello_mp %endpoint% "InterProcessU -pathID=2" 1
+  hello_mp %endpoint% "InterProcessUC -pathID=2" 1
   if ERRORLEVEL 1 ( echo "Failed to run hello-two_sided" & GOTO:done )
-  hello_mp %endpoint% "InterProcessU -pathID=3" 10
+  hello_mp %endpoint% "InterProcessUC -pathID=3" 10
   if ERRORLEVEL 1 ( echo "Failed to run hello-two_sided" & GOTO:done )
 )
 if %socket% == yes (
@@ -101,11 +101,11 @@ rem hello-one_sided
 cd ..\hello-one_sided
 if ERRORLEVEL 1 ( echo "Failed to cd ..\examples\hello-one_sided" & GOTO:done )
 if %mmap% == yes (
-  hello_mp %endpoint% "InterProcess -pathID=1" 0
+  hello_mp %endpoint% "InterProcessRC -pathID=1" 0
   if ERRORLEVEL 1 ( echo "Failed to run hello-one_sided" & GOTO:done )
-  hello_mp %endpoint% "InterProcess -pathID=2" 1
+  hello_mp %endpoint% "InterProcessRC -pathID=2" 1
   if ERRORLEVEL 1 ( echo "Failed to run hello-one_sided" & GOTO:done )
-  hello_mp %endpoint% "InterProcess -pathID=3" 10
+  hello_mp %endpoint% "InterProcessRC -pathID=3" 10
   if ERRORLEVEL 1 ( echo "Failed to run hello-one_sided" & GOTO:done )
 )
 
@@ -113,17 +113,17 @@ rem throughput
 cd ..\throughput
 if ERRORLEVEL 1 ( echo "Failed to cd ..\examples\throughput" & GOTO:done )
 if %mmap% == yes (
-  throughput_mp %endpoint% "InterProcess -pathID=1" -n=100000 -b=32768 -v
+  throughput_mp %endpoint% "InterProcessRC -pathID=1" -n=100000 -b=32768 -v
   if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
-  throughput_mp %endpoint% "InterProcess -pathID=2" -n=100000 -b=32768
+  throughput_mp %endpoint% "InterProcessRC -pathID=2" -n=100000 -b=32768
   if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
-  throughput_mp %endpoint% "InterProcess -pathID=1" -n=100000 -b=32768 -v -o
+  throughput_mp %endpoint% "InterProcessRC -pathID=1" -n=100000 -b=32768 -v -o
   if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
-  throughput_mp %endpoint% "InterProcess -pathID=2" -n=100000 -b=32768 -o
+  throughput_mp %endpoint% "InterProcessRC -pathID=2" -n=100000 -b=32768 -o
   if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
-  throughput_mp %endpoint% "InterProcessU -pathID=1" -n=100000 -b=32768 -v
+  throughput_mp %endpoint% "InterProcessUC -pathID=1" -n=100000 -b=32768 -v
   if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
-  throughput_mp %endpoint% "InterProcessU -pathID=2" -n=100000 -b=32768
+  throughput_mp %endpoint% "InterProcessUC -pathID=2" -n=100000 -b=32768
   if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
 )
 
