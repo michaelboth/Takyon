@@ -1,6 +1,6 @@
 <img src="docs/Takyon_Logo.png" alt="Logo" style="width:400px;"/>
 
-The future of high performance heterogeneous point-to-point communication for the eHPC industry (embedded High Performance Compute)<br><br>
+The future of high performance heterogeneous point-to-point communication for the eHPC industry (embedded High Performance Computing)<br><br>
 Takyon is currently the only proposal for a new Khronos open standard for communication: www.khronos.org/exploratory/heterogeneous-communication/<br>
 
 ### Takyon Presentation
@@ -24,7 +24,7 @@ This shows the Takyon features and reasoning behind creating a new point-to-poin
 - Supports GPU memory via CUDA's cudaMemcpy, CUDA IPC, and GPUDirect
 - Tested on Windows, Mac, & Linux
 
-## Supported Providers (Communication Interconnects)
+## Supported Providers
 A Takyon Provider gives access to a specific communication interconnect.<br>
 Add your own providers as needed (see ```src/providers/supported_providers.h```).
 Provider       | Type       | Message Bytes | Non-Blocking | Includes One-Sided | Supports CUDA | Platforms
