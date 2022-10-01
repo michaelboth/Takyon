@@ -40,7 +40,9 @@ Rdma UC        | Unreliable | 0 .. 1 GB     | Yes          | Yes                
 Rdma UD        | Unreliable | 0 .. 4 KB     | Yes          |                    | Yes           | Linux
 
 # Building
-To build the Takyon library and examples, the following are needed:
+Takyon and its examples are provided as C code. Takyon is compiled into a library with only the providers you want, and the examples are like with the Takyon library.
+### Environment
+The following are needed to build the Takyon library and examples:
 
 OS | Requirements
 --------|------------
@@ -48,7 +50,10 @@ Linux | gcc <br> make
 Mac | xCode
 Windows | Visual Studio<br><br> Takyon requires Posix threads (not supported in Visual Studio). To download and build it:<br> 1. Get the source code from: https://sourceforge.net/projects/pthreads4w/ <br> 2. Unzip, rename to 'pthreads4w' and put in the C:\ folder <br> 3. Start a Visual Studio x64 native shell <br> ```> cd c:\pthreads4w``` <br> ```> nmake VC VC-debug VC-static VC-static-debug install DESTROOT=.\install```
 
-To easily build and run all the examples to do some thorough testing, go into the ```testing``` folder and see ```README.txt```
+### Building and Running
+You can do the direct approach or the more automated approach:
+1. Direct: To compile the library, see ```lib/README.txt```. To build an example, see ```examples/<example>/README.txt```.
+2. Automated: This will build the Library and all the examples, then run many variations of the examples to validate the build and providers. See ```testing/README.txt```
 
 ### Examples
 To help you get started, some examples are provided. Each example has a ```README.txt``` to know how to build and run the example. The examples cover most of Takyon's features.
