@@ -1075,6 +1075,13 @@ static bool datagram_send_polling(int socket_fd, void *sock_in_addr, void *addr,
       } else if (errno == EINTR) { 
         // Interrupted by external signal. Just try again
         bytes_written = 0;
+#if defined(__APPLE__)
+      } else if (errno == ENOBUFS) {
+        // BUG: OSX apparently does not actually block if there is no local send buffering in the OS. Not consistent with Windows or Linux
+        //      Could mayber try setsockopt(s, SOL_SOCKET, SO_SNDBUF) but that seems like a kludge
+        // Solution: since this is an unrelaible interconnect, just let the message quietly drop here
+        return true;
+#endif
       } else {
         snprintf(error_message, max_error_message_chars, "Failed to write to socket (are you writing to GPU memory?): errno=%d", errno);
         return false;
@@ -1115,6 +1122,13 @@ static bool datagram_send_event_driven(int socket_fd, void *sock_in_addr, void *
         return true;
       } else if (errno == EINTR) {
         // Interrupted by external signal. Just try again
+#if defined(__APPLE__)
+      } else if (errno == ENOBUFS) {
+        // BUG: OSX apparently does not actually block if there is no local send buffering in the OS. Not consistent with Windows or Linux
+        //      Could mayber try setsockopt(s, SOL_SOCKET, SO_SNDBUF) but that seems like a kludge
+        // Solution: since this is an unrelaible interconnect, just let the message quietly drop here
+        return true;
+#endif
       } else {
         snprintf(error_message, max_error_message_chars, "Failed to write to socket (are you writing to GPU memory?): errno=%d", errno);
         return false;
