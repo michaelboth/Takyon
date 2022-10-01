@@ -39,8 +39,8 @@ Rdma RC        | Reliable   | 0 .. 1 GB     | Yes          | Yes                
 Rdma UC        | Unreliable | 0 .. 1 GB     | Yes          | Yes                | Yes           | Linux
 Rdma UD        | Unreliable | 0 .. 4 KB     | Yes          |                    | Yes           | Linux
 
-# Building Takyon Library and Examples
-To build the Takyon examples, the following is needed:
+# Building
+To build the Takyon library and examples, the following are needed:
 
 OS | Requirements
 --------|------------
