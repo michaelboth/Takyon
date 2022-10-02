@@ -618,7 +618,7 @@ bool rdmaOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double timeo
 #ifdef EXTRA_ERROR_CHECKING
   uint64_t remote_max_bytes = remote_buffer->bytes - request->remote_offset;
   if (total_local_bytes_to_transfer > remote_max_bytes) {
-    TAKYON_RECORD_ERROR(path->error_message, "Not enough available remote bytes\n");
+    TAKYON_RECORD_ERROR(path->error_message, "Not enough available remote bytes: bytes_to_transfer=%ju, remote_bytes=%ju remote_offset=%ju\n", total_local_bytes_to_transfer, remote_buffer->bytes, request->remote_offset);
     return false;
   }
 #endif

@@ -145,28 +145,37 @@ if [ "$mmap" == "yes" ]; then
     ./throughput_mp $endpoint "InterProcessRC -pathID=1" -n=100000 -b=32768 -v
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     echo ""
-    ./throughput_mp $endpoint "InterProcessRC -pathID=2" -n=100000 -b=32768
+    ./throughput_mp $endpoint "InterProcessRC -pathID=2" -n=100000 -b=32768 -v -e
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     echo ""
-    ./throughput_mp $endpoint "InterProcessRC -pathID=2" -n=100000 -b=32768 -e
+    ./throughput_mp $endpoint "InterProcessRC -pathID=3" -n=100000 -b=32768
+    if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+    echo ""
+    ./throughput_mp $endpoint "InterProcessRC -pathID=4" -n=100000 -b=32768 -e
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     echo ""
     ./throughput_mp $endpoint "InterProcessRC -pathID=1" -n=100000 -b=32768 -v -o
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     echo ""
-    ./throughput_mp $endpoint "InterProcessRC -pathID=2" -n=100000 -b=32768 -o
+    ./throughput_mp $endpoint "InterProcessRC -pathID=2" -n=100000 -b=32768 -v -o -e
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     echo ""
-    ./throughput_mp $endpoint "InterProcessRC -pathID=2" -n=100000 -b=32768 -e -o
+    ./throughput_mp $endpoint "InterProcessRC -pathID=3" -n=100000 -b=32768 -o
+    if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+    echo ""
+    ./throughput_mp $endpoint "InterProcessRC -pathID=4" -n=100000 -b=32768 -o -e
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     echo ""
     ./throughput_mp $endpoint "InterProcessUC -pathID=1" -n=100000 -b=32768 -v
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     echo ""
-    ./throughput_mp $endpoint "InterProcessUC -pathID=2" -n=100000 -b=32768
+    ./throughput_mp $endpoint "InterProcessUC -pathID=2" -n=100000 -b=32768 -v -e
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     echo ""
-    ./throughput_mp $endpoint "InterProcessUC -pathID=2" -n=100000 -b=32768 -e
+    ./throughput_mp $endpoint "InterProcessUC -pathID=3" -n=100000 -b=32768
+    if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+    echo ""
+    ./throughput_mp $endpoint "InterProcessUC -pathID=4" -n=100000 -b=32768 -e
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
 fi
 

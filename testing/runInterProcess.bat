@@ -115,15 +115,27 @@ if ERRORLEVEL 1 ( echo "Failed to cd ..\examples\throughput" & GOTO:done )
 if %mmap% == yes (
   throughput_mp %endpoint% "InterProcessRC -pathID=1" -n=100000 -b=32768 -v
   if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
-  throughput_mp %endpoint% "InterProcessRC -pathID=2" -n=100000 -b=32768
+  throughput_mp %endpoint% "InterProcessRC -pathID=2" -n=100000 -b=32768 -v -e
+  if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
+  throughput_mp %endpoint% "InterProcessRC -pathID=3" -n=100000 -b=32768
+  if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
+  throughput_mp %endpoint% "InterProcessRC -pathID=4" -n=100000 -b=32768 -e
   if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
   throughput_mp %endpoint% "InterProcessRC -pathID=1" -n=100000 -b=32768 -v -o
   if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
-  throughput_mp %endpoint% "InterProcessRC -pathID=2" -n=100000 -b=32768 -o
+  throughput_mp %endpoint% "InterProcessRC -pathID=2" -n=100000 -b=32768 -v -o -e
+  if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
+  throughput_mp %endpoint% "InterProcessRC -pathID=3" -n=100000 -b=32768 -o
+  if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
+  throughput_mp %endpoint% "InterProcessRC -pathID=4" -n=100000 -b=32768 -o -e
   if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
   throughput_mp %endpoint% "InterProcessUC -pathID=1" -n=100000 -b=32768 -v
   if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
-  throughput_mp %endpoint% "InterProcessUC -pathID=2" -n=100000 -b=32768
+  throughput_mp %endpoint% "InterProcessUC -pathID=2" -n=100000 -b=32768 -v -e
+  if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
+  throughput_mp %endpoint% "InterProcessUC -pathID=3" -n=100000 -b=32768
+  if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
+  throughput_mp %endpoint% "InterProcessUC -pathID=4" -n=100000 -b=32768 -e
   if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
 )
 

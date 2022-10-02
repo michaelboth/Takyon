@@ -54,11 +54,32 @@ if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
 echo ""
 ./throughput_mt "InterThreadRC -pathID=1" -b=32768 -o
 if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+
+echo ""
+./throughput_mt "InterThreadRC -pathID=1" -b=32768 -n=100000 -v -e
+if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+echo ""
+./throughput_mt "InterThreadRC -pathID=1" -b=32768 -e
+if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+echo ""
+./throughput_mt "InterThreadRC -pathID=1" -b=32768 -n=100000 -v -o -e
+if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+echo ""
+./throughput_mt "InterThreadRC -pathID=1" -b=32768 -o -e
+if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+
 echo ""
 ./throughput_mt "InterThreadUC -pathID=1" -b=32768 -n=100000 -v
 if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
 echo ""
 ./throughput_mt "InterThreadUC -pathID=1" -b=32768
+if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+
+echo ""
+./throughput_mt "InterThreadUC -pathID=1" -b=32768 -n=100000 -v -e
+if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+echo ""
+./throughput_mt "InterThreadUC -pathID=1" -b=32768 -e
 if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
 
 exit 0

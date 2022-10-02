@@ -143,6 +143,7 @@ typedef struct {
   uint32_t buffer_count;
   TakyonBuffer *buffers;                             // App must maintain this memory for the life of the path
   // Used for internal book keeping and to avoid internal memory allocations at transfer time
+  /*+ split */
   uint32_t max_pending_send_and_one_sided_requests;         // If takyonIsSent() and/or takyonIsOneSidedDone() is supported, this defines how many active transfers can be in progress
   uint32_t max_pending_recv_requests;                       // If takyonPostRecvs() is supported, this defines how many active recvs can be posted at once
   uint32_t max_sub_buffers_per_send_and_one_sided_request;  // Defines the number of sub buffers in a single send message. Will be ignored if provider only supports 1.
@@ -159,6 +160,7 @@ typedef struct {
   bool IsRecved_supported;
   // Extra features
   bool is_unreliable;                  // Sent messages may be quietly dropped, arrive out of order, or be duplicated
+  /*+ piggyback */
   bool piggy_back_messages_supported;  // True if comm allows sending a 32bit message piggy backed on the primary message
   bool multi_sub_buffers_supported;    // True if more than one sub buffer can be in a single transfer
   bool zero_byte_messages_supported;   // True if can send zero byte messages
