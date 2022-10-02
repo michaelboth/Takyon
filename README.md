@@ -34,7 +34,7 @@ InterThread    | Reliable   | 0 .. >4 GB    |              | Yes                
 InterThread UC | Uneliable  | 0 .. >4 GB    |              |                    | Yes           | Yes                        | All
 InterProcess   | Reliable   | 0 .. >4 GB    |              | Yes                | Yes           | Yes                        | All
 InterProcess UC| Unreliable | 0 .. >4 GB    |              |                    | Yes           | Yes                        | All
-Socket Tcp     | Reliable   | 0 .. 1 GB     |              |                    |               |                            | All
+Socket Tcp     | Reliable   | 0 .. 1 GB     |              |                    |               | Yes                        | All
 Socket Udp     | Unreliable | Unicast:<br>1 .. 64 KB<br>Multicast:<br>1 .. MTU |     |   |      |                            | All
 Rdma RC        | Reliable   | 0 .. 1 GB     | Yes          | Yes                | Yes           | Yes                        | Linux
 Rdma UC        | Unreliable | 0 .. 1 GB     | Yes          | Yes                | Yes           | Yes                        | Linux
