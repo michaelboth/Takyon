@@ -28,7 +28,7 @@ This shows the Takyon features and reasoning behind creating a new point-to-poin
 A Takyon Provider gives access to a specific communication interconnect.<br>
 Each Takyon Provider has it's own provider specification. To know the details see ```src/providers/provider_<interconnect>.c```<br>
 Add your own providers as needed (see ```src/providers/supported_providers.h```).
-Provider       | Type       | Message Bytes | Non-Blocking | Includes One-Sided | Supports CUDA | Supports Piggyback Message | Platforms
+Provider       | Type       | Message Bytes | Non-Blocking | Includes One-Sided | Supports CUDA | Supports 32 bit Piggyback Message | Platforms
 ---------------|------------|---------------|--------------|--------------------|---------------|----------------------------|----------
 InterThread    | Reliable   | 0 .. >4 GB    |              | Yes                | Yes           | Yes                        | All
 InterThread UC | Uneliable  | 0 .. >4 GB    |              |                    | Yes           | Yes                        | All
