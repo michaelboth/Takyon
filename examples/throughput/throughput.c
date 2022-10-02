@@ -183,6 +183,7 @@ static void readMessage(TakyonPath *path, const uint64_t message_bytes, const bo
   // Setup the one-sided write request
   uint32_t message_index = (message_count-1) % path->attrs.max_pending_send_and_one_sided_requests;
   uint64_t message_offset = message_index * message_bytes;
+  //*+*/bool use_done_notification = (message_count % path->attrs.max_pending_send_and_one_sided_requests) == 0; // Need to get done notification before all internal transfer buffers are used up
   TakyonSubBuffer sub_buffer = { .buffer_index = 0, .bytes = message_bytes, .offset = path->attrs.max_pending_send_and_one_sided_requests * message_bytes + message_offset };
   TakyonOneSidedRequest request = { .is_write_request = false,
                                     .sub_buffer_count = 1,
@@ -197,9 +198,9 @@ static void readMessage(TakyonPath *path, const uint64_t message_bytes, const bo
   takyonOneSided(path, &request, TAKYON_WAIT_FOREVER, NULL);
 
   // If the provider supports non blocking sends, then need to know when it's complete
-  if (path->capabilities.IsOneSidedDone_supported) takyonIsOneSidedDone(path, &request, TAKYON_WAIT_FOREVER, NULL);
+  if (path->capabilities.IsOneSidedDone_supported /*+ && request.use_is_done_notification */) takyonIsOneSidedDone(path, &request, TAKYON_WAIT_FOREVER, NULL);
 
-  if (validate) {
+  if (validate /*+ request.use_is_done_notification also check past blocks */) {
     static uint32_t previous_start_value = 0;
     TakyonBuffer *buffer = &path->attrs.buffers[0];
     validateMessage(path, buffer, message_bytes, message_bytes, message_offset, message_count, &previous_start_value);

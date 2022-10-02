@@ -37,6 +37,11 @@
     - Currently the smaller of the max MTU from both endpoints is automatically used. Should the user set it in the provider spec instead?
     - BUG: RDMA UC will stop receiving messages, even if less than MTU size, if the sender is sending faster than the receiver can consume them.
            This does not occur with RDMA UD
+    - Testing:
+      - Infiniband
+      - iWarp
+      - Any need for RoCE v1.x?
+      - Windows?
 */
 
 #define PORT_INFO_TEXT_BYTES 100
@@ -343,7 +348,7 @@ static bool moveQpStateToRTS(struct ibv_qp *qp, struct ibv_pd *pd, enum ibv_qp_t
   if (remote_port_info->gid.global.interface_id) { // For RoCE v2
     /*+ also for infiniband and iWarp? */
     attrs.ah_attr.is_global      = 1;
-    attrs.ah_attr.grh.hop_limit  = 1; // Max routers to travel through before being dropped
+    attrs.ah_attr.grh.hop_limit  = 1/*+ app defined? */; // Max routers to travel through before being dropped
     attrs.ah_attr.grh.dgid       = remote_port_info->gid;
     attrs.ah_attr.grh.sgid_index = gid_index;
   }
