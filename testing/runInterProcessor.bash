@@ -203,6 +203,9 @@ if [ "$socket" == "yes" ]; then
         ./throughput_mp $endpoint "SocketTcp -client -remoteIP=$remote_ip -port=23457" -n=10000 -b=1024
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
+        ./throughput_mp $endpoint "SocketTcp -client -remoteIP=$remote_ip -port=23458" -n=10000 -b=1024 -v -e
+        if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+        echo ""
         ./throughput_mp $endpoint "SocketTcp -client -remoteIP=$remote_ip -port=23458" -n=10000 -b=1024 -e
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     else
@@ -211,6 +214,9 @@ if [ "$socket" == "yes" ]; then
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
         ./throughput_mp $endpoint "SocketTcp -server -localIP=$local_ip -port=23457 -reuse" -n=10000 -b=1024
+        if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+        echo ""
+        ./throughput_mp $endpoint "SocketTcp -server -localIP=$local_ip -port=23458 -reuse" -n=10000 -b=1024 -v -e
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
         ./throughput_mp $endpoint "SocketTcp -server -localIP=$local_ip -port=23458 -reuse" -n=10000 -b=1024 -e
@@ -226,6 +232,9 @@ if [ "$socket" == "yes" ]; then
             ./throughput_mp $endpoint "SocketTcp -client -remoteIP=$remote_ip -ephemeralID=2" -n=10000 -b=1024
             if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
             echo ""
+            ./throughput_mp $endpoint "SocketTcp -client -remoteIP=$remote_ip -ephemeralID=3" -n=10000 -b=1024 -v -e
+            if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+            echo ""
             ./throughput_mp $endpoint "SocketTcp -client -remoteIP=$remote_ip -ephemeralID=3" -n=10000 -b=1024 -e
             if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         else
@@ -234,6 +243,9 @@ if [ "$socket" == "yes" ]; then
             if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
             echo ""
             ./throughput_mp $endpoint "SocketTcp -server -localIP=$local_ip -ephemeralID=2" -n=10000 -b=1024
+            if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+            echo ""
+            ./throughput_mp $endpoint "SocketTcp -server -localIP=$local_ip -ephemeralID=3" -n=10000 -b=1024 -v -e
             if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
             echo ""
             ./throughput_mp $endpoint "SocketTcp -server -localIP=$local_ip -ephemeralID=3" -n=10000 -b=1024 -e
@@ -252,6 +264,9 @@ if [ "$socket" == "yes" ]; then
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         sleep 1
         echo ""
+        ./throughput_mp $endpoint "SocketUdpSend -unicast -remoteIP=$remote_ip -port=23458" -n=10000 -b=1024 -v -e
+        if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+        echo ""
         ./throughput_mp $endpoint "SocketUdpSend -unicast -remoteIP=$remote_ip -port=23458" -n=10000 -b=1024 -e
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     else
@@ -260,6 +275,9 @@ if [ "$socket" == "yes" ]; then
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
         ./throughput_mp $endpoint "SocketUdpRecv -unicast -localIP=$local_ip -port=23457 -reuse" -n=10000 -b=1024
+        if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+        echo ""
+        ./throughput_mp $endpoint "SocketUdpRecv -unicast -localIP=$local_ip -port=23458 -reuse" -n=10000 -b=1024 -v -e
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
         ./throughput_mp $endpoint "SocketUdpRecv -unicast -localIP=$local_ip -port=23458 -reuse" -n=10000 -b=1024 -e
@@ -278,6 +296,10 @@ if [ "$socket" == "yes" ]; then
             if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
             sleep 1
             echo ""
+            ./throughput_mp $endpoint "SocketUdpSend -multicast -localIP=$local_ip -groupIP=233.23.33.58 -port=23458" -n=10000 -b=1024 -v -e
+            if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+            sleep 1
+            echo ""
             ./throughput_mp $endpoint "SocketUdpSend -multicast -localIP=$local_ip -groupIP=233.23.33.58 -port=23458" -n=10000 -b=1024 -e
             if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         else
@@ -286,6 +308,9 @@ if [ "$socket" == "yes" ]; then
             if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
             echo ""
             ./throughput_mp $endpoint "SocketUdpRecv -multicast -localIP=$local_ip -groupIP=233.23.33.57 -port=23457 -reuse" -n=10000 -b=1024
+            if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+            echo ""
+            ./throughput_mp $endpoint "SocketUdpRecv -multicast -localIP=$local_ip -groupIP=233.23.33.58 -port=23458 -reuse" -n=10000 -b=1024 -v -e
             if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
             echo ""
             ./throughput_mp $endpoint "SocketUdpRecv -multicast -localIP=$local_ip -groupIP=233.23.33.58 -port=23458 -reuse" -n=10000 -b=1024 -e
@@ -303,6 +328,9 @@ if [ "$rdma" == "yes" ]; then
         ./throughput_mp $endpoint "RdmaRC -client -remoteIP=$remote_ip -port=23457 -rdmaDevice=mlx5_0 -rdmaPort=1 -gidIndex=0" -n=100000 -b=40960 -s=10 -r=100
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
+        ./throughput_mp $endpoint "RdmaRC -client -remoteIP=$remote_ip -port=23458 -rdmaDevice=mlx5_0 -rdmaPort=1 -gidIndex=0" -n=100000 -b=40960 -s=10 -r=100 -v -e
+        if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+        echo ""
         ./throughput_mp $endpoint "RdmaRC -client -remoteIP=$remote_ip -port=23458 -rdmaDevice=mlx5_0 -rdmaPort=1 -gidIndex=0" -n=100000 -b=40960 -s=10 -r=100 -e
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     else
@@ -311,6 +339,9 @@ if [ "$rdma" == "yes" ]; then
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
         ./throughput_mp $endpoint "RdmaRC -server -localIP=$local_ip -port=23457 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1 -gidIndex=0" -n=100000 -b=40960 -r=100
+        if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+        echo ""
+        ./throughput_mp $endpoint "RdmaRC -server -localIP=$local_ip -port=23458 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1 -gidIndex=0" -n=100000 -b=40960 -r=100 -v -e
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
         ./throughput_mp $endpoint "RdmaRC -server -localIP=$local_ip -port=23458 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1 -gidIndex=0" -n=100000 -b=40960 -r=100 -e
@@ -325,6 +356,9 @@ if [ "$rdma" == "yes" ]; then
         ./throughput_mp $endpoint "RdmaRC -client -remoteIP=$remote_ip -port=23457 -rdmaDevice=mlx5_0 -rdmaPort=1 -gidIndex=0" -n=100000 -b=40960 -s=10 -r=100 -o
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
+        ./throughput_mp $endpoint "RdmaRC -client -remoteIP=$remote_ip -port=23458 -rdmaDevice=mlx5_0 -rdmaPort=1 -gidIndex=0" -n=100000 -b=40960 -s=10 -r=100 -v -e -o
+        if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+        echo ""
         ./throughput_mp $endpoint "RdmaRC -client -remoteIP=$remote_ip -port=23458 -rdmaDevice=mlx5_0 -rdmaPort=1 -gidIndex=0" -n=100000 -b=40960 -s=10 -r=100 -e -o
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     else
@@ -333,6 +367,9 @@ if [ "$rdma" == "yes" ]; then
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
         ./throughput_mp $endpoint "RdmaRC -server -localIP=$local_ip -port=23457 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1 -gidIndex=0" -n=100000 -b=40960 -r=100 -o
+        if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+        echo ""
+        ./throughput_mp $endpoint "RdmaRC -server -localIP=$local_ip -port=23458 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1 -gidIndex=0" -n=100000 -b=40960 -r=100 -v -e -o
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
         ./throughput_mp $endpoint "RdmaRC -server -localIP=$local_ip -port=23458 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1 -gidIndex=0" -n=100000 -b=40960 -r=100 -e -o
@@ -347,6 +384,9 @@ if [ "$rdma" == "yes" ]; then
         #+ echo ""
         #+ ./throughput_mp $endpoint "RdmaUC -client -remoteIP=$remote_ip -port=23457 -rdmaDevice=mlx5_0 -rdmaPort=1 -gidIndex=0" -n=100000 -b=40960 -s=10 -r=100
         #+ if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+        echo ""
+        ./throughput_mp $endpoint "RdmaUC -client -remoteIP=$remote_ip -port=23458 -rdmaDevice=mlx5_0 -rdmaPort=1 -gidIndex=0" -n=100000 -b=40960 -s=10 -r=100 -v -e
+        if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         #+ echo ""
         #+ ./throughput_mp $endpoint "RdmaUC -client -remoteIP=$remote_ip -port=23458 -rdmaDevice=mlx5_0 -rdmaPort=1 -gidIndex=0" -n=100000 -b=40960 -s=10 -r=100 -e
         #+ if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
@@ -358,6 +398,9 @@ if [ "$rdma" == "yes" ]; then
         #+ echo ""
         #+ ./throughput_mp $endpoint "RdmaUC -server -localIP=$local_ip -port=23457 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1 -gidIndex=0" -n=100000 -b=40960 -r=100
         #+ if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+        echo ""
+        ./throughput_mp $endpoint "RdmaUC -server -localIP=$local_ip -port=23458 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1 -gidIndex=0" -n=100000 -b=40960 -r=100 -v -e
+        if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         #+ echo ""
         #+ ./throughput_mp $endpoint "RdmaUC -server -localIP=$local_ip -port=23458 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1 -gidIndex=0" -n=100000 -b=40960 -r=100 -e
         #+ if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
@@ -371,6 +414,9 @@ if [ "$rdma" == "yes" ]; then
         ./throughput_mp $endpoint "RdmaUDUnicastSend -client -remoteIP=$remote_ip -port=23457 -rdmaDevice=mlx5_0 -rdmaPort=1 -gidIndex=0" -n=1000000 -b=1024 -s=100
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
+        ./throughput_mp $endpoint "RdmaUDUnicastSend -client -remoteIP=$remote_ip -port=23458 -rdmaDevice=mlx5_0 -rdmaPort=1 -gidIndex=0" -n=1000000 -b=1024 -s=100 -v -e
+        if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+        echo ""
         ./throughput_mp $endpoint "RdmaUDUnicastSend -client -remoteIP=$remote_ip -port=23458 -rdmaDevice=mlx5_0 -rdmaPort=1 -gidIndex=0" -n=1000000 -b=1024 -s=100 -e
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     else
@@ -379,6 +425,9 @@ if [ "$rdma" == "yes" ]; then
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
         ./throughput_mp $endpoint "RdmaUDUnicastRecv -server -localIP=$local_ip -port=23457 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1 -gidIndex=0" -n=1000000 -b=1064 -r=1000
+        if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+        echo ""
+        ./throughput_mp $endpoint "RdmaUDUnicastRecv -server -localIP=$local_ip -port=23458 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1 -gidIndex=0" -n=1000000 -b=1064 -r=1000 -v -e
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
         ./throughput_mp $endpoint "RdmaUDUnicastRecv -server -localIP=$local_ip -port=23458 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1 -gidIndex=0" -n=1000000 -b=1064 -r=1000 -e
@@ -397,6 +446,9 @@ if [ "$rdma" == "yes" ]; then
             if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
             sleep 1
             echo ""
+            ./throughput_mp $endpoint "RdmaUDMulticastSend -localIP=$local_ip -groupIP=233.23.33.58" -n=1000000 -b=1024 -s=100 -v -e
+            if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+            echo ""
             ./throughput_mp $endpoint "RdmaUDMulticastSend -localIP=$local_ip -groupIP=233.23.33.58" -n=1000000 -b=1024 -s=100 -e
             if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         else
@@ -405,6 +457,9 @@ if [ "$rdma" == "yes" ]; then
             if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
             echo ""
             ./throughput_mp $endpoint "RdmaUDMulticastRecv -localIP=$local_ip -groupIP=233.23.33.57" -n=1000000 -b=1064 -r=1000
+            if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+            echo ""
+            ./throughput_mp $endpoint "RdmaUDMulticastRecv -localIP=$local_ip -groupIP=233.23.33.58" -n=1000000 -b=1064 -r=1000 -v -e
             if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
             echo ""
             ./throughput_mp $endpoint "RdmaUDMulticastRecv -localIP=$local_ip -groupIP=233.23.33.58" -n=1000000 -b=1064 -r=1000 -e
