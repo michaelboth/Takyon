@@ -51,7 +51,7 @@
 typedef struct {
   bool transfer_complete;
   uint64_t bytes_received;
-  uint32_t piggy_back_message;
+  uint32_t piggyback_message;
 } RecvCompletion;
 
 typedef struct {
@@ -210,7 +210,7 @@ static bool transferData(void *dest_addr, void *src_addr, uint64_t bytes, char *
   return true;
 }
 
-static bool doTwoSidedTransfer(TakyonPath *path, TakyonPath *remote_path, TakyonSendRequest *request, uint32_t piggy_back_message, InterThreadManagerItem *remote_thread_handle) {
+static bool doTwoSidedTransfer(TakyonPath *path, TakyonPath *remote_path, TakyonSendRequest *request, uint32_t piggyback_message, InterThreadManagerItem *remote_thread_handle) {
   // IMPORTANT: mutex is locked at this point
 
   // Keep track of the remote memory blocks
@@ -322,7 +322,7 @@ static bool doTwoSidedTransfer(TakyonPath *path, TakyonPath *remote_path, Takyon
   // Set the request results
   uint64_t remote_post_index = (uint64_t)remote_request->private;
   remote_private_path->recv_completions[remote_post_index].bytes_received = total_bytes_to_send;
-  remote_private_path->recv_completions[remote_post_index].piggy_back_message = piggy_back_message;
+  remote_private_path->recv_completions[remote_post_index].piggyback_message = piggyback_message;
 
   // Mark the request as complete
   remote_private_path->recv_completions[remote_post_index].transfer_complete = true;
@@ -439,7 +439,7 @@ bool interThreadOneSided(TakyonPath *path, TakyonOneSidedRequest *request, doubl
   return true;
 }
 
-bool interThreadSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_back_message, double timeout_seconds, bool *timed_out_ret) {
+bool interThreadSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggyback_message, double timeout_seconds, bool *timed_out_ret) {
   (void)timeout_seconds;
   *timed_out_ret = false;
   TakyonComm *comm = (TakyonComm *)path->private;
@@ -458,7 +458,7 @@ bool interThreadSend(TakyonPath *path, TakyonSendRequest *request, uint32_t pigg
 
   // Do the transfer
   TakyonPath *remote_path = path->attrs.is_endpointA ? remote_thread_handle->pathB : remote_thread_handle->pathA;
-  if (!doTwoSidedTransfer(path, remote_path, request, piggy_back_message, remote_thread_handle)) {
+  if (!doTwoSidedTransfer(path, remote_path, request, piggyback_message, remote_thread_handle)) {
     pthread_mutex_unlock(&remote_thread_handle->mutex);
     TAKYON_RECORD_ERROR(path->error_message, "Send failed\n");
     return false;
@@ -509,7 +509,7 @@ bool interThreadPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvRe
   return true;
 }
 
-bool interThreadIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret) {
+bool interThreadIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggyback_message_ret) {
   *timed_out_ret = false;
   TakyonComm *comm = (TakyonComm *)path->private;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
@@ -573,7 +573,7 @@ bool interThreadIsRecved(TakyonPath *path, TakyonRecvRequest *request, double ti
 
   // Return results
   *bytes_received_ret = private_path->recv_completions[post_index].bytes_received;
-  *piggy_back_message_ret = private_path->recv_completions[post_index].piggy_back_message;
+  *piggyback_message_ret = private_path->recv_completions[post_index].piggyback_message;
 
   // Unlock
   if (!request->use_polling_completion) {

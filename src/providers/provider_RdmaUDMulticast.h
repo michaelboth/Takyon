@@ -21,10 +21,10 @@ extern "C"
 
 extern bool rdmaUDMulticastCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *recv_requests, double timeout_seconds);
 extern bool rdmaUDMulticastDestroy(TakyonPath *path, double timeout_seconds);
-extern bool rdmaUDMulticastSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_back_message, double timeout_seconds, bool *timed_out_ret);
+extern bool rdmaUDMulticastSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggyback_message, double timeout_seconds, bool *timed_out_ret);
 extern bool rdmaUDMulticastIsSent(TakyonPath *path, TakyonSendRequest *request, double timeout_seconds, bool *timed_out_ret);
 extern bool rdmaUDMulticastPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvRequest *requests);
-extern bool rdmaUDMulticastIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret);
+extern bool rdmaUDMulticastIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggyback_message_ret);
 
 #ifdef __cplusplus
 }

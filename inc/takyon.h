@@ -135,19 +135,20 @@ typedef struct {
 
 // takyonCreate() will make a copy of this but the 'buffers' must be application allocated and persistant for the life of the app
 typedef struct {
-  bool is_endpointA;                                 // True: side A of the path. False: side B of the path.
-  char provider[TAKYON_MAX_PROVIDER_CHARS];          // Text string the describes the endpoint's provider specification.
-  uint64_t verbosity;                                // 'Or' the bits of the TAKYON_VERBOSITY_* mask values to define what is printed to stdout and stderr.
-  TakyonFailureMode failure_mode;                    // Determine what happens when an error is detected
+  bool is_endpointA;                               // True: side A of the path. False: side B of the path.
+  char provider[TAKYON_MAX_PROVIDER_CHARS];        // Text string the describes the endpoint's provider specification.
+  uint64_t verbosity;                              // 'Or' the bits of the TAKYON_VERBOSITY_* mask values to define what is printed to stdout and stderr.
+  TakyonFailureMode failure_mode;                  // Determine what happens when an error is detected
   // Transport buffers. Some providers will pin this memory to avoid it being swapped out to RAM disk
   uint32_t buffer_count;
-  TakyonBuffer *buffers;                             // App must maintain this memory for the life of the path
+  TakyonBuffer *buffers;                           // App must maintain this memory for the life of the path
   // Used for internal book keeping and to avoid internal memory allocations at transfer time
-  /*+ split */
-  uint32_t max_pending_send_and_one_sided_requests;         // If takyonIsSent() and/or takyonIsOneSidedDone() is supported, this defines how many active transfers can be in progress
-  uint32_t max_pending_recv_requests;                       // If takyonPostRecvs() is supported, this defines how many active recvs can be posted at once
-  uint32_t max_sub_buffers_per_send_and_one_sided_request;  // Defines the number of sub buffers in a single send message. Will be ignored if provider only supports 1.
-  uint32_t max_sub_buffers_per_recv_request;                // Defines the number of sub buffers in a single recv message. Will be ignored if provider only supports 1.
+  uint32_t max_pending_send_requests;              // If takyonIsSent() is supported, this defines how many active sends can be in progress
+  uint32_t max_pending_recv_requests;              // If takyonPostRecvs() is supported, this defines how many active recvs can be posted
+  uint32_t max_pending_one_sided_requests;         // If takyonIsOneSidedDone() is supported, this defines how many active one-sided transfers can be in progress
+  uint32_t max_sub_buffers_per_send_request;       // Defines the number of sub buffers in a single send message. Will be ignored if provider only supports 1.
+  uint32_t max_sub_buffers_per_recv_request;       // Defines the number of sub buffers in a single recv message. Will be ignored if provider only supports 1.
+  uint32_t max_sub_buffers_per_one_sided_request;  // Defines the number of sub buffers in a single one-sided message. Will be ignored if provider only supports 1.
 } TakyonPathAttributes;
 
 typedef struct {
@@ -160,8 +161,7 @@ typedef struct {
   bool IsRecved_supported;
   // Extra features
   bool is_unreliable;                  // Sent messages may be quietly dropped, arrive out of order, or be duplicated
-  /*+ piggyback */
-  bool piggy_back_messages_supported;  // True if comm allows sending a 32bit message piggy backed on the primary message
+  bool piggyback_messages_supported;   // True if comm allows sending a 32bit message piggy backed on the primary message
   bool multi_sub_buffers_supported;    // True if more than one sub buffer can be in a single transfer
   bool zero_byte_messages_supported;   // True if can send zero byte messages
 } TakyonPathCapabilities;
@@ -199,11 +199,11 @@ extern bool takyonIsOneSidedDone(TakyonPath *path, TakyonOneSidedRequest *reques
 // A --> B
 // A <-- B
 // Messages sent are received on the order the receives were posted
-// 'piggy_back_message' must be 0 if 'features->piggy_back_message_supported' is false
-extern bool takyonSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_back_message, double timeout_seconds, bool *timed_out_ret);
+// 'piggyback_message' must be 0 if 'features->piggyback_message_supported' is false
+extern bool takyonSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggyback_message, double timeout_seconds, bool *timed_out_ret);
 extern bool takyonIsSent(TakyonPath *path, TakyonSendRequest *request, double timeout_seconds, bool *timed_out_ret);
 extern bool takyonPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvRequest *requests);
-extern bool takyonIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret);
+extern bool takyonIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggyback_message_ret);
 
 #ifdef __cplusplus
 }

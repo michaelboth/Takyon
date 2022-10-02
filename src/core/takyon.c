@@ -255,8 +255,8 @@ bool takyonOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double tim
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
-  if (request->sub_buffer_count > path->attrs.max_sub_buffers_per_send_and_one_sided_request) {
-    TAKYON_RECORD_ERROR(path->error_message, "path->attrs.max_sub_buffers_per_send_and_one_sided_request is less than request->sub_buffer_count\n");
+  if (request->sub_buffer_count > path->attrs.max_sub_buffers_per_one_sided_request) {
+    TAKYON_RECORD_ERROR(path->error_message, "path->attrs.max_sub_buffers_per_one_sided_request is less than request->sub_buffer_count\n");
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
@@ -342,7 +342,7 @@ bool takyonIsOneSidedDone(TakyonPath *path, TakyonOneSidedRequest *request, doub
   return true;
 }
 
-bool takyonSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_back_message, double timeout_seconds, bool *timed_out_ret) {
+bool takyonSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggyback_message, double timeout_seconds, bool *timed_out_ret) {
   TakyonComm *comm = (TakyonComm *)path->private;
   clearErrorMessage(path->error_message);
   if (timed_out_ret != NULL) *timed_out_ret = false;
@@ -368,8 +368,8 @@ bool takyonSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_bac
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
-  if (request->sub_buffer_count > path->attrs.max_sub_buffers_per_send_and_one_sided_request) {
-    TAKYON_RECORD_ERROR(path->error_message, "path->attrs.max_sub_buffers_per_send_and_one_sided_request is less than request->sub_buffer_count\n");
+  if (request->sub_buffer_count > path->attrs.max_sub_buffers_per_send_request) {
+    TAKYON_RECORD_ERROR(path->error_message, "path->attrs.max_sub_buffers_per_send_request is less than request->sub_buffer_count\n");
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
@@ -391,7 +391,7 @@ bool takyonSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_bac
 
   // Initiate the send
   bool timed_out = false;
-  bool ok = comm->send(path, request, piggy_back_message, timeout_seconds, &timed_out);
+  bool ok = comm->send(path, request, piggyback_message, timeout_seconds, &timed_out);
   if (!ok) {
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
@@ -509,7 +509,7 @@ bool takyonPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvRequest
   return true;
 }
 
-bool takyonIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret) {
+bool takyonIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggyback_message_ret) {
   TakyonComm *comm = (TakyonComm *)path->private;
   clearErrorMessage(path->error_message);
   if (timed_out_ret != NULL) *timed_out_ret = false;
@@ -553,9 +553,9 @@ bool takyonIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout
 
   // Wait for the message to arrive
   uint64_t bytes_received = 0;
-  uint32_t piggy_back_message = 0;
+  uint32_t piggyback_message = 0;
   bool timed_out = false;
-  bool ok = comm->isRecved(path, request, timeout_seconds, &timed_out, &bytes_received, &piggy_back_message);
+  bool ok = comm->isRecved(path, request, timeout_seconds, &timed_out, &bytes_received, &piggyback_message);
   if (!ok) {
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
@@ -564,8 +564,8 @@ bool takyonIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout
 
   // Verbosity
   if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS && !timed_out) {
-    if (path->capabilities.piggy_back_messages_supported) {
-      printf("%-15s (%s:%s) Got message: " UINT64_FORMAT " bytes, piggy_back_message=0x%x\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider, bytes_received, piggy_back_message);
+    if (path->capabilities.piggyback_messages_supported) {
+      printf("%-15s (%s:%s) Got message: " UINT64_FORMAT " bytes, piggyback_message=0x%x\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider, bytes_received, piggyback_message);
     } else {
       printf("%-15s (%s:%s) Got message: " UINT64_FORMAT " bytes\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider, bytes_received);
     }
@@ -573,7 +573,7 @@ bool takyonIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout
 
   // Return info: will only be valid if not timed out
   if (bytes_received_ret != NULL) *bytes_received_ret = bytes_received;
-  if (piggy_back_message_ret != NULL) *piggy_back_message_ret = piggy_back_message;
+  if (piggyback_message_ret != NULL) *piggyback_message_ret = piggyback_message;
 
   return true;
 }

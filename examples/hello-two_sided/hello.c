@@ -94,8 +94,8 @@ static void sendMessage(TakyonPath *path, uint64_t message_bytes, uint32_t messa
                                      .usec_sleep_between_poll_attempts = 0 };
 
   // STEP 3: Start the Takyon send
-  uint32_t piggy_back_message = (path->capabilities.piggy_back_messages_supported) ? message_index : 0;
-  takyonSend(path, &send_request, piggy_back_message, TAKYON_WAIT_FOREVER, NULL);
+  uint32_t piggyback_message = (path->capabilities.piggyback_messages_supported) ? message_index : 0;
+  takyonSend(path, &send_request, piggyback_message, TAKYON_WAIT_FOREVER, NULL);
   if (path->capabilities.is_unreliable) {
     printf("Message %d sent (%d %s, " UINT64_FORMAT " bytes)\n", message_index+1, path->capabilities.multi_sub_buffers_supported ? 2 : 1, path->capabilities.multi_sub_buffers_supported ? "sub buffers" : "sub buffer", message_bytes);
   }
@@ -106,13 +106,13 @@ static void sendMessage(TakyonPath *path, uint64_t message_bytes, uint32_t messa
   }
 }
 
-static bool recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, double timeout, uint64_t *bytes_received_out, uint32_t *piggy_back_message_out) {
+static bool recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, double timeout, uint64_t *bytes_received_out, uint32_t *piggyback_message_out) {
   // Wait for data to arrive
   // NOTES:
   //  - The recv request was already setup before the Takyon path was created
   //  - The recv request only has a single sub buffer, regardless of what the sender has
   bool timed_out;
-  takyonIsRecved(path, recv_request, timeout, &timed_out, bytes_received_out, piggy_back_message_out);
+  takyonIsRecved(path, recv_request, timeout, &timed_out, bytes_received_out, piggyback_message_out);
   if (timed_out)  {
     printf("Timed out waiting for messages\n");
     return false; // Failed
@@ -120,7 +120,7 @@ static bool recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, doubl
   return true; // Succes
 }
 
-static void processSingleBufferMessage(TakyonPath *path, TakyonRecvRequest *recv_request, bool is_rdma_UD, uint64_t bytes_received, uint32_t piggy_back_message) {
+static void processSingleBufferMessage(TakyonPath *path, TakyonRecvRequest *recv_request, bool is_rdma_UD, uint64_t bytes_received, uint32_t piggyback_message) {
   // STEP 1: Get the message address
   TakyonSubBuffer *recver_sub_buffer = &recv_request->sub_buffers[0];
   char *message_addr = (char *)path->attrs.buffers[recver_sub_buffer->buffer_index].addr + recver_sub_buffer->offset;
@@ -136,17 +136,17 @@ static void processSingleBufferMessage(TakyonPath *path, TakyonRecvRequest *recv
   char message_addr_cpu[MAX_MESSAGE_BYTES];
   cudaError_t cuda_status = cudaMemcpy(message_addr_cpu, message_addr, bytes_received, cudaMemcpyDefault);
   if (cuda_status != cudaSuccess) { printf("cudaMemcpy() failed: %s\n", cudaGetErrorString(cuda_status)); exit(EXIT_FAILURE); }
-  if (path->capabilities.piggy_back_messages_supported) {
-    printf("%s (CUDA): Got message '%s', bytes=" UINT64_FORMAT ", piggy_back_message=%u\n", path->attrs.is_endpointA ? "A" : "B", message_addr_cpu, bytes_received, piggy_back_message);
+  if (path->capabilities.piggyback_messages_supported) {
+    printf("%s (CUDA): Got message '%s', bytes=" UINT64_FORMAT ", piggyback_message=%u\n", path->attrs.is_endpointA ? "A" : "B", message_addr_cpu, bytes_received, piggyback_message);
   } else {
-    printf("%s (CUDA): Got message '%s', bytes=" UINT64_FORMAT ", piggy_back_message=NOT SUPPORTED\n", path->attrs.is_endpointA ? "A" : "B", message_addr_cpu, bytes_received);
+    printf("%s (CUDA): Got message '%s', bytes=" UINT64_FORMAT ", piggyback_message=NOT SUPPORTED\n", path->attrs.is_endpointA ? "A" : "B", message_addr_cpu, bytes_received);
   }
 #else
   // CPU memory
-  if (path->capabilities.piggy_back_messages_supported) {
-    printf("%s (CPU): Got message '%s', bytes=" UINT64_FORMAT ", piggy_back_message=%u\n", path->attrs.is_endpointA ? "A" : "B", message_addr, bytes_received, piggy_back_message);
+  if (path->capabilities.piggyback_messages_supported) {
+    printf("%s (CPU): Got message '%s', bytes=" UINT64_FORMAT ", piggyback_message=%u\n", path->attrs.is_endpointA ? "A" : "B", message_addr, bytes_received, piggyback_message);
   } else {
-    printf("%s (CPU): Got message '%s', bytes=" UINT64_FORMAT ", piggy_back_message=NOT SUPPORTED\n", path->attrs.is_endpointA ? "A" : "B", message_addr, bytes_received);
+    printf("%s (CPU): Got message '%s', bytes=" UINT64_FORMAT ", piggyback_message=NOT SUPPORTED\n", path->attrs.is_endpointA ? "A" : "B", message_addr, bytes_received);
   }
 #endif
 }
@@ -193,15 +193,17 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
   // Define the path attributes; can't be changed after path creation
   TakyonPathAttributes attrs;
   strncpy(attrs.provider, provider, TAKYON_MAX_PROVIDER_CHARS-1);
-  attrs.is_endpointA                                   = is_endpointA;
-  attrs.failure_mode                                   = TAKYON_EXIT_ON_ERROR;
-  attrs.verbosity                                      = TAKYON_VERBOSITY_ERRORS; //  | TAKYON_VERBOSITY_CREATE_DESTROY | TAKYON_VERBOSITY_CREATE_DESTROY_MORE | TAKYON_VERBOSITY_TRANSFERS | TAKYON_VERBOSITY_TRANSFERS_MORE;
-  attrs.buffer_count                                   = NUM_TAKYON_BUFFERS;
-  attrs.buffers                                        = buffers;
-  attrs.max_pending_send_and_one_sided_requests        = 1; // Only one message will be in transit at any point in time
-  attrs.max_pending_recv_requests                      = 1; // Only one recv request will ever be posted at any point in time
-  attrs.max_sub_buffers_per_send_and_one_sided_request = 2; // Will send two blocks if supported, otherwise only one block will be used
-  attrs.max_sub_buffers_per_recv_request               = 1; // Receiver will always get a single block
+  attrs.is_endpointA                          = is_endpointA;
+  attrs.failure_mode                          = TAKYON_EXIT_ON_ERROR;
+  attrs.verbosity                             = TAKYON_VERBOSITY_ERRORS; //  | TAKYON_VERBOSITY_CREATE_DESTROY | TAKYON_VERBOSITY_CREATE_DESTROY_MORE | TAKYON_VERBOSITY_TRANSFERS | TAKYON_VERBOSITY_TRANSFERS_MORE;
+  attrs.buffer_count                          = NUM_TAKYON_BUFFERS;
+  attrs.buffers                               = buffers;
+  attrs.max_pending_send_requests             = 1; // Only one message will be in transit at any point in time
+  attrs.max_pending_recv_requests             = 1; // Only one recv request will ever be posted at any point in time
+  attrs.max_pending_one_sided_requests        = 0;
+  attrs.max_sub_buffers_per_send_request      = 2; // Will send two blocks if supported, otherwise only one block will be used
+  attrs.max_sub_buffers_per_recv_request      = 1; // Receiver will always get a single block
+  attrs.max_sub_buffers_per_one_sided_request = 0;
 
   // Setup the receive request and it's sub buffer
   //   - This is done before the path is setup in the case the receiver needs the recieves posted before sending can start
@@ -227,21 +229,21 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
       if (!path->capabilities.is_unreliable) {
         // Recv the message, process it, then re-post the recv requewst
         uint64_t bytes_received;
-        uint32_t piggy_back_message;
-        bool ok = recvMessage(path, &recv_request, ACTIVE_RECV_TIMEOUT_SECONDS, &bytes_received, &piggy_back_message);
+        uint32_t piggyback_message;
+        bool ok = recvMessage(path, &recv_request, ACTIVE_RECV_TIMEOUT_SECONDS, &bytes_received, &piggyback_message);
         if (!ok) break; // Probably dropped packets and sender is done
-        processSingleBufferMessage(path, &recv_request, is_rdma_UD, bytes_received, piggy_back_message);
+        processSingleBufferMessage(path, &recv_request, is_rdma_UD, bytes_received, piggyback_message);
         if (path->capabilities.PostRecvs_supported) { takyonPostRecvs(path, 1, &recv_request); }
       }
 
     } else {
       // Recv the message, process it, then re-post the recv requewst
       uint64_t bytes_received;
-      uint32_t piggy_back_message;
+      uint32_t piggyback_message;
       double timeout = (i==0) ? FIRST_RECV_TIMEOUT_SECONDS : ACTIVE_RECV_TIMEOUT_SECONDS;
-      bool ok = recvMessage(path, &recv_request, timeout, &bytes_received, &piggy_back_message);
+      bool ok = recvMessage(path, &recv_request, timeout, &bytes_received, &piggyback_message);
       if (!ok) break; // Probably dropped packets and sender is done
-      processSingleBufferMessage(path, &recv_request, is_rdma_UD, bytes_received, piggy_back_message);
+      processSingleBufferMessage(path, &recv_request, is_rdma_UD, bytes_received, piggyback_message);
       if (path->capabilities.PostRecvs_supported) { takyonPostRecvs(path, 1, &recv_request); }
 
       if (!path->capabilities.is_unreliable) {

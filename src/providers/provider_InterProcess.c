@@ -98,7 +98,7 @@ typedef struct {
   // Results
   volatile bool transfer_complete; // takyonPostRecvs() sets this false and takyonSend() sets this to true, so no need to Mutex protect
   uint64_t bytes_received;         // IMPORTANT: Set this before transfer_complete is set to true
-  uint32_t piggy_back_message;     // IMPORTANT: Set this before transfer_complete is set to true
+  uint32_t piggyback_message;      // IMPORTANT: Set this before transfer_complete is set to true
   // Overall request. IMPORTANT: set all this before transfer_posted is set to true
   uint32_t sub_buffer_count;
   // Sub buffer. IMPORTANT: set all these before transfer_posted is set to true
@@ -793,7 +793,7 @@ bool interProcessOneSided(TakyonPath *path, TakyonOneSidedRequest *request, doub
   return true;
 }
 
-bool interProcessSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_back_message, double timeout_seconds, bool *timed_out_ret) {
+bool interProcessSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggyback_message, double timeout_seconds, bool *timed_out_ret) {
   (void)timeout_seconds;
   *timed_out_ret = false;
   TakyonComm *comm = (TakyonComm *)path->private;
@@ -933,7 +933,7 @@ bool interProcessSend(TakyonPath *path, TakyonSendRequest *request, uint32_t pig
 
   // Set the request results
   remote_request->bytes_received = total_bytes_to_send;
-  remote_request->piggy_back_message = piggy_back_message;
+  remote_request->piggyback_message = piggyback_message;
 
   // Mark the request as complete
   remote_request->transfer_complete = true;
@@ -982,7 +982,7 @@ bool interProcessPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvR
   return true;
 }
 
-bool interProcessIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret) {
+bool interProcessIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggyback_message_ret) {
   *timed_out_ret = false;
   TakyonComm *comm = (TakyonComm *)path->private;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
@@ -1056,7 +1056,7 @@ bool interProcessIsRecved(TakyonPath *path, TakyonRecvRequest *request, double t
 
   // Return results
   *bytes_received_ret = local_request->bytes_received;
-  *piggy_back_message_ret = local_request->piggy_back_message;
+  *piggyback_message_ret = local_request->piggyback_message;
 
   // Mark the request as unused
   local_request->transfer_posted = false;

@@ -39,14 +39,14 @@ typedef struct {
   bool (*destroy)(TakyonPath *path, double timeout_seconds);
   bool (*oneSided)(TakyonPath *path, TakyonOneSidedRequest *request, double timeout_seconds, bool *timed_out_ret);
   bool (*isOneSidedDone)(TakyonPath *path, TakyonOneSidedRequest *request, double timeout_seconds, bool *timed_out_ret);
-  bool (*send)(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_back_message, double timeout_seconds, bool *timed_out_ret);
+  bool (*send)(TakyonPath *path, TakyonSendRequest *request, uint32_t piggyback_message, double timeout_seconds, bool *timed_out_ret);
   bool (*isSent)(TakyonPath *path, TakyonSendRequest *request, double timeout_seconds, bool *timed_out_ret);
   bool (*postRecvs)(TakyonPath *path, uint32_t request_count, TakyonRecvRequest *requests);
-  bool (*isRecved)(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret);
+  bool (*isRecved)(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggyback_message_ret);
 
   // Capabilities
   bool is_unreliable;                  // Sent messages may be quietly dropped, arrive out of order, or be duplicated
-  bool piggy_back_messages_supported;  // True if comm allows sending a 32bit message piggy backed on the primary message
+  bool piggyback_messages_supported;   // True if comm allows sending a 32bit message piggybacked on the primary message
   bool multi_sub_buffers_supported;    // True if more than one sub buffer can be in a single transfer
   bool zero_byte_messages_supported;   // True if can send zero byte messages
 } CommInterface;
@@ -63,7 +63,7 @@ static CommInterface L_interfaces[] = {
                                          .postRecvs = interThreadPostRecvs,
                                          .isRecved = interThreadIsRecved,
 					 .is_unreliable = false,
-                                         .piggy_back_messages_supported = true,
+                                         .piggyback_messages_supported = true,
                                          .multi_sub_buffers_supported = true,
                                          .zero_byte_messages_supported = true
                                        },
@@ -77,7 +77,7 @@ static CommInterface L_interfaces[] = {
                                          .postRecvs = interThreadPostRecvs,
                                          .isRecved = interThreadIsRecved,
 					 .is_unreliable = true,
-                                         .piggy_back_messages_supported = true,
+                                         .piggyback_messages_supported = true,
                                          .multi_sub_buffers_supported = true,
                                          .zero_byte_messages_supported = true
                                        },
@@ -94,7 +94,7 @@ static CommInterface L_interfaces[] = {
                                          .postRecvs = interProcessPostRecvs,
                                          .isRecved = interProcessIsRecved,
 					 .is_unreliable = false,
-                                         .piggy_back_messages_supported = true,
+                                         .piggyback_messages_supported = true,
                                          .multi_sub_buffers_supported = true,
                                          .zero_byte_messages_supported = true
                                        },
@@ -108,7 +108,7 @@ static CommInterface L_interfaces[] = {
                                          .postRecvs = interProcessPostRecvs,
                                          .isRecved = interProcessIsRecved,
 					 .is_unreliable = true,
-                                         .piggy_back_messages_supported = true,
+                                         .piggyback_messages_supported = true,
                                          .multi_sub_buffers_supported = true,
                                          .zero_byte_messages_supported = true
                                        },
@@ -125,7 +125,7 @@ static CommInterface L_interfaces[] = {
                                          .postRecvs = NULL,
                                          .isRecved = tcpSocketIsRecved,
 					 .is_unreliable = false,
-                                         .piggy_back_messages_supported = true,
+                                         .piggyback_messages_supported = true,
                                          .multi_sub_buffers_supported = true,
                                          .zero_byte_messages_supported = true
                                        },
@@ -142,7 +142,7 @@ static CommInterface L_interfaces[] = {
                                          .postRecvs = NULL,
                                          .isRecved = NULL,
 					 .is_unreliable = true,
-                                         .piggy_back_messages_supported = false,
+                                         .piggyback_messages_supported = false,
                                          .multi_sub_buffers_supported = false,
                                          .zero_byte_messages_supported = false
                                        },
@@ -156,7 +156,7 @@ static CommInterface L_interfaces[] = {
                                          .postRecvs = NULL,
                                          .isRecved = udpSocketIsRecved,
 					 .is_unreliable = true,
-                                         .piggy_back_messages_supported = false,
+                                         .piggyback_messages_supported = false,
                                          .multi_sub_buffers_supported = false,
                                          .zero_byte_messages_supported = false
                                        },
@@ -173,7 +173,7 @@ static CommInterface L_interfaces[] = {
                                          .postRecvs = NULL,
                                          .isRecved = NULL,
 					 .is_unreliable = true,
-                                         .piggy_back_messages_supported = true,
+                                         .piggyback_messages_supported = true,
                                          .multi_sub_buffers_supported = true,
                                          .zero_byte_messages_supported = true
                                        },
@@ -187,7 +187,7 @@ static CommInterface L_interfaces[] = {
                                          .postRecvs = rdmaUDMulticastPostRecvs,
                                          .isRecved = rdmaUDMulticastIsRecved,
 					 .is_unreliable = true,
-                                         .piggy_back_messages_supported = true,
+                                         .piggyback_messages_supported = true,
                                          .multi_sub_buffers_supported = true,
                                          .zero_byte_messages_supported = true
                                        },
@@ -204,7 +204,7 @@ static CommInterface L_interfaces[] = {
                                          .postRecvs = rdmaPostRecvs,
                                          .isRecved = rdmaIsRecved,
 					 .is_unreliable = false,
-                                         .piggy_back_messages_supported = true,
+                                         .piggyback_messages_supported = true,
                                          .multi_sub_buffers_supported = true,
                                          .zero_byte_messages_supported = true
                                        },
@@ -218,7 +218,7 @@ static CommInterface L_interfaces[] = {
                                          .postRecvs = rdmaPostRecvs,
                                          .isRecved = rdmaIsRecved,
 					 .is_unreliable = true,
-                                         .piggy_back_messages_supported = true,
+                                         .piggyback_messages_supported = true,
                                          .multi_sub_buffers_supported = true,
                                          .zero_byte_messages_supported = true
                                        },
@@ -232,7 +232,7 @@ static CommInterface L_interfaces[] = {
                                          .postRecvs = NULL,
                                          .isRecved = NULL,
 					 .is_unreliable = true,
-                                         .piggy_back_messages_supported = true,
+                                         .piggyback_messages_supported = true,
                                          .multi_sub_buffers_supported = true,
                                          .zero_byte_messages_supported = true
                                        },
@@ -246,7 +246,7 @@ static CommInterface L_interfaces[] = {
                                          .postRecvs = rdmaPostRecvs,
                                          .isRecved = rdmaIsRecved,
 					 .is_unreliable = true,
-                                         .piggy_back_messages_supported = true,
+                                         .piggyback_messages_supported = true,
                                          .multi_sub_buffers_supported = true,
                                          .zero_byte_messages_supported = true
                                        },
@@ -278,7 +278,7 @@ bool setProviderFunctionsAndCapabilities(const char *provider_name, TakyonComm *
       capabilities->PostRecvs_supported           = interface->postRecvs != NULL;
       capabilities->IsRecved_supported            = interface->isRecved != NULL;
       capabilities->is_unreliable                 = interface->is_unreliable;
-      capabilities->piggy_back_messages_supported = interface->piggy_back_messages_supported;
+      capabilities->piggyback_messages_supported  = interface->piggyback_messages_supported;
       capabilities->multi_sub_buffers_supported   = interface->multi_sub_buffers_supported;
       capabilities->zero_byte_messages_supported  = interface->zero_byte_messages_supported;
 

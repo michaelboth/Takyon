@@ -1126,7 +1126,7 @@ static const char *wcOpcodeToText(enum ibv_wc_opcode opcode_val) {
 }
 #endif
 
-static bool waitForCompletion(bool is_send, RdmaEndpoint *endpoint, uint64_t expected_wr_id, enum ibv_wc_opcode expected_opcode, int read_pipe_fd, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret) {
+static bool waitForCompletion(bool is_send, RdmaEndpoint *endpoint, uint64_t expected_wr_id, enum ibv_wc_opcode expected_opcode, int read_pipe_fd, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars, uint64_t *bytes_received_ret, uint32_t *piggyback_message_ret) {
   (void)expected_opcode; // Quiet compiler
   bool got_start_time = false;
   double start_time = 0;
@@ -1219,13 +1219,13 @@ static bool waitForCompletion(bool is_send, RdmaEndpoint *endpoint, uint64_t exp
   // Success: return info
   if (!is_send) {
     *bytes_received_ret = wc.byte_len;
-    *piggy_back_message_ret = ntohl(wc.imm_data);
+    *piggyback_message_ret = ntohl(wc.imm_data);
   }
 
   return true;
 }
 
-bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr_opcode transfer_mode, uint64_t transfer_id, uint32_t sub_buffer_count, TakyonSubBuffer *sub_buffers, struct ibv_sge *sge_list, uint64_t remote_addr, uint32_t rkey, uint32_t piggy_back_message, bool use_is_sent_notification, char *error_message, int max_error_message_chars) {
+bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr_opcode transfer_mode, uint64_t transfer_id, uint32_t sub_buffer_count, TakyonSubBuffer *sub_buffers, struct ibv_sge *sge_list, uint64_t remote_addr, uint32_t rkey, uint32_t piggyback_message, bool use_is_sent_notification, char *error_message, int max_error_message_chars) {
   struct ibv_send_wr send_wr;
 
   // Fill in message to be sent
@@ -1235,9 +1235,9 @@ bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr
   send_wr.sg_list = sge_list;
   send_wr.opcode = transfer_mode;
   if (transfer_mode == IBV_WR_SEND_WITH_IMM) {
-    send_wr.imm_data = htonl(piggy_back_message);
+    send_wr.imm_data = htonl(piggyback_message);
 #ifdef EXTRA_ERROR_CHECKING
-    if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Posting send: IMM=%u, nSGEs=%d\n", piggy_back_message, send_wr.num_sge);
+    if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Posting send: IMM=%u, nSGEs=%d\n", piggyback_message, send_wr.num_sge);
 #endif
   } else if (transfer_mode == IBV_WR_RDMA_WRITE || transfer_mode == IBV_WR_RDMA_READ) {
 #ifdef EXTRA_ERROR_CHECKING
@@ -1310,10 +1310,10 @@ bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr
   return true;
 }
 
-bool rdmaEndpointIsRecved(RdmaEndpoint *endpoint, uint64_t expected_transfer_id, int read_pipe_fd, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret) {
+bool rdmaEndpointIsRecved(RdmaEndpoint *endpoint, uint64_t expected_transfer_id, int read_pipe_fd, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars, uint64_t *bytes_received_ret, uint32_t *piggyback_message_ret) {
   bool is_send = false;
   enum ibv_wc_opcode expected_opcode = IBV_WC_RECV;
-  return waitForCompletion(is_send, endpoint, expected_transfer_id, expected_opcode, read_pipe_fd, use_polling_completion, usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, max_error_message_chars, bytes_received_ret, piggy_back_message_ret);
+  return waitForCompletion(is_send, endpoint, expected_transfer_id, expected_opcode, read_pipe_fd, use_polling_completion, usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, max_error_message_chars, bytes_received_ret, piggyback_message_ret);
 }
 
 bool rdmaEndpointIsSent(RdmaEndpoint *endpoint, uint64_t expected_transfer_id, enum ibv_wc_opcode expected_opcode, int read_pipe_fd, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars) {

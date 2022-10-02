@@ -161,15 +161,17 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
   //   - Can't be changed after path creation
   TakyonPathAttributes attrs;
   strncpy(attrs.provider, provider, TAKYON_MAX_PROVIDER_CHARS-1);
-  attrs.is_endpointA                                   = is_endpointA;
-  attrs.failure_mode                                   = TAKYON_EXIT_ON_ERROR;
-  attrs.verbosity                                      = TAKYON_VERBOSITY_ERRORS; //  | TAKYON_VERBOSITY_CREATE_DESTROY | TAKYON_VERBOSITY_CREATE_DESTROY_MORE | TAKYON_VERBOSITY_TRANSFERS | TAKYON_VERBOSITY_TRANSFERS_MORE;
-  attrs.buffer_count                                   = num_buffers;
-  attrs.buffers                                        = buffers;
-  attrs.max_pending_send_and_one_sided_requests        = is_endpointA ? 1 : 0; // Only endpoint 'A' will be writing and reading
-  attrs.max_pending_recv_requests                      = 0;                    // Endpoint 'B' isn't doing anyting transfers
-  attrs.max_sub_buffers_per_send_and_one_sided_request = is_endpointA ? 1 : 0;
-  attrs.max_sub_buffers_per_recv_request               = 0;
+  attrs.is_endpointA                          = is_endpointA;
+  attrs.failure_mode                          = TAKYON_EXIT_ON_ERROR;
+  attrs.verbosity                             = TAKYON_VERBOSITY_ERRORS; //  | TAKYON_VERBOSITY_CREATE_DESTROY | TAKYON_VERBOSITY_CREATE_DESTROY_MORE | TAKYON_VERBOSITY_TRANSFERS | TAKYON_VERBOSITY_TRANSFERS_MORE;
+  attrs.buffer_count                          = num_buffers;
+  attrs.buffers                               = buffers;
+  attrs.max_pending_send_requests             = 0;
+  attrs.max_pending_recv_requests             = 0;
+  attrs.max_pending_one_sided_requests        = is_endpointA ? 1 : 0; // Only endpoint 'A' will be writing and reading
+  attrs.max_sub_buffers_per_send_request      = 0;
+  attrs.max_sub_buffers_per_recv_request      = 0;
+  attrs.max_sub_buffers_per_one_sided_request = is_endpointA ? 1 : 0;
 
   // Create one side of the path: the other side will be created in a different thread/process
   TakyonPath *path;

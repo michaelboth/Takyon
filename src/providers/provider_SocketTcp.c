@@ -263,7 +263,7 @@ bool tcpSocketDestroy(TakyonPath *path, double timeout_seconds) {
   return true;
 }
 
-bool tcpSocketSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_back_message, double timeout_seconds, bool *timed_out_ret) {
+bool tcpSocketSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggyback_message, double timeout_seconds, bool *timed_out_ret) {
   *timed_out_ret = false;
   TakyonComm *comm = (TakyonComm *)path->private;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
@@ -316,7 +316,7 @@ bool tcpSocketSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_
   uint64_t header[3];
   header[0] = XFER_COMMAND;
   header[1] = total_bytes_to_send;
-  header[2] = piggy_back_message;
+  header[2] = piggyback_message;
   if (!socketSend(private_path->socket_fd, header, sizeof(header), request->use_polling_completion, timeout_nano_seconds, timed_out_ret, error_message, MAX_ERROR_MESSAGE_CHARS)) {
     private_path->connection_failed = true;
     TAKYON_RECORD_ERROR(path->error_message, "Failed to transfer header: %s\n", error_message);
@@ -352,7 +352,7 @@ bool tcpSocketSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_
   return true;
 }
 
-bool tcpSocketIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret) {
+bool tcpSocketIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggyback_message_ret) {
   *timed_out_ret = false;
   TakyonComm *comm = (TakyonComm *)path->private;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
@@ -394,7 +394,7 @@ bool tcpSocketIsRecved(TakyonPath *path, TakyonRecvRequest *request, double time
     return false;
   }
   uint64_t total_bytes_sent = header[1];
-  uint32_t piggy_back_message = (uint32_t)(header[2] & 0xffffffff);
+  uint32_t piggyback_message = (uint32_t)(header[2] & 0xffffffff);
 
   // Recv the data
   if (total_bytes_sent > 0) {
@@ -456,7 +456,7 @@ bool tcpSocketIsRecved(TakyonPath *path, TakyonRecvRequest *request, double time
 
   // Return results
   *bytes_received_ret = total_bytes_sent;
-  *piggy_back_message_ret = piggy_back_message;
+  *piggyback_message_ret = piggyback_message;
 
   return true;
 }

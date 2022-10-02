@@ -53,6 +53,8 @@
 //   Notes:
 //     - RoCE v2 implicitly uses IP port 4791 for UD destination communications (unicast is unconnected)
 
+#define MY_MAX(_a, _b) ((_a)>(_b) ? (_a) : (_b))
+
 typedef struct {
   uint64_t bytes;
   uint64_t remote_addr;
@@ -350,22 +352,24 @@ bool rdmaCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *r
   }
 
   // RDMA send requests and SGEs
-  if (path->attrs.max_pending_send_and_one_sided_requests > 0) {
-    if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) printf("  Max send requests=%d, sub buffers per request=%d\n", path->attrs.max_pending_send_and_one_sided_requests, path->attrs.max_sub_buffers_per_send_and_one_sided_request);
-    private_path->rdma_send_request_list = (RdmaSendRequest *)calloc(path->attrs.max_pending_send_and_one_sided_requests, sizeof(RdmaSendRequest));
+  uint32_t max_pending_send_and_one_sided_requests = path->attrs.max_pending_send_requests + path->attrs.max_pending_one_sided_requests;
+  uint32_t max_sub_buffers_per_send_and_one_sided_request = MY_MAX(path->attrs.max_sub_buffers_per_send_request, path->attrs.max_sub_buffers_per_one_sided_request);
+  if (max_pending_send_and_one_sided_requests > 0) {
+    if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) printf("  Max send requests=%d, sub buffers per request=%d\n", max_pending_send_and_one_sided_requests, max_sub_buffers_per_send_and_one_sided_request);
+    private_path->rdma_send_request_list = (RdmaSendRequest *)calloc(max_pending_send_and_one_sided_requests, sizeof(RdmaSendRequest));
     if (private_path->rdma_send_request_list == NULL) {
       TAKYON_RECORD_ERROR(path->error_message, "Out of memory\n");
       goto failed;
     }
-    uint32_t num_sges = path->attrs.max_pending_send_and_one_sided_requests * path->attrs.max_sub_buffers_per_send_and_one_sided_request;
+    uint32_t num_sges = max_pending_send_and_one_sided_requests * max_sub_buffers_per_send_and_one_sided_request;
     if (num_sges > 0) {
       private_path->send_sge_list = (struct ibv_sge *)calloc(num_sges, sizeof(struct ibv_sge));
       if (private_path->send_sge_list == NULL) {
         TAKYON_RECORD_ERROR(path->error_message, "Out of memory\n");
         goto failed;
       }
-      for (uint32_t i=0; i<path->attrs.max_pending_send_and_one_sided_requests; i++) {
-        private_path->rdma_send_request_list[i].sges = &private_path->send_sge_list[i*path->attrs.max_sub_buffers_per_send_and_one_sided_request];
+      for (uint32_t i=0; i<max_pending_send_and_one_sided_requests; i++) {
+        private_path->rdma_send_request_list[i].sges = &private_path->send_sge_list[i*max_sub_buffers_per_send_and_one_sided_request];
       }
     }
   }
@@ -416,8 +420,8 @@ bool rdmaCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *r
   // Create the RDMA endpoint
   enum ibv_qp_type qp_type = (is_RC) ? IBV_QPT_RC : (is_UC) ? IBV_QPT_UC : IBV_QPT_UD;
   private_path->endpoint = rdmaCreateEndpoint(path, path->attrs.is_endpointA, private_path->socket_fd, qp_type, is_UD_sender, rdma_device_name, rdma_port_number, gid_index,
-					      path->attrs.max_pending_send_and_one_sided_requests, path->attrs.max_pending_recv_requests,
-					      path->attrs.max_sub_buffers_per_send_and_one_sided_request, path->attrs.max_sub_buffers_per_recv_request,
+					      max_pending_send_and_one_sided_requests, path->attrs.max_pending_recv_requests,
+					      max_sub_buffers_per_send_and_one_sided_request, path->attrs.max_sub_buffers_per_recv_request,
 					      post_recv_count, recv_requests, timeout_seconds, error_message, MAX_ERROR_MESSAGE_CHARS);
   if (private_path->endpoint == NULL) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to create RDMA endpoint: %s\n", error_message);
@@ -624,15 +628,16 @@ bool rdmaOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double timeo
 #endif
 
   // Get the next unused rdma_request
+  uint32_t max_pending_send_and_one_sided_requests = path->attrs.max_pending_send_requests + path->attrs.max_pending_one_sided_requests;
   RdmaSendRequest *rdma_request = &private_path->rdma_send_request_list[private_path->curr_rdma_send_request_index];
-  private_path->curr_rdma_send_request_index = (private_path->curr_rdma_send_request_index + 1) % path->attrs.max_pending_send_and_one_sided_requests;
+  private_path->curr_rdma_send_request_index = (private_path->curr_rdma_send_request_index + 1) % max_pending_send_and_one_sided_requests;
 
   // Start the 'read/write' RDMA transfer
   enum ibv_wr_opcode transfer_mode = (request->is_write_request) ? IBV_WR_RDMA_WRITE : IBV_WR_RDMA_READ;
   uint64_t transfer_id = (uint64_t)request;
   struct ibv_sge *sge_list = rdma_request->sges;
-  uint32_t piggy_back_message = 0;
-  if (!rdmaEndpointStartSend(path, endpoint, transfer_mode, transfer_id, request->sub_buffer_count, request->sub_buffers, sge_list, remote_addr, remote_key, piggy_back_message, request->use_is_done_notification, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+  uint32_t piggyback_message = 0;
+  if (!rdmaEndpointStartSend(path, endpoint, transfer_mode, transfer_id, request->sub_buffer_count, request->sub_buffers, sge_list, remote_addr, remote_key, piggyback_message, request->use_is_done_notification, error_message, MAX_ERROR_MESSAGE_CHARS)) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to start the RDMA %s: %s\n", request->is_write_request ? "write" : "read", error_message);
     return false;
   }
@@ -664,7 +669,7 @@ bool rdmaIsOneSidedDone(TakyonPath *path, TakyonOneSidedRequest *request, double
   return true;
 }
 
-bool rdmaSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_back_message, double timeout_seconds, bool *timed_out_ret) {
+bool rdmaSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggyback_message, double timeout_seconds, bool *timed_out_ret) {
   (void)timeout_seconds; // Quiet compiler
   *timed_out_ret = false;
   TakyonComm *comm = (TakyonComm *)path->private;
@@ -701,8 +706,9 @@ bool rdmaSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_back_
 #endif
 
   // Get the next unused rdma_request
+  uint32_t max_pending_send_and_one_sided_requests = path->attrs.max_pending_send_requests + path->attrs.max_pending_one_sided_requests;
   RdmaSendRequest *rdma_request = &private_path->rdma_send_request_list[private_path->curr_rdma_send_request_index];
-  private_path->curr_rdma_send_request_index = (private_path->curr_rdma_send_request_index + 1) % path->attrs.max_pending_send_and_one_sided_requests;
+  private_path->curr_rdma_send_request_index = (private_path->curr_rdma_send_request_index + 1) % max_pending_send_and_one_sided_requests;
 
   // Start the 'send' RDMA transfer
   enum ibv_wr_opcode transfer_mode = IBV_WR_SEND_WITH_IMM;
@@ -710,7 +716,7 @@ bool rdmaSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_back_
   struct ibv_sge *sge_list = rdma_request->sges;
   uint64_t remote_addr = 0;
   uint32_t remote_key = 0;
-  if (!rdmaEndpointStartSend(path, endpoint, transfer_mode, transfer_id, request->sub_buffer_count, request->sub_buffers, sge_list, remote_addr, remote_key, piggy_back_message, request->use_is_sent_notification, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+  if (!rdmaEndpointStartSend(path, endpoint, transfer_mode, transfer_id, request->sub_buffer_count, request->sub_buffers, sge_list, remote_addr, remote_key, piggyback_message, request->use_is_sent_notification, error_message, MAX_ERROR_MESSAGE_CHARS)) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to start the RDMA send: %s\n", error_message);
     return false;
   }
@@ -795,7 +801,7 @@ bool rdmaPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvRequest *
   return true;
 }
 
-bool rdmaIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret) {
+bool rdmaIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggyback_message_ret) {
   *timed_out_ret = false;
   TakyonComm *comm = (TakyonComm *)path->private;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
@@ -810,7 +816,7 @@ bool rdmaIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_s
 
   // Wait for the message
   uint64_t expected_transfer_id = (uint64_t)request;
-  if (!rdmaEndpointIsRecved(endpoint, expected_transfer_id, private_path->read_pipe_fd, request->use_polling_completion, request->usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, MAX_ERROR_MESSAGE_CHARS, bytes_received_ret, piggy_back_message_ret)) {
+  if (!rdmaEndpointIsRecved(endpoint, expected_transfer_id, private_path->read_pipe_fd, request->use_polling_completion, request->usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, MAX_ERROR_MESSAGE_CHARS, bytes_received_ret, piggyback_message_ret)) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to recv RDMA message: %s\n", error_message);
     return false;
   }

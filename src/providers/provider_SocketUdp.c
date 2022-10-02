@@ -281,8 +281,8 @@ bool udpSocketDestroy(TakyonPath *path, double timeout_seconds) {
   return true;
 }
 
-bool udpSocketSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_back_message, double timeout_seconds, bool *timed_out_ret) {
-  (void)piggy_back_message;
+bool udpSocketSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggyback_message, double timeout_seconds, bool *timed_out_ret) {
+  (void)piggyback_message;
   *timed_out_ret = false;
   TakyonComm *comm = (TakyonComm *)path->private;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
@@ -359,7 +359,7 @@ bool udpSocketSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggy_
   return true;
 }
 
-bool udpSocketIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggy_back_message_ret) {
+bool udpSocketIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggyback_message_ret) {
   *timed_out_ret = false;
   TakyonComm *comm = (TakyonComm *)path->private;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
@@ -436,7 +436,7 @@ bool udpSocketIsRecved(TakyonPath *path, TakyonRecvRequest *request, double time
 
   // Return results
   *bytes_received_ret = bytes_read;
-  *piggy_back_message_ret = 0; // Not supported
+  *piggyback_message_ret = 0; // Not supported
 
   return true;
 }
