@@ -31,17 +31,31 @@
 
 /*+
   MELLANOX:
-    - r3u04 is duplicating multicast packets
-    - Is MLNX OFED Verbs also ported to Windows or still need to use Network Direct?
-    - When testing two processes on a single node: UD multicast can send up to 10,000 bytes message without getting IBV_WC_LOC_LEN_ERR. Recv can get 8960 bytes. How is this posible.
-    - Currently the smaller of the max MTU from both endpoints is automatically used. Should the user set it in the provider spec instead?
-    - BUG: RDMA UC will stop receiving messages, even if less than MTU size, if the sender is sending faster than the receiver can consume them.
-           This does not occur with RDMA UD
-    - Testing:
+    - Odd Results:
+      - r3u04 is duplicating multicast packets (is this a loopback issue? If so, how to turn off?)
+      - When testing two processes on a single node: UD multicast can send up to 10,000 bytes message without getting IBV_WC_LOC_LEN_ERR. Recv can get 8960 bytes. How is this posible?
+    - Issues:
+      - BUG: RDMA UC will stop receiving messages (posted recvs are never producing WCs), even if less than MTU size, if the sender is sending faster than the receiver can consume them. This does not occur with RDMA UD.
+      - ibv_get_device_list(NULL): valgrind is reporting this memory is never freed even with ibv_free_device_list(dev_list) being called
+      - Throughput testing is doing more than one concurrent 'read', and using the following:
+          qpinit_attrs.cap.max_send_wr = 100;
+          qp_attr.max_dest_rd_atomic = 1
+          qp_attrs.max_rd_atomic     = 1
+        but no validation errors are occuring? Why is this succeeding? Is 'rd_atomic' only for atomics or for both 'read' and atomics?
+    - Options:
+       qp_attr.path_mtu           = smaller_of_enpoints_max_mtu    Should this be app defined?
+       qp_attr.min_rnr_timer      = 12                             App defined?
+       qp_attr.ah_attr.sl         = 0                              What's this for? App defined?
+       qp_attrs.ah_attr.is_global      = 1                         Is GID info only for RoCE v2, or also for Infiniband, iWarp, RoCE v1.x?
+       qp_attrs.ah_attr.grh.hop_limit  = 1                         App defined?
+       qp_attrs.timeout           = 14                             Retransmit timeout. App defined?
+       qp_attrs.retry_cnt         = 7                              Max re-transmits before erroring (without remote NACK). Max is 7. App defined?
+       qp_attrs.rnr_retry         = 7                              Max re-transmits before erroring (with remote NACK). Max is 6, but 7 is infinit. App defined?
+    - Extra Testing (how to):
       - Infiniband
       - iWarp
       - Any need for RoCE v1.x?
-      - Windows?
+      - Windows (or need Network Direct)?
 */
 
 #define PORT_INFO_TEXT_BYTES 100
@@ -345,7 +359,7 @@ static bool moveQpStateToRTS(struct ibv_qp *qp, struct ibv_pd *pd, enum ibv_qp_t
                                                 .src_path_bits = 0,
                                                 .port_num      = rdma_port_id
                                                }};
-  if (remote_port_info->gid.global.interface_id) { // For RoCE v2
+  if (remote_port_info->gid.global.interface_id != 0) { // For RoCE v2
     /*+ also for infiniband and iWarp? */
     attrs.ah_attr.is_global      = 1;
     attrs.ah_attr.grh.hop_limit  = 1/*+ app defined? */; // Max routers to travel through before being dropped
@@ -376,7 +390,7 @@ static bool moveQpStateToRTS(struct ibv_qp *qp, struct ibv_pd *pd, enum ibv_qp_t
       // Set additional attrs for RC (reliable connection)
       attrs.timeout       = 14; //*+ Retransmit timeout. Defines index into timeout table. Index is 0 .. 31, 0 = infinite, 1 = 8.192 usecs, 14 = .0671 secs, 31 = 8800 secs
       attrs.retry_cnt     = 7;  //*+ Max re-transmits before erroring (without remote NACK). Max is 7
-      attrs.rnr_retry     = 7;  //*+ Max re-transmit before erroring (with remote NACK). Max is 6, but 7 is infinit
+      attrs.rnr_retry     = 7;  //*+ Max re-transmits before erroring (with remote NACK). Max is 6, but 7 is infinit
       attrs.max_rd_atomic = 1;  //*+ Number of pending RDMA reads and atomic operations initiated by this endpoint
     }
     attr_mask = IBV_QP_STATE | IBV_QP_SQ_PSN;
