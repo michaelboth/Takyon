@@ -30,15 +30,15 @@ Each Takyon Provider has it's own provider specification. To know the details se
 Add your own providers as needed (see ```src/providers/supported_providers.h```).
 Provider       | Type       | Message Bytes | Non-Blocking | Includes One-Sided | Supports CUDA | Supports 32 bit Piggyback Message | Platforms
 ---------------|------------|---------------|--------------|--------------------|---------------|----------------------------|----------
-InterThread    | Reliable   | 0 .. >4 GB    |              | Yes                | Yes           | Yes                        | All
-InterThread UC | Uneliable  | 0 .. >4 GB    |              |                    | Yes           | Yes                        | All
-InterProcess   | Reliable   | 0 .. >4 GB    |              | Yes                | Yes           | Yes                        | All
-InterProcess UC| Unreliable | 0 .. >4 GB    |              |                    | Yes           | Yes                        | All
+InterThread    | Reliable   | 0 .. >4 GB    | Recv         | Yes                | Yes           | Yes                        | All
+InterThread UC | Uneliable  | 0 .. >4 GB    | Recv         |                    | Yes           | Yes                        | All
+InterProcess   | Reliable   | 0 .. >4 GB    | Recv         | Yes                | Yes           | Yes                        | All
+InterProcess UC| Unreliable | 0 .. >4 GB    | Recv         |                    | Yes           | Yes                        | All
 Socket Tcp     | Reliable   | 0 .. 1 GB     |              |                    |               | Yes                        | All
-Socket Udp     | Unreliable | Unicast:<br>1 .. 64 KB<br>Multicast:<br>1 .. MTU |     |   |      |                            | All
-Rdma RC        | Reliable   | 0 .. 1 GB     | Yes          | Yes                | Yes           | Yes                        | Linux
-Rdma UC        | Unreliable | 0 .. 1 GB     | Yes          | Yes                | Yes           | Yes                        | Linux
-Rdma UD        | Unreliable | 0 .. 4 KB     | Yes          |                    | Yes           | Yes                        | Linux
+Socket Udp     | Unreliable | Unicast:<br>1 .. 64 KB<br>Multicast:<br>1 .. MTU  |     |   |     |                            | All
+Rdma RC        | Reliable   | 0 .. 1 GB     | Send, Recv, Read, Write  | Yes    | Yes           | Yes                        | Linux
+Rdma UC        | Unreliable | 0 .. 1 GB     | Send, Recv, Write        | Yes    | Yes           | Yes                        | Linux
+Rdma UD        | Unreliable | 0 .. 4 KB     | Send, Recv               |        | Yes           | Yes                        | Linux
 
 # The API
 The 8 Takyon functions and most of the details are in the single header file: ```inc/takyon.h```<br>
