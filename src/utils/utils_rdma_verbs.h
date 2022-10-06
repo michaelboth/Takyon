@@ -23,6 +23,17 @@ typedef enum {
 } RdmaProtocol;
 
 typedef struct {
+  uint32_t mtu_bytes;          //          RDMA MTU is less than network MTU. Default is detect min at endpoints (does not detect min in intermediate switches. Valid values are 256, 512, 1024, 2048, and 4096.
+  uint8_t gid_index;           //          RDMA's global address index. Default is 0.
+  uint8_t service_level;       //          Network quality of service level. Default is 0.
+  uint8_t hop_limit;           //          Max routers to travel through. Default is 1.
+  uint8_t retransmit_timeout;  // RC Only. Time to verify packet transmission (ACK or NACK). Default is 14. Range is [0 .. 31], for value meanings, see www.rdmamojo.com/2013/01/12/ibv_modify_qp/
+  uint8_t retry_cnt;           // RC Only. Retransmit attempts (without a NACK) before erroring. Default is 7, and max is 7.
+  uint8_t rnr_retry;           // RC Only. Retransmit attempts (due to NACKs) before erroring. Default is 6. 7 is the max, but means infinite.
+  uint8_t min_rnr_timer;       // RC only. Incoming receive not ready. Default is 12. Range is [0 .. 31], for value meanings, see www.rdmamojo.com/2013/01/12/ibv_modify_qp/
+} RdmaAppOptions;
+
+typedef struct {
   RdmaProtocol protocol;
   bool is_sender;
   struct ibv_context *context; // Used if not used connection manager
@@ -72,10 +83,10 @@ extern RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *l
                                                  uint32_t max_send_wr, uint32_t max_recv_wr, uint32_t max_send_sges, uint32_t max_recv_sges,
                                                  uint32_t recv_request_count, TakyonRecvRequest *recv_requests,
                                                  double timeout_seconds, char *error_message, int max_error_message_chars);
-extern RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int read_pipe_fd, enum ibv_qp_type qp_type, bool is_UD_sender, const char *rdma_device_name, uint32_t rdma_port_id, uint32_t gid_index,
+extern RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int read_pipe_fd, enum ibv_qp_type qp_type, bool is_UD_sender, const char *rdma_device_name, uint32_t rdma_port_id,
 					uint32_t max_send_wr, uint32_t max_recv_wr, uint32_t max_send_sges, uint32_t max_recv_sges,
 					uint32_t recv_request_count, TakyonRecvRequest *recv_requests,
-					double timeout_seconds, char *error_message, int max_error_message_chars);
+					RdmaAppOptions app_options, double timeout_seconds, char *error_message, int max_error_message_chars);
 extern bool rdmaDestroyEndpoint(TakyonPath *path, RdmaEndpoint *endpoint, char *error_message, int max_error_message_chars);
 
 extern bool rdmaEndpointPostRecvs(TakyonPath *path, RdmaEndpoint *endpoint, uint32_t request_count, TakyonRecvRequest *requests, char *error_message, int max_error_message_chars);

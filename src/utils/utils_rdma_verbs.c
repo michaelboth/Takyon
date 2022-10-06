@@ -27,35 +27,21 @@
     - RC:           Using raw verbs with an external TCP socket to do the 'create' handshake and lifetime disconnect detection
   - Avoiding use of inline bytes when sending since it only works with CPU memory, and adds complexity to track memory type
   - Posted UD recv requests need to have an extra sizeof(struct ibv_grh) bytes (40 bytes), which is the IB's Global Routing Header placed at the beginning of any UD received message
+
+  - Currently not testing with RoCE v1.x since that may be a dead RDMA variant
+  - Currently not testing with iWarp since that may be a dead RDMA variant
+  - Currently not creating the Network Direct SPI v2 variant as may be not any demand
 */
+
+/*+ Test with infiniband */
 
 /*+
   MELLANOX:
     - Odd Results:
-      - r3u04 is duplicating multicast packets (is this a loopback issue? If so, how to turn off?)
+      - r3u04 is duplicating RDMA (not using sockets) multicast packets (is this a loopback issue? If so, how to turn off?)
       - When testing two processes on a single node: UD multicast can send up to 10,000 bytes message without getting IBV_WC_LOC_LEN_ERR. Recv can get 8960 bytes. How is this posible?
     - Issues:
       - BUG: RDMA UC will stop receiving messages (posted recvs are never producing WCs), even if less than MTU size, if the sender is sending faster than the receiver can consume them. This does not occur with RDMA UD.
-      - ibv_get_device_list(NULL): valgrind is reporting this memory is never freed even with ibv_free_device_list(dev_list) being called
-      - Throughput testing is doing more than one concurrent 'read', and using the following:
-          qpinit_attrs.cap.max_send_wr = 100;
-          qp_attr.max_dest_rd_atomic = 1
-          qp_attrs.max_rd_atomic     = 1
-        but no validation errors are occuring? Why is this succeeding? Is 'rd_atomic' only for atomics or for both 'read' and atomics?
-    - Options:
-       qp_attr.path_mtu           = smaller_of_enpoints_max_mtu    Should this be app defined?
-       qp_attr.min_rnr_timer      = 12                             App defined?
-       qp_attr.ah_attr.sl         = 0                              What's this for? App defined?
-       qp_attrs.ah_attr.is_global      = 1                         Is GID info only for RoCE v2, or also for Infiniband, iWarp, RoCE v1.x?
-       qp_attrs.ah_attr.grh.hop_limit  = 1                         App defined?
-       qp_attrs.timeout           = 14                             Retransmit timeout. App defined?
-       qp_attrs.retry_cnt         = 7                              Max re-transmits before erroring (without remote NACK). Max is 7. App defined?
-       qp_attrs.rnr_retry         = 7                              Max re-transmits before erroring (with remote NACK). Max is 6, but 7 is infinit. App defined?
-    - Extra Testing (how to):
-      - Infiniband
-      - iWarp
-      - Any need for RoCE v1.x?
-      - Windows (or need Network Direct)?
 */
 
 #define PORT_INFO_TEXT_BYTES 100
@@ -72,7 +58,8 @@ typedef struct  {
 } PortInfo;
 
 static struct ibv_context *getRdmaContextFromNamedDevice(const char *rdma_device_name, char *error_message, int max_error_message_chars) {
-  struct ibv_device **dev_list = ibv_get_device_list(NULL); /*+ valgrind is reporting this memory is never freed even with ibv_free_device_list(dev_list) being called */
+  // IMPORTANT: valgrind is reporting this memory is never freed even with ibv_free_device_list(dev_list) being called. Mellanox has been informed
+  struct ibv_device **dev_list = ibv_get_device_list(NULL);
   if (dev_list == NULL) {
     snprintf(error_message, max_error_message_chars, "ibv_get_device_list() failed");
     return NULL;
@@ -345,26 +332,24 @@ static struct ibv_qp *createQueuePair(TakyonPath *path, struct ibv_pd *pd, struc
   return qp;
 }
 
-static bool moveQpStateToRTS(struct ibv_qp *qp, struct ibv_pd *pd, enum ibv_qp_type qp_type, bool is_UD_sender, uint32_t rdma_port_id, PortInfo *local_port_info, PortInfo *remote_port_info, enum ibv_mtu mtu_mode, int gid_index, char *error_message, int max_error_message_chars, struct ibv_ah **unicast_sender_ah_ret) {
-  int service_level = 0; /*+ get from app? What is this for? Ask mellanox. Does this need to be the same on both sides? Is this only for Infiniband? */
+static bool moveQpStateToRTS(struct ibv_qp *qp, struct ibv_pd *pd, enum ibv_qp_type qp_type, bool is_UD_sender, uint32_t rdma_port_id, PortInfo *local_port_info, PortInfo *remote_port_info, RdmaAppOptions app_options, enum ibv_mtu mtu_mode, char *error_message, int max_error_message_chars, struct ibv_ah **unicast_sender_ah_ret) {
   struct ibv_qp_attr attrs = { .qp_state    = IBV_QPS_RTR,
-                               .path_mtu    = mtu_mode,
+                               .path_mtu    = mtu_mode, //*+ how to auto detect where it also accounts for intermediate switch MTUs?
                                .dest_qp_num = remote_port_info->qpn,
                                .rq_psn      = remote_port_info->psn,
-			       .max_dest_rd_atomic = 1,   //*+ RC: Number of pending RDMA reads and atomic operations with this endpoint as the destination
-			       .min_rnr_timer      = 12,  //*+ RC: Defines index into timeout table. Index is 0 .. 31, 0 = 665 msecs, 1 = 0.01 msecs, 31 = 491 msecs
+			       .max_dest_rd_atomic = 1, /*+ must be 1 for reads */   // RC only: Number of pending atomic read operations with this endpoint as the destination
+			       .min_rnr_timer = app_options.min_rnr_timer,  // RC only: Defines index into timeout table. Index is 0 .. 31, 0 = 665 msecs, 1 = 0.01 msecs, 31 = 491 msecs.
                                .ah_attr     = { .is_global     = 0,
                                                 .dlid          = remote_port_info->lid,
-                                                .sl            = service_level,
+                                                .sl            = app_options.service_level,
                                                 .src_path_bits = 0,
                                                 .port_num      = rdma_port_id
                                                }};
-  if (remote_port_info->gid.global.interface_id != 0) { // For RoCE v2
-    /*+ also for infiniband and iWarp? */
+  if (remote_port_info->gid.global.interface_id != 0) {
     attrs.ah_attr.is_global      = 1;
-    attrs.ah_attr.grh.hop_limit  = 1/*+ app defined? */; // Max routers to travel through before being dropped
+    attrs.ah_attr.grh.hop_limit  = app_options.hop_limit; // Max routers to travel through before being dropped
     attrs.ah_attr.grh.dgid       = remote_port_info->gid;
-    attrs.ah_attr.grh.sgid_index = gid_index;
+    attrs.ah_attr.grh.sgid_index = app_options.gid_index;
   }
 
   // Move to RTR
@@ -388,10 +373,10 @@ static bool moveQpStateToRTS(struct ibv_qp *qp, struct ibv_pd *pd, enum ibv_qp_t
     attrs.sq_psn   = local_port_info->psn;
     if (qp_type == IBV_QPT_RC) {
       // Set additional attrs for RC (reliable connection)
-      attrs.timeout       = 14; //*+ Retransmit timeout. Defines index into timeout table. Index is 0 .. 31, 0 = infinite, 1 = 8.192 usecs, 14 = .0671 secs, 31 = 8800 secs
-      attrs.retry_cnt     = 7;  //*+ Max re-transmits before erroring (without remote NACK). Max is 7
-      attrs.rnr_retry     = 7;  //*+ Max re-transmits before erroring (with remote NACK). Max is 6, but 7 is infinit
-      attrs.max_rd_atomic = 1;  //*+ Number of pending RDMA reads and atomic operations initiated by this endpoint
+      attrs.timeout       = app_options.retransmit_timeout; // RC Only: Retransmit timeout. Defines index into timeout table. Index is 0 .. 31, 0 = infinite, 1 = 8.192 usecs, 14 = .0671 secs, 31 = 8800 secs
+      attrs.retry_cnt     = app_options.retry_cnt;  // RC Only: Max re-transmits before erroring (without remote NACK). Max is 7
+      attrs.rnr_retry     = app_options.rnr_retry;  // RC Only: Max re-transmits before erroring (with remote NACK). Max is 6, but 7 is infinit
+      attrs.max_rd_atomic = 1; /*+ must be 1 for reads */ // RC Only: Number of pending atomic read operations initiated by this endpoint
     }
     attr_mask = IBV_QP_STATE | IBV_QP_SQ_PSN;
     if (qp_type == IBV_QPT_RC) {
@@ -761,10 +746,10 @@ RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *local_NI
   return NULL;
 }
 
-RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int read_pipe_fd, enum ibv_qp_type qp_type, bool is_UD_sender, const char *rdma_device_name, uint32_t rdma_port_id, uint32_t gid_index,
+RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int read_pipe_fd, enum ibv_qp_type qp_type, bool is_UD_sender, const char *rdma_device_name, uint32_t rdma_port_id,
 				 uint32_t max_send_wr, uint32_t max_recv_wr, uint32_t max_send_sges, uint32_t max_recv_sges,
 				 uint32_t recv_request_count, TakyonRecvRequest *recv_requests,
-				 double timeout_seconds, char *error_message, int max_error_message_chars) {
+				 RdmaAppOptions app_options, double timeout_seconds, char *error_message, int max_error_message_chars) {
   struct ibv_context *context = NULL;
   struct ibv_comp_channel *send_comp_ch = NULL;
   struct ibv_comp_channel *recv_comp_ch = NULL;
@@ -843,7 +828,7 @@ RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int read_p
 
   // Get the local endpoint info that will be sent to the remote endpoint
   PortInfo local_port_info;
-  if (!getLocalPortInfo(path, context, qp, rdma_port_id, unicast_local_qkey, gid_index, &local_port_info, error_message, max_error_message_chars)) goto failed;
+  if (!getLocalPortInfo(path, context, qp, rdma_port_id, unicast_local_qkey, app_options.gid_index, &local_port_info, error_message, max_error_message_chars)) goto failed;
 
   // Exchange QP and port info with the remote endpoint
   PortInfo remote_port_info;
@@ -881,13 +866,20 @@ RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int read_p
 
   // Move the QP state to RTS (ready to send)
   enum ibv_mtu mtu_mode = (remote_port_info.mtu_mode < local_port_info.mtu_mode) ? remote_port_info.mtu_mode : local_port_info.mtu_mode; // Use the minimum
+  if (app_options.mtu_bytes != 0) {
+    if (app_options.mtu_bytes == 256) mtu_mode = IBV_MTU_256;
+    else if (app_options.mtu_bytes == 512) mtu_mode = IBV_MTU_512;
+    else if (app_options.mtu_bytes == 1024) mtu_mode = IBV_MTU_1024;
+    else if (app_options.mtu_bytes == 2048) mtu_mode = IBV_MTU_2048;
+    else if (app_options.mtu_bytes == 4096) mtu_mode = IBV_MTU_4096;
+  }
   endpoint->mtu_bytes = mtuModeToBytes(mtu_mode);
   if (endpoint->mtu_bytes == 0) {
     TAKYON_RECORD_ERROR(path->error_message, "Could not determine MTU bytes\n");
     goto failed;
   }
   if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) printf("  Will use %s between endpoints\n", mtuModeToText(mtu_mode));
-  if (!moveQpStateToRTS(qp, pd, qp_type, is_UD_sender, rdma_port_id, &local_port_info, &remote_port_info, mtu_mode, gid_index, error_message, MAX_ERROR_MESSAGE_CHARS, &unicast_sender_ah)) goto failed;
+  if (!moveQpStateToRTS(qp, pd, qp_type, is_UD_sender, rdma_port_id, &local_port_info, &remote_port_info, app_options, mtu_mode, error_message, MAX_ERROR_MESSAGE_CHARS, &unicast_sender_ah)) goto failed;
   if (qp_type == IBV_QPT_UD) {
     endpoint->unicast_sender_ah = unicast_sender_ah;
     endpoint->unicast_remote_qp_num = remote_port_info.qpn;

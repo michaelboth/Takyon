@@ -33,14 +33,14 @@
 //     - Messages can be dropped
 //     - Useful where all bytes may not arrive (unreliable): e.g. live stream video or music
 //   ---------------------------------------------------------------------------
-//     "RdmaRC -client -remoteIP=<ip_addr>|<hostname> -port=<port_number> -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number> -gidIndex=<index_number>"
-//     "RdmaRC -server -localIP=<ip_addr>|<hostname>|Any -port=<port_number> [-reuse] -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number> -gidIndex=<index_number>"
+//     "RdmaRC -client -remoteIP=<ip_addr>|<hostname> -port=<port_number> -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number> [<optional_args_see_below>]"
+//     "RdmaRC -server -localIP=<ip_addr>|<hostname>|Any -port=<port_number> [-reuse] -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number> [<optional_args_see_below>]"
 //
-//     "RdmaUC -client -remoteIP=<ip_addr>|<hostname> -port=<port_number> -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number> -gidIndex=<index_number>"
-//     "RdmaUC -server -localIP=<ip_addr>|<hostname>|Any -port=<port_number> [-reuse] -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number> -gidIndex=<index_number>"
+//     "RdmaUC -client -remoteIP=<ip_addr>|<hostname> -port=<port_number> -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number> [<optional_args_see_below>]"
+//     "RdmaUC -server -localIP=<ip_addr>|<hostname>|Any -port=<port_number> [-reuse] -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number> [<optional_args_see_below>]"
 //
-//     "RdmaUDUnicastSend -client -remoteIP=<ip_addr>|<hostname> -port=<port_number> -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number> -gidIndex=<index_number>"
-//     "RdmaUDUnicastRecv -server -localIP=<ip_addr>|<hostname>|Any -port=<port_number> [-reuse] -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number> -gidIndex=<index_number>"
+//     "RdmaUDUnicastSend -client -remoteIP=<ip_addr>|<hostname> -port=<port_number> -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number> [<optional_args_see_below>]"
+//     "RdmaUDUnicastRecv -server -localIP=<ip_addr>|<hostname>|Any -port=<port_number> [-reuse] -rdmaDevice=<name> -rdmaPort=<local_rdma_port_number> [<optional_args_see_below>]"
 //
 //   Argument descriptions:
 //     -localIP=<ip_addr>|<hostname>|Any     Does not need to be the RDMA network interface
@@ -48,7 +48,16 @@
 //     -port=<port_number>                   [1024 .. 65535]
 //     -rdmaDevice=<name>                    Name of the RDMA port; get from running the CLI: ibv_devinfo
 //     -rdmaPort=<local_rdma_port_number>    1 .. max ports on local RDMA NIC; get from running the CLI: ibv_devinfo
-//     -gidIndex=<index_number>              RDMA's global address index
+//
+//   Optional arguments:
+//     -mtuBytes=<n>:                     RDMA MTU is less than network MTU. Default is detect min at endpoints (does not detect min in intermediate switches. Valid values are 256, 512, 1024, 2048, and 4096.
+//     -gidIndex=<index>:                 RDMA's global address index. Default is 0.
+//     -serviceLevel=<n>:                 Network quality of service level. Default is 0.
+//     -hopLimit=<n>:                     Max routers to travel through. Default is 1.
+//     -retransmitTimeout=<n>:   RC Only. Time to verify packet transmission (ACK or NACK). Default is 14. Range is [0 .. 31], for value meanings, see www.rdmamojo.com/2013/01/12/ibv_modify_qp/
+//     -retryCnt=<n>:            RC Only. Retransmit attempts (without a NACK) before erroring. Default is 7, and max is 7.
+//     -rnrRetry=<n>:            RC Only. Retransmit attempts (due to NACKs) before erroring. Default is 6. 7 is the max, but means infinite.
+//     -minRnrTimer=<n>:         RC only. Incoming receive not ready. Default is 12. Range is [0 .. 31], for value meanings, see www.rdmamojo.com/2013/01/12/ibv_modify_qp/
 //
 //   Notes:
 //     - RoCE v2 implicitly uses IP port 4791 for UD destination communications (unicast is unconnected)
@@ -228,6 +237,7 @@ bool rdmaCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *r
   bool is_client = argGetFlag(path->attrs.provider, "-client");
   bool is_server = argGetFlag(path->attrs.provider, "-server");
   bool allow_reuse = argGetFlag(path->attrs.provider, "-reuse");
+
   // -localIP=<ip_addr>|<hostname>|Any
   char local_ip_addr[TAKYON_MAX_PROVIDER_CHARS];
   bool local_ip_addr_found = false;
@@ -236,6 +246,7 @@ bool rdmaCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *r
     TAKYON_RECORD_ERROR(path->error_message, "provider argument -localIP=<ip_addr>|<hostname>|Any is invalid: %s\n", error_message);
     return false;
   }
+
   // -remoteIP=<ip_addr>|<hostname>
   char remote_ip_addr[TAKYON_MAX_PROVIDER_CHARS];
   bool remote_ip_addr_found = false;
@@ -244,12 +255,13 @@ bool rdmaCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *r
     TAKYON_RECORD_ERROR(path->error_message, "provider argument -remoteIP=<ip_addr>|<hostname> is invalid: %s\n", error_message);
     return false;
   }
+
   // -port=<port_number>
   uint32_t port_number = 0;
   bool port_number_found = false;
   ok = argGetUInt(path->attrs.provider, "-port=", &port_number, &port_number_found, error_message, MAX_ERROR_MESSAGE_CHARS);
   if (!ok) {
-    TAKYON_RECORD_ERROR(path->error_message, "provider spec -port=<port_number> is invalid: %s\n", error_message);
+    TAKYON_RECORD_ERROR(path->error_message, "attribute -port=<port_number> is invalid: %s\n", error_message);
     return false;
   }
   if (!port_number_found) {
@@ -262,6 +274,7 @@ bool rdmaCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *r
       return false;
     }
   }
+
   // -rdmaDevice=<name>
   char rdma_device_name[TAKYON_MAX_PROVIDER_CHARS];
   bool rdma_device_name_found = false;
@@ -274,12 +287,13 @@ bool rdmaCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *r
     TAKYON_RECORD_ERROR(path->error_message, "Rdma needs the argument: -rdmaDevice=<name>\n");
     return false;
   }
+
   // -rdmaPort=<local_rdma_port_number>
   uint32_t rdma_port_number = 0;
   bool rdma_port_number_found = false;
   ok = argGetUInt(path->attrs.provider, "-rdmaPort=", &rdma_port_number, &rdma_port_number_found, error_message, MAX_ERROR_MESSAGE_CHARS);
   if (!ok) {
-    TAKYON_RECORD_ERROR(path->error_message, "provider spec -rdmaPort=<local_rdma_port_number> is invalid: %s\n", error_message);
+    TAKYON_RECORD_ERROR(path->error_message, "attribute -rdmaPort=<local_rdma_port_number> is invalid: %s\n", error_message);
     return false;
   }
   if (!rdma_port_number_found) {
@@ -292,16 +306,108 @@ bool rdmaCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *r
       return false;
     }
   }
-  // -gidIndex=<index_number>
+
+  // [-mtuBytes=<n>]
+  uint32_t mtu_bytes = 0;
+  bool mtu_bytes_found = false;
+  ok = argGetUInt(path->attrs.provider, "-mtuBytes=", &mtu_bytes, &mtu_bytes_found, error_message, MAX_ERROR_MESSAGE_CHARS);
+  if (!ok) {
+    TAKYON_RECORD_ERROR(path->error_message, "attribute -mtuBytes=<n> is invalid: %s\n", error_message);
+    return false;
+  }
+  if (mtu_bytes_found && mtu_bytes != 256 && mtu_bytes != 512 && mtu_bytes != 1024 && mtu_bytes != 2048 && mtu_bytes != 4096) { 
+    TAKYON_RECORD_ERROR(path->error_message, "optional attribute -mtuBytes=<n> must be one of 256, 512, 1024, 2048, or 4096\n");
+    return false;
+  }
+
+  // [-gidIndex=<index>]
   uint32_t gid_index = 0;
   bool gid_index_found = false;
   ok = argGetUInt(path->attrs.provider, "-gidIndex=", &gid_index, &gid_index_found, error_message, MAX_ERROR_MESSAGE_CHARS);
   if (!ok) {
-    TAKYON_RECORD_ERROR(path->error_message, "provider spec -gidIndex=<index_number> is invalid: %s\n", error_message);
+    TAKYON_RECORD_ERROR(path->error_message, "attribute -gidIndex=<index> is invalid: %s\n", error_message);
     return false;
   }
-  if (!gid_index_found) {
-    TAKYON_RECORD_ERROR(path->error_message, "Rdma needs the argument: -gidIndex=<index_number>\n");
+  if (gid_index_found && gid_index >= 256) {
+    TAKYON_RECORD_ERROR(path->error_message, "optional attribute -gidIndex=<n> must be less than 256\n");
+    return false;
+  }
+
+  // [-serviceLevel=<n>]
+  uint32_t service_level = 0;
+  bool service_level_found = false;
+  ok = argGetUInt(path->attrs.provider, "-serviceLevel=", &service_level, &service_level_found, error_message, MAX_ERROR_MESSAGE_CHARS);
+  if (!ok) {
+    TAKYON_RECORD_ERROR(path->error_message, "attribute -serviceLevel=<n> is invalid: %s\n", error_message);
+    return false;
+  }
+  if (service_level_found && service_level >= 256) {
+    TAKYON_RECORD_ERROR(path->error_message, "optional attribute -serviceLevel=<n> must be less than 256\n");
+    return false;
+  }
+
+  // [-hopLimit=<n>]
+  uint32_t hop_limit = 0;
+  bool hop_limit_found = false;
+  ok = argGetUInt(path->attrs.provider, "-hopLimit=", &hop_limit, &hop_limit_found, error_message, MAX_ERROR_MESSAGE_CHARS);
+  if (!ok) {
+    TAKYON_RECORD_ERROR(path->error_message, "attribute -hopLimit=<n> is invalid: %s\n", error_message);
+    return false;
+  }
+  if (hop_limit_found && hop_limit >= 256) {
+    TAKYON_RECORD_ERROR(path->error_message, "optional attribute -hopLimit=<n> must be less than 256\n");
+    return false;
+  }
+
+  // [-retransmitTimeout=<n>]
+  uint32_t retransmit_timeout = 0;
+  bool retransmit_timeout_found = false;
+  ok = argGetUInt(path->attrs.provider, "-retransmitTimeout=", &retransmit_timeout, &retransmit_timeout_found, error_message, MAX_ERROR_MESSAGE_CHARS);
+  if (!ok) {
+    TAKYON_RECORD_ERROR(path->error_message, "attribute -retransmitTimeout=<n> is invalid: %s\n", error_message);
+    return false;
+  }
+  if (retransmit_timeout_found && retransmit_timeout > 31) { 
+    TAKYON_RECORD_ERROR(path->error_message, "optional attribute -retransmitTimeout=<n> must be a value in the range [0 .. 31]\n");
+    return false;
+  }
+
+  // [-retryCnt=<n>]
+  uint32_t retry_cnt = 0;
+  bool retry_cnt_found = false;
+  ok = argGetUInt(path->attrs.provider, "-retryCnt=", &retry_cnt, &retry_cnt_found, error_message, MAX_ERROR_MESSAGE_CHARS);
+  if (!ok) {
+    TAKYON_RECORD_ERROR(path->error_message, "attribute -retryCnt=<n> is invalid: %s\n", error_message);
+    return false;
+  }
+  if (retry_cnt_found && retry_cnt > 7) { 
+    TAKYON_RECORD_ERROR(path->error_message, "optional attribute -retryCnt=<n> must be a value in the range [0 .. 7]\n");
+    return false;
+  }
+
+  // [-rnrRetry=<n>]
+  uint32_t rnr_retry = 0;
+  bool rnr_retry_found = false;
+  ok = argGetUInt(path->attrs.provider, "-rnrRetry=", &rnr_retry, &rnr_retry_found, error_message, MAX_ERROR_MESSAGE_CHARS);
+  if (!ok) {
+    TAKYON_RECORD_ERROR(path->error_message, "attribute -rnrRetry=<n> is invalid: %s\n", error_message);
+    return false;
+  }
+  if (rnr_retry_found && rnr_retry > 7) { 
+    TAKYON_RECORD_ERROR(path->error_message, "optional attribute -rnrRetry=<n> must be a value in the range [0 .. 7]\n");
+    return false;
+  }
+
+  // [-minRnrTimer=<n>]
+  uint32_t min_rnr_timer = 0;
+  bool min_rnr_timer_found = false;
+  ok = argGetUInt(path->attrs.provider, "-minRnrTimer=", &min_rnr_timer, &min_rnr_timer_found, error_message, MAX_ERROR_MESSAGE_CHARS);
+  if (!ok) {
+    TAKYON_RECORD_ERROR(path->error_message, "attribute -minRnrTimer=<n> is invalid: %s\n", error_message);
+    return false;
+  }
+  if (min_rnr_timer_found && min_rnr_timer > 31) { 
+    TAKYON_RECORD_ERROR(path->error_message, "optional attribute -minRnrTimer=<n> must be a value in the range [0 .. 31]\n");
     return false;
   }
 
@@ -417,12 +523,23 @@ bool rdmaCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *r
     recv_requests[i].private = rdma_request;
   }
 
+  // Fill in the app options
+  RdmaAppOptions app_options;
+  app_options.mtu_bytes          = mtu_bytes_found ? mtu_bytes : 0;
+  app_options.gid_index          = gid_index_found ? (uint8_t)gid_index : 0;
+  app_options.service_level      = service_level_found ? (uint8_t)service_level : 0;
+  app_options.hop_limit          = hop_limit_found ? (uint8_t)hop_limit : 1;
+  app_options.retransmit_timeout = retransmit_timeout_found ? (uint8_t)retransmit_timeout : 14;
+  app_options.retry_cnt          = retry_cnt_found ? (uint8_t)retry_cnt : 7;
+  app_options.rnr_retry          = rnr_retry_found ? (uint8_t)rnr_retry : 6;
+  app_options.min_rnr_timer      = min_rnr_timer_found ? (uint8_t)min_rnr_timer : 12;
+
   // Create the RDMA endpoint
   enum ibv_qp_type qp_type = (is_RC) ? IBV_QPT_RC : (is_UC) ? IBV_QPT_UC : IBV_QPT_UD;
-  private_path->endpoint = rdmaCreateEndpoint(path, path->attrs.is_endpointA, private_path->socket_fd, qp_type, is_UD_sender, rdma_device_name, rdma_port_number, gid_index,
+  private_path->endpoint = rdmaCreateEndpoint(path, path->attrs.is_endpointA, private_path->socket_fd, qp_type, is_UD_sender, rdma_device_name, rdma_port_number,
 					      max_pending_send_and_one_sided_requests, path->attrs.max_pending_recv_requests,
 					      max_sub_buffers_per_send_and_one_sided_request, path->attrs.max_sub_buffers_per_recv_request,
-					      post_recv_count, recv_requests, timeout_seconds, error_message, MAX_ERROR_MESSAGE_CHARS);
+					      post_recv_count, recv_requests, app_options, timeout_seconds, error_message, MAX_ERROR_MESSAGE_CHARS);
   if (private_path->endpoint == NULL) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to create RDMA endpoint: %s\n", error_message);
     goto failed;
