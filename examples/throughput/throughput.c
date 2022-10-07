@@ -90,10 +90,11 @@ static uint32_t validateMessage(TakyonBuffer *buffer, uint64_t message_bytes, co
 
 static void sendMessage(TakyonPath *path, const uint64_t message_bytes, uint64_t message_offset, const bool use_polling_completion, const uint32_t message_index) {
   // Setup the send request
-  bool use_sent_notification = ((message_index+1) % path->attrs.max_pending_send_requests) == 0; // Need to get sent notification before out of send_requests or else the provider will get a buffer overflow
+  bool use_sent_notification = ((message_index+1) % path->attrs.max_pending_send_requests) == 0; // Need to get sent notification to implicitly wait for all pending transfers to complete or else the provider may get a buffer overflow
   TakyonSubBuffer sender_sub_buffer = { .buffer_index = 0, .bytes = message_bytes, .offset = message_offset };
   TakyonSendRequest send_request = { .sub_buffer_count = (message_bytes==0) ? 0 : 1,
                                      .sub_buffers = (message_bytes==0) ? NULL : &sender_sub_buffer,
+                                     .submit_fence = false,
                                      .use_is_sent_notification = use_sent_notification,
                                      .use_polling_completion = use_polling_completion,
                                      .usec_sleep_between_poll_attempts = 0 };
@@ -138,11 +139,12 @@ static bool recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, const
 static void writeMessage(TakyonPath *path, const uint64_t message_bytes, const uint64_t message_offset, const bool use_polling_completion, const bool use_is_done_notification) {
   // Setup the one-sided write request
   TakyonSubBuffer sub_buffer = { .buffer_index = 0, .bytes = message_bytes, .offset = message_offset };
-  TakyonOneSidedRequest request = { .is_write_request = true,
+  TakyonOneSidedRequest request = { .operation = TAKYON_OP_WRITE,
                                     .sub_buffer_count = 1,
                                     .sub_buffers = &sub_buffer,
                                     .remote_buffer_index = 0,
                                     .remote_offset = message_offset,
+                                    .submit_fence = false,
                                     .use_is_done_notification = use_is_done_notification,
                                     .use_polling_completion = use_polling_completion,
                                     .usec_sleep_between_poll_attempts = 0 };
@@ -157,11 +159,12 @@ static void writeMessage(TakyonPath *path, const uint64_t message_bytes, const u
 static void readMessage(TakyonPath *path, const uint64_t message_bytes, const uint64_t message_offset, const bool use_polling_completion, const bool use_is_done_notification) {
   // Setup the one-sided write request
   TakyonSubBuffer sub_buffer = { .buffer_index = 0, .bytes = message_bytes, .offset = path->attrs.max_pending_one_sided_requests * message_bytes + message_offset };
-  TakyonOneSidedRequest request = { .is_write_request = false,
+  TakyonOneSidedRequest request = { .operation = TAKYON_OP_READ,
                                     .sub_buffer_count = 1,
                                     .sub_buffers = &sub_buffer,
                                     .remote_buffer_index = 0,
                                     .remote_offset = message_offset,
+                                    .submit_fence = false,
                                     .use_is_done_notification = use_is_done_notification,
                                     .use_polling_completion = use_polling_completion,
                                     .usec_sleep_between_poll_attempts = 0 };
@@ -177,6 +180,7 @@ static void sendSignal(TakyonPath *path, const bool use_polling_completion) {
   // Setup the send request
   TakyonSendRequest send_request = { .sub_buffer_count = 0,
                                      .sub_buffers = NULL,
+                                     .submit_fence = false,
                                      .use_is_sent_notification = true,
                                      .use_polling_completion = use_polling_completion,
                                      .usec_sleep_between_poll_attempts = 0 };
@@ -421,8 +425,9 @@ static void oneSidedThroughput(const bool is_endpointA, const char *provider, co
 	fillInMessage(buffer, message_bytes, message_offset, i);
       }
       // Write the message
-      bool use_is_done_notification = (i == (iterations-1) || ((i+1) % path->attrs.max_pending_one_sided_requests) == 0); // Need to get done notification before all internal transfer buffers are used up
-      writeMessage(path, message_bytes, message_offset, use_polling_completion, i);
+      bool use_is_done_notification = true;
+      //*+ not yet working with RDMA */bool use_is_done_notification = (i == (iterations-1) || ((i+1) % path->attrs.max_pending_one_sided_requests) == 0); // Need to get sent notification to implicitly wait for all pending transfers to complete or else the provider may get a buffer overflow
+      writeMessage(path, message_bytes, message_offset, use_polling_completion, use_is_done_notification);
       // Read the message that was just written
       readMessage(path, message_bytes, message_offset, use_polling_completion, use_is_done_notification);
       messages_to_validate++;

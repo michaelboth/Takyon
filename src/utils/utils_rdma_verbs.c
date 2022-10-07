@@ -35,33 +35,16 @@
 
 /*+ Test with infiniband */
 
-/*+
-  MELLANOX:
+/*+ MELLANOX questions:
     - Odd Results:
       - r3u04 is duplicating RDMA (not using sockets) multicast packets (is this a loopback issue? If so, how to turn off?)
-      - When testing two processes on a single node: UD multicast can send up to 10,000 bytes message without getting IBV_WC_LOC_LEN_ERR. Recv can get 8960 bytes. How is this posible?
     - Issues:
       - BUG: RDMA UC will stop receiving messages (posted recvs are never producing WCs), even if less than MTU size, if the sender is sending faster than the receiver can consume them. This does not occur with RDMA UD.
 */
 
-/*+ Atomics:
-  Atomic Operations execute a 64-bit operation at a specified address on a remote node. The operations atomically read, modify and write the destination address and guarantee that operations on this address by other QPs on the same CA do not occur between the Read and Write.
-  ibv_reg_mr: access =| IBV_ACCESS_REMOTE_ATOMIC
-  ibv_query_device: pci_atomic_caps:     IBV_ATOMIC_NONE, IBV_ATOMIC_HCA, IBV_ATOMIC_GLOB
-     Need to see if device support atomics: ibv_device_attr.atomic_cap
-  send_wr.wr:
-    struct {
-      uint64_t	remote_addr;  // Make sure 8 byte aligned
-      uint64_t	compare_add;
-      uint64_t	swap;
-      uint32_t	rkey;
-    } atomic;
-  .opcode:
-    - IBV_WR_ATOMIC_FETCH_AND_ADD: one-side operation: remote_addr += compare_add. Remote value before the add is stored in SGE
-    - IBV_WR_ATOMIC_CMP_AND_SWP: one-side operation: if (remote_addr == compare_add) { remote_addr = swap }. Remote value before the add is stored in SGE
-*/
+#define MY_MAX(_a,_b) ((_a>_b) ? _a : _b)
 
-#define PORT_INFO_TEXT_BYTES 100
+#define PORT_INFO_TEXT_BYTES 200
 
 typedef struct  {
   int lid;           // For infiniband
@@ -70,11 +53,12 @@ typedef struct  {
   union ibv_gid gid; // For RoCE
   char gid_text[33]; // For RoCE
   enum ibv_mtu mtu_mode;
+  uint32_t max_send_wr;
   uint32_t unicast_qkey;
   char socket_data[PORT_INFO_TEXT_BYTES]; // Use for transferring to remote side regardless of endian
 } PortInfo;
 
-static struct ibv_context *getRdmaContextFromNamedDevice(const char *rdma_device_name, char *error_message, int max_error_message_chars) {
+static struct ibv_context *getRdmaContextFromNamedDevice(TakyonPath *path, const char *rdma_device_name, char *error_message, int max_error_message_chars) {
   // IMPORTANT: valgrind is reporting this memory is never freed even with ibv_free_device_list(dev_list) being called. Mellanox has been informed
   struct ibv_device **dev_list = ibv_get_device_list(NULL);
   if (dev_list == NULL) {
@@ -90,6 +74,21 @@ static struct ibv_context *getRdmaContextFromNamedDevice(const char *rdma_device
         snprintf(error_message, max_error_message_chars, "ibv_open_device() failed for device '%s': errno=%d", rdma_device_name, errno);
         return NULL;
       }
+
+      if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) {
+	struct ibv_device_attr device_attr;
+	int rc = ibv_query_device(context, &device_attr);
+	if (rc != 0) {
+	  snprintf(error_message, max_error_message_chars, "ibv_query_device() failed for device '%s': errno=%d", rdma_device_name, errno);
+	  return NULL;
+	}
+	printf("  Device info:\n");
+	printf("    max_qp_wr = %d\n", device_attr.max_qp_wr);
+	printf("    max_qp_rd_atom = %d\n", device_attr.max_qp_rd_atom);
+	printf("    max_qp_init_rd_atom = %d\n", device_attr.max_qp_init_rd_atom);
+	printf("    atomic_cap = %d, IBV_ATOMIC_NONE=%d, IBV_ATOMIC_HCA=%d, IBV_ATOMIC_GLOB=%d\n", device_attr.atomic_cap, IBV_ATOMIC_NONE, IBV_ATOMIC_HCA, IBV_ATOMIC_GLOB);
+      }
+
       ibv_free_device_list(dev_list);
       return context;
     }
@@ -165,7 +164,7 @@ static const char *linkLayerToText(uint8_t link_layer) {
   }
 }
 
-static bool getLocalPortInfo(TakyonPath *path, struct ibv_context *context, struct ibv_qp *qp, uint32_t rdma_port_id, uint32_t unicast_local_qkey, int gid_index, PortInfo *port_info_ret, char *error_message, int max_error_message_chars) {
+static bool getLocalPortInfo(TakyonPath *path, struct ibv_context *context, struct ibv_qp *qp, uint32_t rdma_port_id, uint32_t max_send_wr, uint32_t unicast_local_qkey, int gid_index, PortInfo *port_info_ret, char *error_message, int max_error_message_chars) {
   PortInfo port_info = {}; // Zero the structure
 
   struct ibv_port_attr port_attrs;
@@ -185,6 +184,7 @@ static bool getLocalPortInfo(TakyonPath *path, struct ibv_context *context, stru
     printf("    Link Layer:       %s\n", linkLayerToText(port_attrs.link_layer));
   }
 
+  port_info.max_send_wr = max_send_wr;
   port_info.unicast_qkey = unicast_local_qkey;
   port_info.mtu_mode = port_attrs.active_mtu;
   port_info.qpn = qp->qp_num;
@@ -209,12 +209,12 @@ static bool getLocalPortInfo(TakyonPath *path, struct ibv_context *context, stru
     return false;
   }
   if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) {
-    printf("  Local connection info: LID 0x%04x, QPN 0x%06x, PSN 0x%06x, MTU %s, UnicastQKEY 0x%06x, GID '%s'\n",
-	   port_info.lid, port_info.qpn, port_info.psn, mtuModeToText(port_info.mtu_mode), port_info.unicast_qkey, port_info.gid_text);
+    printf("  Local connection info: LID 0x%04x, QPN 0x%06x, PSN 0x%06x, MTU %s, MaxSendWR %u, UnicastQKEY 0x%06x, GID '%s'\n",
+	   port_info.lid, port_info.qpn, port_info.psn, mtuModeToText(port_info.mtu_mode), port_info.max_send_wr, port_info.unicast_qkey, port_info.gid_text);
   }
 
   gidToText(&port_info.gid, port_info.gid_text);
-  sprintf(port_info.socket_data, "%04x:%06x:%06x:%04x:%06x:%s", port_info.lid, port_info.qpn, port_info.psn, port_info.mtu_mode, port_info.unicast_qkey, port_info.gid_text);
+  sprintf(port_info.socket_data, "%04x:%06x:%06x:%04x:%06x:%06x:%s", port_info.lid, port_info.qpn, port_info.psn, port_info.mtu_mode, port_info.max_send_wr, port_info.unicast_qkey, port_info.gid_text);
 
   *port_info_ret = port_info;
 
@@ -323,7 +323,7 @@ static struct ibv_qp *createQueuePair(TakyonPath *path, struct ibv_pd *pd, struc
   if (qp_type == IBV_QPT_UC) {
     qp_access_flags = IBV_ACCESS_REMOTE_WRITE;
   } else if (qp_type == IBV_QPT_RC) {
-    qp_access_flags = IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ;
+    qp_access_flags = IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_ATOMIC;
   }
   struct ibv_qp_attr attrs = { .qp_state        = IBV_QPS_INIT,
                                .pkey_index      = 0,
@@ -349,12 +349,13 @@ static struct ibv_qp *createQueuePair(TakyonPath *path, struct ibv_pd *pd, struc
   return qp;
 }
 
-static bool moveQpStateToRTS(struct ibv_qp *qp, struct ibv_pd *pd, enum ibv_qp_type qp_type, bool is_UD_sender, uint32_t rdma_port_id, PortInfo *local_port_info, PortInfo *remote_port_info, RdmaAppOptions app_options, enum ibv_mtu mtu_mode, char *error_message, int max_error_message_chars, struct ibv_ah **unicast_sender_ah_ret) {
+static bool moveQpStateToRTS(struct ibv_qp *qp, struct ibv_pd *pd, enum ibv_qp_type qp_type, bool is_UD_sender, uint32_t max_send_wr, uint32_t rdma_port_id, PortInfo *local_port_info, PortInfo *remote_port_info, RdmaAppOptions app_options, enum ibv_mtu mtu_mode, char *error_message, int max_error_message_chars, struct ibv_ah **unicast_sender_ah_ret) {
+  //*+*/printf("max_send_wr=%u, remote_port_info->max_send_wr=%u\n", max_send_wr, remote_port_info->max_send_wr);
   struct ibv_qp_attr attrs = { .qp_state    = IBV_QPS_RTR,
                                .path_mtu    = mtu_mode, //*+ how to auto detect where it also accounts for intermediate switch MTUs?
                                .dest_qp_num = remote_port_info->qpn,
                                .rq_psn      = remote_port_info->psn,
-			       .max_dest_rd_atomic = 1, /*+ must be 1 for reads */   // RC only: Number of pending atomic read operations with this endpoint as the destination. If more are posted, they will be stalled
+			       .max_dest_rd_atomic = MY_MAX(1,remote_port_info->max_send_wr/*+ not working as expected yet */), // RC only: Number of pending read or atomic operations with this endpoint as the destination. If more are posted, they will be stalled.
 			       .min_rnr_timer = app_options.min_rnr_timer,  // RC only: Defines index into timeout table. Index is 0 .. 31, 0 = 665 msecs, 1 = 0.01 msecs, 31 = 491 msecs.
                                .ah_attr     = { .is_global     = 0,
                                                 .dlid          = remote_port_info->lid,
@@ -391,9 +392,9 @@ static bool moveQpStateToRTS(struct ibv_qp *qp, struct ibv_pd *pd, enum ibv_qp_t
     if (qp_type == IBV_QPT_RC) {
       // Set additional attrs for RC (reliable connection)
       attrs.timeout       = app_options.retransmit_timeout; // RC Only: Retransmit timeout. Defines index into timeout table. Index is 0 .. 31, 0 = infinite, 1 = 8.192 usecs, 14 = .0671 secs, 31 = 8800 secs
-      attrs.retry_cnt     = app_options.retry_cnt;  // RC Only: Max re-transmits before erroring (without remote NACK). Max is 7
-      attrs.rnr_retry     = app_options.rnr_retry;  // RC Only: Max re-transmits before erroring (with remote NACK). Max is 6, but 7 is infinit
-      attrs.max_rd_atomic = 1; /*+ must be 1 for reads */ // RC Only: Number of pending atomic read operations initiated by this endpoint. If more are posted, they will be stalled
+      attrs.retry_cnt     = app_options.retry_cnt;          // RC Only: Max re-transmits before erroring (without remote NACK). Max is 7
+      attrs.rnr_retry     = app_options.rnr_retry;          // RC Only: Max re-transmits before erroring (with remote NACK). Max is 6, but 7 is infinit
+      attrs.max_rd_atomic = MY_MAX(1,max_send_wr);          // RC Only: Number of pending read or atomic operations initiated by this endpoint. If more are posted, they will be stalled.
     }
     attr_mask = IBV_QP_STATE | IBV_QP_SQ_PSN;
     if (qp_type == IBV_QPT_RC) {
@@ -782,7 +783,7 @@ RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int read_p
   if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) printf("  Create RDMA UC, max_send_wr=%u, max_recv_wr=%u, max_send_sges=%u, max_recv_sges=%u\n", max_send_wr, max_recv_wr, max_send_sges, max_recv_sges);
 
   // Get handle to RDMA device
-  context = getRdmaContextFromNamedDevice(rdma_device_name, error_message, max_error_message_chars);
+  context = getRdmaContextFromNamedDevice(path, rdma_device_name, error_message, max_error_message_chars);
   if (context == NULL) return NULL;
 
   // IMPORTANT: Transfers might be event driven so create the completion channel just in case
@@ -815,7 +816,7 @@ RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int read_p
   if (qp_type == IBV_QPT_UC) {
     access |= IBV_ACCESS_REMOTE_WRITE;
   } else if (qp_type == IBV_QPT_RC) {
-    access |= IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ;
+    access |= IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_ATOMIC;
   }
   for (uint32_t i=0; i<path->attrs.buffer_count; i++) {
     TakyonBuffer *takyon_buffer = &path->attrs.buffers[i];
@@ -845,7 +846,7 @@ RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int read_p
 
   // Get the local endpoint info that will be sent to the remote endpoint
   PortInfo local_port_info;
-  if (!getLocalPortInfo(path, context, qp, rdma_port_id, unicast_local_qkey, app_options.gid_index, &local_port_info, error_message, max_error_message_chars)) goto failed;
+  if (!getLocalPortInfo(path, context, qp, rdma_port_id, max_send_wr, unicast_local_qkey, app_options.gid_index, &local_port_info, error_message, max_error_message_chars)) goto failed;
 
   // Exchange QP and port info with the remote endpoint
   PortInfo remote_port_info;
@@ -870,15 +871,15 @@ RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int read_p
   }
 
   // Parse the remote port info
-  int tokens = sscanf(remote_port_info.socket_data, "%x:%x:%x:%x:%x:%s", &remote_port_info.lid, &remote_port_info.qpn, &remote_port_info.psn, &remote_port_info.mtu_mode, &remote_port_info.unicast_qkey, remote_port_info.gid_text);
-  if (tokens != 6) {
+  int tokens = sscanf(remote_port_info.socket_data, "%x:%x:%x:%x:%x:%x:%s", &remote_port_info.lid, &remote_port_info.qpn, &remote_port_info.psn, &remote_port_info.mtu_mode, &remote_port_info.max_send_wr, &remote_port_info.unicast_qkey, remote_port_info.gid_text);
+  if (tokens != 7) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to parse the remote RDMA port info text\n");
     goto failed;
   }
   textToGid(remote_port_info.gid_text, &remote_port_info.gid);
   if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) {
-    printf("  Remote connection info: LID 0x%04x, QPN 0x%06x, PSN 0x%06x, MTU %s, UnicastQKEY 0x%06x, GID '%s'\n",
-           remote_port_info.lid, remote_port_info.qpn, remote_port_info.psn, mtuModeToText(remote_port_info.mtu_mode), remote_port_info.unicast_qkey, remote_port_info.gid_text);
+    printf("  Remote connection info: LID 0x%04x, QPN 0x%06x, PSN 0x%06x, MTU %s, MaxSendWR %u, UnicastQKEY 0x%06x, GID '%s'\n",
+           remote_port_info.lid, remote_port_info.qpn, remote_port_info.psn, mtuModeToText(remote_port_info.mtu_mode), remote_port_info.max_send_wr, remote_port_info.unicast_qkey, remote_port_info.gid_text);
   }
 
   // Move the QP state to RTS (ready to send)
@@ -896,7 +897,7 @@ RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int read_p
     goto failed;
   }
   if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) printf("  Will use %s between endpoints\n", mtuModeToText(mtu_mode));
-  if (!moveQpStateToRTS(qp, pd, qp_type, is_UD_sender, rdma_port_id, &local_port_info, &remote_port_info, app_options, mtu_mode, error_message, MAX_ERROR_MESSAGE_CHARS, &unicast_sender_ah)) goto failed;
+  if (!moveQpStateToRTS(qp, pd, qp_type, is_UD_sender, max_send_wr, rdma_port_id, &local_port_info, &remote_port_info, app_options, mtu_mode, error_message, MAX_ERROR_MESSAGE_CHARS, &unicast_sender_ah)) goto failed;
   if (qp_type == IBV_QPT_UD) {
     endpoint->unicast_sender_ah = unicast_sender_ah;
     endpoint->unicast_remote_qp_num = remote_port_info.qpn;
@@ -1248,7 +1249,7 @@ static bool waitForCompletion(bool is_send, RdmaEndpoint *endpoint, uint64_t exp
   return true;
 }
 
-bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr_opcode transfer_mode, uint64_t transfer_id, uint32_t sub_buffer_count, TakyonSubBuffer *sub_buffers, struct ibv_sge *sge_list, uint64_t remote_addr, uint32_t rkey, uint32_t piggyback_message, bool use_is_sent_notification, char *error_message, int max_error_message_chars) {
+bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr_opcode transfer_mode, uint64_t transfer_id, uint32_t sub_buffer_count, TakyonSubBuffer *sub_buffers, struct ibv_sge *sge_list, uint64_t remote_addr, uint32_t rkey, uint32_t piggyback_message, bool invoke_fence, bool use_is_sent_notification, char *error_message, int max_error_message_chars) {
   struct ibv_send_wr send_wr;
 
   // Fill in message to be sent
@@ -1259,14 +1260,9 @@ bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr
   send_wr.opcode = transfer_mode;
   if (transfer_mode == IBV_WR_SEND_WITH_IMM) {
     send_wr.imm_data = htonl(piggyback_message);
-#ifdef EXTRA_ERROR_CHECKING
-    if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Posting send: IMM=%u, nSGEs=%d\n", piggyback_message, send_wr.num_sge);
-#endif
-  } else if (transfer_mode == IBV_WR_RDMA_WRITE || transfer_mode == IBV_WR_RDMA_READ) {
-#ifdef EXTRA_ERROR_CHECKING
-    if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Posting %s: nSGEs=%d\n", (transfer_mode == IBV_WR_RDMA_WRITE) ? "write" : "read", send_wr.num_sge);
-#endif
   }
+
+  // SGEs
   uint32_t total_bytes = 0;
   for (uint32_t j=0; j<sub_buffer_count; j++) {
     TakyonSubBuffer *sub_buffer = &sub_buffers[j];
@@ -1288,6 +1284,21 @@ bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr
     }
   }
 
+#ifdef EXTRA_ERROR_CHECKING
+  if (transfer_mode == IBV_WR_SEND_WITH_IMM) {
+    if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Posting send: IMM=%u, nSGEs=%d\n", piggyback_message, send_wr.num_sge);
+  } else if (transfer_mode == IBV_WR_RDMA_WRITE || transfer_mode == IBV_WR_RDMA_READ) {
+    if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Posting %s: nSGEs=%d\n", (transfer_mode == IBV_WR_RDMA_WRITE) ? "write" : "read", send_wr.num_sge);
+  } else if (transfer_mode == IBV_WR_ATOMIC_CMP_AND_SWP) {
+    uint64_t *compare_value_ptr = (uint64_t *)send_wr.sg_list[0].addr;
+    uint64_t *swap_value_ptr = (uint64_t *)send_wr.sg_list[1].addr;
+    if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Posting atomic compare and swap: comapre=%ju, swap=%ju\n", *compare_value_ptr, *swap_value_ptr);
+  } else if (transfer_mode == IBV_WR_ATOMIC_FETCH_AND_ADD) {
+    uint64_t *value_ptr = (uint64_t *)send_wr.sg_list[0].addr;
+    if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Posting atomic fetch and add: value=%ju\n", *value_ptr);
+  }
+#endif
+
   // Protocal specific stuff
   if (endpoint->protocol == RDMA_PROTOCOL_UD_MULTICAST) {
 #ifdef EXTRA_ERROR_CHECKING
@@ -1305,11 +1316,23 @@ bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr
     send_wr.wr.ud.remote_qkey = endpoint->unicast_remote_qkey;
   } else if (endpoint->protocol == RDMA_PROTOCOL_UC || endpoint->protocol == RDMA_PROTOCOL_RC) {
     if (transfer_mode == IBV_WR_RDMA_WRITE || transfer_mode == IBV_WR_RDMA_READ) {
+      // Read, write
 #ifdef EXTRA_ERROR_CHECKING
       if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  RDMA %s: rkey=%u, raddr=0x%jx\n", (transfer_mode == IBV_WR_RDMA_WRITE) ? "write" : "read", rkey, remote_addr);
 #endif
       send_wr.wr.rdma.rkey = rkey;
       send_wr.wr.rdma.remote_addr = remote_addr;
+    } else if (transfer_mode == IBV_WR_ATOMIC_CMP_AND_SWP || transfer_mode == IBV_WR_ATOMIC_FETCH_AND_ADD) {
+      // Atomics
+#ifdef EXTRA_ERROR_CHECKING
+      if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  RDMA %s: rkey=%u, raddr=0x%jx\n", (transfer_mode == IBV_WR_RDMA_WRITE) ? "write" : "read", rkey, remote_addr);
+#endif
+      uint64_t *compare_add_value_ptr = (uint64_t *)send_wr.sg_list[0].addr;
+      uint64_t *swap_value_ptr = (uint64_t *)send_wr.sg_list[1].addr;
+      send_wr.wr.atomic.compare_add = *compare_add_value_ptr;
+      send_wr.wr.atomic.swap = *swap_value_ptr; // Only used if IBV_WR_ATOMIC_CMP_AND_SWP
+      send_wr.wr.atomic.rkey = rkey;
+      send_wr.wr.atomic.remote_addr = remote_addr;
     }
   }
 
@@ -1321,12 +1344,12 @@ bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr
 #endif
     send_wr.send_flags |= IBV_SEND_SIGNALED; // Can only do this for the QP's max number of pending send requests before a signal is needed to avoid overrunning the request buffer
   }
-  /*+ allow Takyon send_request to define if a fence should be used to make sure all previously posted sends are complete before this send request is allowed to start
-    - This is typically done if a read or atomic operation is done (changes local memory) just before sending the results of either of those operations
-    - send_wr.send_flags |= IBV_SEND_FENCE;
-      - This means that the processing of this WR will be blocked until all prior posted RDMA Read and Atomic WRs will be completed. For RC only.
-    The throughput examples and hello-one-side example aparently don't need a fence between the write then read
-  */
+  if (invoke_fence && endpoint->protocol == RDMA_PROTOCOL_RC) {
+    // This won't block submiting the send request, but will eventually block the DMA engine until all preceding transfer are complete
+    // This is typically only needed if a 'read' or 'atomic' operation is done (changes local memory) just before sending the results of either of those two operations
+    // Only supported with RC
+    send_wr.send_flags |= IBV_SEND_FENCE;
+  }
 
   // Start the send transfer
   struct ibv_send_wr *bad_wr;

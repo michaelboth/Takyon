@@ -281,7 +281,7 @@ bool rdmaUDMulticastSend(TakyonPath *path, TakyonSendRequest *request, uint32_t 
   struct ibv_sge *sge_list = rdma_request->sges;
   uint64_t remote_addr = 0;
   uint32_t rkey = 0;
-  if (!rdmaEndpointStartSend(path, endpoint, transfer_mode, transfer_id, request->sub_buffer_count, request->sub_buffers, sge_list, remote_addr, rkey, piggyback_message, request->use_is_sent_notification, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+  if (!rdmaEndpointStartSend(path, endpoint, transfer_mode, transfer_id, request->sub_buffer_count, request->sub_buffers, sge_list, remote_addr, rkey, piggyback_message, request->submit_fence, request->use_is_sent_notification, error_message, MAX_ERROR_MESSAGE_CHARS)) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to start the RDMA send: %s\n", error_message);
     return false;
   }

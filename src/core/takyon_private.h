@@ -55,7 +55,7 @@ typedef struct {
 } TakyonComm;
 
 // Helpful global functionality
-#define TAKYON_RECORD_ERROR(msg_ptr, ...) buildErrorMessage(msg_ptr, __FILE__, __FUNCTION__, __LINE__, __VA_ARGS__)
+#define TAKYON_RECORD_ERROR(msg_ptr, ...) takyonPrivateBuildErrorMessage(msg_ptr, __FILE__, __FUNCTION__, __LINE__, __VA_ARGS__)
 
 #ifdef __cplusplus
 extern "C"
@@ -63,7 +63,8 @@ extern "C"
 #endif
 
 // Error recording
-extern void buildErrorMessage(char *error_message, const char *file, const char *function, int line_number, const char *format, ...);
+extern void takyonPrivateBuildErrorMessage(char *error_message, const char *file, const char *function, int line_number, const char *format, ...);
+extern const char *takyonPrivateOneSidedOpToText(TakyonOneSidedOp op);
 
 #ifdef __cplusplus
 }

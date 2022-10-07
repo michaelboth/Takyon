@@ -397,10 +397,14 @@ static bool doOneSidedTransfer(TakyonPath *path, TakyonPath *remote_path, Takyon
     TakyonBuffer *local_buffer = &path->attrs.buffers[sub_buffer->buffer_index];
     void *local_addr = (void *)((uint64_t)local_buffer->addr + sub_buffer->offset);
     uint64_t bytes = sub_buffer->bytes;
-    if (request->is_write_request) {
+    if (request->operation == TAKYON_OP_WRITE) {
       if (!transferData(remote_addr, local_addr, bytes, path->error_message)) return false;
-    } else {
+    } else if (request->operation == TAKYON_OP_READ) {
       if (!transferData(local_addr, remote_addr, bytes, path->error_message)) return false;
+    } else {
+      /*+ add support for atomics */
+      TAKYON_RECORD_ERROR(path->error_message, "One sided operation '%s' not supported\n", takyonPrivateOneSidedOpToText(request->operation));
+      return false;
     }
     remote_addr = (void *)((uint64_t)remote_addr + bytes);
   }

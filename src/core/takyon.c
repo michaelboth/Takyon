@@ -74,7 +74,7 @@ static void clearErrorMessage(char *error_message) {
   error_message[0] = '\0';
 }
 
-void buildErrorMessage(char *error_message, const char *file, const char *function, int line_number, const char *format, ...) {
+void takyonPrivateBuildErrorMessage(char *error_message, const char *file, const char *function, int line_number, const char *format, ...) {
   // IMPORTANT: make sure this only gets called in one thread and is not called by multiple threads (i.e. callback handlers)
   // NOTE: If comm is inter-thread, each endpoint allocates 'error'message' so no collision between them.
   va_list arg_ptr;
@@ -234,6 +234,16 @@ char *takyonDestroy(TakyonPath *path, double timeout_seconds) {
   return error_message;
 }
 
+const char *takyonPrivateOneSidedOpToText(TakyonOneSidedOp op) {
+  switch (op) {
+  case TAKYON_OP_READ : return "read";
+  case TAKYON_OP_WRITE : return "write";
+  case TAKYON_OP_ATOMIC_COMPARE_AND_SWAP_UINT64 : return "atomic_cas";
+  case TAKYON_OP_ATOMIC_ADD_UINT64 : return "atomic_add";
+  default : return "unknown";
+  }
+}
+
 bool takyonOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double timeout_seconds, bool *timed_out_ret) {
   TakyonComm *comm = (TakyonComm *)path->private;
   clearErrorMessage(path->error_message);
@@ -270,6 +280,19 @@ bool takyonOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double tim
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
+  if (request->operation == TAKYON_OP_ATOMIC_COMPARE_AND_SWAP_UINT64) {
+    if (request->sub_buffer_count != 3 || request->sub_buffers[0].bytes != 4 || request->sub_buffers[1].bytes != 4 || request->sub_buffers[2].bytes != 4) {
+      TAKYON_RECORD_ERROR(path->error_message, "ATOMIC_COMPARE_AND_SWAP_UINT64 requires request->sub_buffer_count == 3, request->sub_buffers[0].bytes == 4, request->sub_buffers[1].bytes == 4, and request->sub_buffers[2].bytes == 4\n");
+      handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
+      return false;
+    }
+  } else if (request->operation == TAKYON_OP_ATOMIC_ADD_UINT64) {
+    if (request->sub_buffer_count != 2 || request->sub_buffers[0].bytes != 4 || request->sub_buffers[1].bytes != 4) {
+      TAKYON_RECORD_ERROR(path->error_message, "ATOMIC_ADD_UINT64 requires request->sub_buffer_count == 2, request->sub_buffers[0].bytes == 4, and request->sub_buffers[1].bytes == 4\n");
+      handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
+      return false;
+    }
+  }
   if (timed_out_ret == NULL && timeout_seconds >= 0) {
     TAKYON_RECORD_ERROR(path->error_message, "If timeout_seconds >= 0 then 'timed_out_ret' must not be NULL.\n");
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
@@ -278,7 +301,7 @@ bool takyonOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double tim
 
   // Verbosity
   if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS) {
-    printf("%-15s (%s:%s) %s message\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider, request->is_write_request ? "Writing" : "Reading");
+    printf("%-15s (%s:%s) %s message\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider, takyonPrivateOneSidedOpToText(request->operation));
   }
 
   // Initiate the send
@@ -322,7 +345,7 @@ bool takyonIsOneSidedDone(TakyonPath *path, TakyonOneSidedRequest *request, doub
 
   // Verbosity
   if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS) {
-    printf("%-15s (%s:%s) Waiting for '%s message' to complete\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider, request->is_write_request ? "write" : "read");
+    printf("%-15s (%s:%s) Waiting for '%s message' to complete\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider, takyonPrivateOneSidedOpToText(request->operation));
   }
 
   // Initiate the send

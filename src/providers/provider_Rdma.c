@@ -686,8 +686,8 @@ bool rdmaOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double timeo
   }
 
   // See if trying to read with UC
-  if (!request->is_write_request && endpoint->protocol == RDMA_PROTOCOL_UC) {
-    TAKYON_RECORD_ERROR(path->error_message, "RDMA UC does not allow reading\n");
+  if (!(request->operation == TAKYON_OP_WRITE) && endpoint->protocol != RDMA_PROTOCOL_RC) {
+    TAKYON_RECORD_ERROR(path->error_message, "RDMA UC does not allow '%s'\n", takyonPrivateOneSidedOpToText(request->operation));
     return false;
   }
 
@@ -749,13 +749,23 @@ bool rdmaOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double timeo
   RdmaSendRequest *rdma_request = &private_path->rdma_send_request_list[private_path->curr_rdma_send_request_index];
   private_path->curr_rdma_send_request_index = (private_path->curr_rdma_send_request_index + 1) % max_pending_send_and_one_sided_requests;
 
+  // Determine the operation
+  enum ibv_wr_opcode transfer_mode;
+  if (request->operation == TAKYON_OP_WRITE) transfer_mode = IBV_WR_RDMA_WRITE;
+  else if (request->operation == TAKYON_OP_READ) transfer_mode = IBV_WR_RDMA_READ;
+  else if (request->operation == TAKYON_OP_ATOMIC_COMPARE_AND_SWAP_UINT64) transfer_mode = IBV_WR_ATOMIC_CMP_AND_SWP;
+  else if (request->operation == TAKYON_OP_ATOMIC_ADD_UINT64) transfer_mode = IBV_WR_ATOMIC_FETCH_AND_ADD;
+  else {
+    TAKYON_RECORD_ERROR(path->error_message, "One sided operation '%s' not supported\n", takyonPrivateOneSidedOpToText(request->operation));
+    return false;
+  }
+
   // Start the 'read/write' RDMA transfer
-  enum ibv_wr_opcode transfer_mode = (request->is_write_request) ? IBV_WR_RDMA_WRITE : IBV_WR_RDMA_READ;
   uint64_t transfer_id = (uint64_t)request;
   struct ibv_sge *sge_list = rdma_request->sges;
   uint32_t piggyback_message = 0;
-  if (!rdmaEndpointStartSend(path, endpoint, transfer_mode, transfer_id, request->sub_buffer_count, request->sub_buffers, sge_list, remote_addr, remote_key, piggyback_message, request->use_is_done_notification, error_message, MAX_ERROR_MESSAGE_CHARS)) {
-    TAKYON_RECORD_ERROR(path->error_message, "Failed to start the RDMA %s: %s\n", request->is_write_request ? "write" : "read", error_message);
+  if (!rdmaEndpointStartSend(path, endpoint, transfer_mode, transfer_id, request->sub_buffer_count, request->sub_buffers, sge_list, remote_addr, remote_key, piggyback_message, request->submit_fence, request->use_is_done_notification, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+    TAKYON_RECORD_ERROR(path->error_message, "Failed to start the RDMA '%s': %s\n", takyonPrivateOneSidedOpToText(request->operation), error_message);
     return false;
   }
 
@@ -775,11 +785,21 @@ bool rdmaIsOneSidedDone(TakyonPath *path, TakyonOneSidedRequest *request, double
     return false;
   }
 
+  // Determine the expected opcode
+  enum ibv_wc_opcode expected_opcode;
+  if (request->operation == TAKYON_OP_WRITE) expected_opcode = IBV_WC_RDMA_WRITE;
+  else if (request->operation == TAKYON_OP_READ) expected_opcode = IBV_WC_RDMA_READ;
+  else if (request->operation == TAKYON_OP_ATOMIC_COMPARE_AND_SWAP_UINT64) expected_opcode = IBV_WC_COMP_SWAP;
+  else if (request->operation == TAKYON_OP_ATOMIC_ADD_UINT64) expected_opcode = IBV_WC_FETCH_ADD;
+  else {
+    TAKYON_RECORD_ERROR(path->error_message, "One sided operation '%s' not supported\n", takyonPrivateOneSidedOpToText(request->operation));
+    return false;
+  }
+
   // See if the RDMA message is sent
   uint64_t expected_transfer_id = (uint64_t)request;
-  enum ibv_wc_opcode expected_opcode = (request->is_write_request) ? IBV_WC_RDMA_WRITE : IBV_WC_RDMA_READ;
   if (!rdmaEndpointIsSent(endpoint, expected_transfer_id, expected_opcode, private_path->read_pipe_fd, request->use_polling_completion, request->usec_sleep_between_poll_attempts, timeout_seconds, timed_out_ret, error_message, MAX_ERROR_MESSAGE_CHARS)) {
-    TAKYON_RECORD_ERROR(path->error_message, "Failed to wait for RDMA %s to complete: %s\n", request->is_write_request ? "write" : "read", error_message);
+    TAKYON_RECORD_ERROR(path->error_message, "Failed to wait for RDMA '%s' to complete: %s\n", takyonPrivateOneSidedOpToText(request->operation), error_message);
     return false;
   }
 
@@ -833,7 +853,7 @@ bool rdmaSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggyback_m
   struct ibv_sge *sge_list = rdma_request->sges;
   uint64_t remote_addr = 0;
   uint32_t remote_key = 0;
-  if (!rdmaEndpointStartSend(path, endpoint, transfer_mode, transfer_id, request->sub_buffer_count, request->sub_buffers, sge_list, remote_addr, remote_key, piggyback_message, request->use_is_sent_notification, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+  if (!rdmaEndpointStartSend(path, endpoint, transfer_mode, transfer_id, request->sub_buffer_count, request->sub_buffers, sge_list, remote_addr, remote_key, piggyback_message, request->submit_fence, request->use_is_sent_notification, error_message, MAX_ERROR_MESSAGE_CHARS)) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to start the RDMA send: %s\n", error_message);
     return false;
   }

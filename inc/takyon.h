@@ -61,7 +61,18 @@ typedef enum {
   TAKYON_RETURN_ON_ERROR = 0xBadBabe  // Takyon will return from the function, and print the error if TAKYON_VERBOSITY_ERRORS is enabled
 } TakyonFailureMode;
 
-// IMPORTANT: The following data structures are only valid for they were created in
+typedef enum {
+  TAKYON_OP_READ,
+  TAKYON_OP_WRITE,
+  TAKYON_OP_ATOMIC_COMPARE_AND_SWAP_UINT64,  // if (remote_value == sub_buffers[0][0]) {
+                                             //   sub_buffers[2][0] = remote_value;
+                                             //   remote_value = sub_buffers[1][0];
+                                             // }
+  TAKYON_OP_ATOMIC_ADD_UINT64,               // {
+                                             //   sub_buffers[1][0] = remote_value;
+                                             //   remote_value += sub_buffers[0][0];
+                                             // }
+} TakyonOneSidedOp;
 
 // App must maintain this memory for life of path
 typedef struct {
@@ -85,13 +96,7 @@ typedef struct {
 
 // App must maintain this structure for the life of the transfer
 typedef struct {
-  /*+ proposed: enum OneSidedMethod:
-    write: write contents of sub buffers to contiguous remote location
-    read:  read contiguous remote location into sub buffers
-    atomic_compare_and_swap_uint64: if (remote_value == sub_buffers[0][0]) { sub_buffers[2][0] = remote_value; remote_value = sub_buffers[1][0] }
-    atomic_add_uint64: { sub_buffers[1][0] = remote_value; remote_value += sub_buffers[0][0] }
-  */
-  bool is_write_request;                     // True: is one sided write. False: is one sided read. Either way, the remote CPU is not involved in the transfer
+  TakyonOneSidedOp operation;
   // Local memory info
   uint32_t sub_buffer_count;                 // Some comms will support > 1 (e.g. a mix of CUDA and CPU memory blocks)
   TakyonSubBuffer *sub_buffers;              // Local memory
@@ -99,7 +104,8 @@ typedef struct {
   uint32_t remote_buffer_index;              // Index into the remote buffer list
   uint64_t remote_offset;                    // Offset in bytes into the buffer addr
   // Completion fields
-  //*+*/bool invoke_fence;                   // Wait for all preceding transfers (send, read, write, atomics) to complete before starting this transfer
+  bool submit_fence;                         // Puts a barrier between the new request and preceding transfers (send, read, write, atomics) to force them to complete before the new transfer starts. Only relevant for non-blocking providers
+                                             // This is typically only needed if a 'read' or 'atomic' operation is done (changes local memory) just before sending the results of either of those two operations
   bool use_is_done_notification;             // If true and takyonIsOneSidedDone() is supported, then must call takyonIsOneSidedDone()
   bool use_polling_completion;               // True: use CPU polling to detect transfer completion. False: use event driven (allows CPU to sleep) to passively detect completion.
   uint32_t usec_sleep_between_poll_attempts; // Use to avoid burning up CPU when polling
@@ -115,7 +121,8 @@ typedef struct {
   uint32_t sub_buffer_count;                 // Some comms will support > 1 (e.g. a mix of CUDA and CPU memory blocks)
   TakyonSubBuffer *sub_buffers;
   // Completion fields
-  //*+*/bool invoke_fence;                   // Wait for all preceding transfers (send, read, write, atomics) to complete before starting this transfer
+  bool submit_fence;                         // Puts a barrier between the new request and preceding transfers (send, read, write, atomics) to force them to complete before the new transfer starts. Only relevant for non-blocking providers
+                                             // This is typically only needed if a 'read' or 'atomic' operation is done (changes local memory) just before sending the results of either of those two operations
   bool use_is_sent_notification;             // If true and takyonIsSent() is supported, then must call takyonIsSent()
   bool use_polling_completion;               // True: use CPU polling to detect transfer completion. False: use event driven (allows CPU to sleep) to passively detect completion.
   uint32_t usec_sleep_between_poll_attempts; // Use to avoid burning up CPU when polling

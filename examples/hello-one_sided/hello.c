@@ -58,11 +58,12 @@ static void writeMessage(TakyonPath *path, uint64_t message_bytes, uint32_t mess
   TakyonSubBuffer sub_buffer = { .buffer_index = 0, .bytes = message_bytes, .offset = 0 };
 
   // STEP 2: Setup the Takyon write request
-  TakyonOneSidedRequest write_request = { .is_write_request = true,
+  TakyonOneSidedRequest write_request = { .operation = TAKYON_OP_WRITE,
                                           .sub_buffer_count = 1,
                                           .sub_buffers = &sub_buffer,
                                           .remote_buffer_index = 0, // This is not the same buffer as the local buffer at index 0
                                           .remote_offset = 0,
+                                          .submit_fence = false,
                                           .use_is_done_notification = true,
                                           .use_polling_completion = false,
                                           .usec_sleep_between_poll_attempts = 0 };
@@ -83,11 +84,12 @@ static void *readMessage(TakyonPath *path) {
   TakyonSubBuffer sub_buffer = { .buffer_index = 1, .bytes = MAX_MESSAGE_BYTES, .offset = 0 };
 
   // STEP 2: Setup the Takyon read request
-  TakyonOneSidedRequest read_request = { .is_write_request = false,
+  TakyonOneSidedRequest read_request = { .operation = TAKYON_OP_READ,
                                          .sub_buffer_count = 1,
                                          .sub_buffers = &sub_buffer,
                                          .remote_buffer_index = 0,
                                          .remote_offset = 0,
+                                         .submit_fence = false,
                                          .use_is_done_notification = true,
                                          .use_polling_completion = false,
                                          .usec_sleep_between_poll_attempts = 0 };

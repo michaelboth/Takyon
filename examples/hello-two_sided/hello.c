@@ -89,6 +89,7 @@ static void sendMessage(TakyonPath *path, uint64_t message_bytes, uint32_t messa
   // STEP 2: Setup the Takyon send request
   TakyonSendRequest send_request = { .sub_buffer_count = path->capabilities.multi_sub_buffers_supported ? 2 : 1,
                                      .sub_buffers = sender_sub_buffers,
+                                     .submit_fence = false,
                                      .use_is_sent_notification = true,
 				     .use_polling_completion = false,
                                      .usec_sleep_between_poll_attempts = 0 };
