@@ -85,6 +85,12 @@ typedef struct {
 
 // App must maintain this structure for the life of the transfer
 typedef struct {
+  /*+ proposed: enum OneSidedMethod:
+    write: write contents of sub buffers to contiguous remote location
+    read:  read contiguous remote location into sub buffers
+    atomic_compare_and_swap_uint64: if (remote_value == sub_buffers[0][0]) { sub_buffers[2][0] = remote_value; remote_value = sub_buffers[1][0] }
+    atomic_add_uint64: { sub_buffers[1][0] = remote_value; remote_value += sub_buffers[0][0] }
+  */
   bool is_write_request;                     // True: is one sided write. False: is one sided read. Either way, the remote CPU is not involved in the transfer
   // Local memory info
   uint32_t sub_buffer_count;                 // Some comms will support > 1 (e.g. a mix of CUDA and CPU memory blocks)
@@ -92,9 +98,9 @@ typedef struct {
   // Remote memory info
   uint32_t remote_buffer_index;              // Index into the remote buffer list
   uint64_t remote_offset;                    // Offset in bytes into the buffer addr
-  // Non blocking options
-  bool use_is_done_notification;             // If true and takyonIsOneSidedDone() is supported, then must call takyonIsOneSidedDone()
   // Completion fields
+  //*+*/bool invoke_fence;                   // Wait for all preceding transfers (send, read, write, atomics) to complete before starting this transfer
+  bool use_is_done_notification;             // If true and takyonIsOneSidedDone() is supported, then must call takyonIsOneSidedDone()
   bool use_polling_completion;               // True: use CPU polling to detect transfer completion. False: use event driven (allows CPU to sleep) to passively detect completion.
   uint32_t usec_sleep_between_poll_attempts; // Use to avoid burning up CPU when polling
   // Helpful for application dependent data
@@ -108,9 +114,9 @@ typedef struct {
   // Transfer info fields
   uint32_t sub_buffer_count;                 // Some comms will support > 1 (e.g. a mix of CUDA and CPU memory blocks)
   TakyonSubBuffer *sub_buffers;
-  // Non blocking options
-  bool use_is_sent_notification;             // If true and takyonIsSent() is supported, then must call takyonIsSent()
   // Completion fields
+  //*+*/bool invoke_fence;                   // Wait for all preceding transfers (send, read, write, atomics) to complete before starting this transfer
+  bool use_is_sent_notification;             // If true and takyonIsSent() is supported, then must call takyonIsSent()
   bool use_polling_completion;               // True: use CPU polling to detect transfer completion. False: use event driven (allows CPU to sleep) to passively detect completion.
   uint32_t usec_sleep_between_poll_attempts; // Use to avoid burning up CPU when polling
   // Helpful for application dependent data
@@ -181,25 +187,25 @@ extern "C"
 #endif
 
 // Create/destroy a communication endpoint
-// If this returns non NULL, it contains the error message, and it needs to be freed by the application.
-// If takyonPostRecv() is not supported, then post_recv_count and recv_requests will be ignored
+//   If this returns non NULL, it contains the error message, and it needs to be freed by the application.
+//   If takyonPostRecv() is not supported, then post_recv_count and recv_requests will be ignored
 extern char *takyonCreate(TakyonPathAttributes *attrs, uint32_t post_recv_count, TakyonRecvRequest *recv_requests, double timeout_seconds, TakyonPath **path_out);
 extern char *takyonDestroy(TakyonPath *path, double timeout_seconds);
 
-// Write message: one way send (i.e. push data to the remote endpoint), no involvement from the remote endpoint
-//   A --> (B not involved)
-//   B --> (A not involved)
-// Read message: one way recv (i.e. pulling the data from the remote endpoint), no involvement from the remote endpoint
-//   A <-- (B not involved)
-//   B <-- (A not involved)
+// ONE-SIDED TRANSFERS
+//   Write message: one way send (i.e. push data to the remote endpoint), no involvement from the remote endpoint
+//     A --> (B not involved)
+//     B --> (A not involved)
+//   Read message: one way recv (i.e. pulling the data from the remote endpoint), no involvement from the remote endpoint
+//     A <-- (B not involved)
+//     B <-- (A not involved)
 extern bool takyonOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double timeout_seconds, bool *timed_out_ret);
 extern bool takyonIsOneSidedDone(TakyonPath *path, TakyonOneSidedRequest *request, double timeout_seconds, bool *timed_out_ret);
 
-// Send a message (both endpoints are involved in the transfer)
-// A --> B
-// A <-- B
-// Messages sent are received on the order the receives were posted
-// 'piggyback_message' must be 0 if 'features->piggyback_message_supported' is false
+// TWO-SIDED TRANSFERS
+//   Send a message (both endpoints are involved in the transfer)
+//     A (send) --> B (recv)
+//     A (recv) <-- B (send)
 extern bool takyonSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggyback_message, double timeout_seconds, bool *timed_out_ret);
 extern bool takyonIsSent(TakyonPath *path, TakyonSendRequest *request, double timeout_seconds, bool *timed_out_ret);
 extern bool takyonPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvRequest *requests);

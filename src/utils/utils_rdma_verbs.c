@@ -57,8 +57,8 @@
       uint32_t	rkey;
     } atomic;
   .opcode:
-    - IBV_WR_ATOMIC_FETCH_AND_ADD: one-side operation: remote_addr += compare_add. Remote value before the add is store in SGEs
-    - IBV_WR_ATOMIC_CMP_AND_SWP: one-side operation: if (remote_addr == compare_add) { remote_addr = swap }. Remote value before the add is store in SGEs
+    - IBV_WR_ATOMIC_FETCH_AND_ADD: one-side operation: remote_addr += compare_add. Remote value before the add is stored in SGE
+    - IBV_WR_ATOMIC_CMP_AND_SWP: one-side operation: if (remote_addr == compare_add) { remote_addr = swap }. Remote value before the add is stored in SGE
 */
 
 #define PORT_INFO_TEXT_BYTES 100
