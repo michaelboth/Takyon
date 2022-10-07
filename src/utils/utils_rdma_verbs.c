@@ -44,6 +44,23 @@
       - BUG: RDMA UC will stop receiving messages (posted recvs are never producing WCs), even if less than MTU size, if the sender is sending faster than the receiver can consume them. This does not occur with RDMA UD.
 */
 
+/*+ Atomics:
+  Atomic Operations execute a 64-bit operation at a specified address on a remote node. The operations atomically read, modify and write the destination address and guarantee that operations on this address by other QPs on the same CA do not occur between the Read and Write.
+  ibv_reg_mr: access =| IBV_ACCESS_REMOTE_ATOMIC
+  ibv_query_device: pci_atomic_caps:     IBV_ATOMIC_NONE, IBV_ATOMIC_HCA, IBV_ATOMIC_GLOB
+     Need to see if device support atomics: ibv_device_attr.atomic_cap
+  send_wr.wr:
+    struct {
+      uint64_t	remote_addr;  // Make sure 8 byte aligned
+      uint64_t	compare_add;
+      uint64_t	swap;
+      uint32_t	rkey;
+    } atomic;
+  .opcode:
+    - IBV_WR_ATOMIC_FETCH_AND_ADD: one-side operation: remote_addr += compare_add. Remote value before the add is store in SGEs
+    - IBV_WR_ATOMIC_CMP_AND_SWP: one-side operation: if (remote_addr == compare_add) { remote_addr = swap }. Remote value before the add is store in SGEs
+*/
+
 #define PORT_INFO_TEXT_BYTES 100
 
 typedef struct  {
@@ -337,7 +354,7 @@ static bool moveQpStateToRTS(struct ibv_qp *qp, struct ibv_pd *pd, enum ibv_qp_t
                                .path_mtu    = mtu_mode, //*+ how to auto detect where it also accounts for intermediate switch MTUs?
                                .dest_qp_num = remote_port_info->qpn,
                                .rq_psn      = remote_port_info->psn,
-			       .max_dest_rd_atomic = 1, /*+ must be 1 for reads */   // RC only: Number of pending atomic read operations with this endpoint as the destination
+			       .max_dest_rd_atomic = 1, /*+ must be 1 for reads */   // RC only: Number of pending atomic read operations with this endpoint as the destination. If more are posted, they will be stalled
 			       .min_rnr_timer = app_options.min_rnr_timer,  // RC only: Defines index into timeout table. Index is 0 .. 31, 0 = 665 msecs, 1 = 0.01 msecs, 31 = 491 msecs.
                                .ah_attr     = { .is_global     = 0,
                                                 .dlid          = remote_port_info->lid,
@@ -376,7 +393,7 @@ static bool moveQpStateToRTS(struct ibv_qp *qp, struct ibv_pd *pd, enum ibv_qp_t
       attrs.timeout       = app_options.retransmit_timeout; // RC Only: Retransmit timeout. Defines index into timeout table. Index is 0 .. 31, 0 = infinite, 1 = 8.192 usecs, 14 = .0671 secs, 31 = 8800 secs
       attrs.retry_cnt     = app_options.retry_cnt;  // RC Only: Max re-transmits before erroring (without remote NACK). Max is 7
       attrs.rnr_retry     = app_options.rnr_retry;  // RC Only: Max re-transmits before erroring (with remote NACK). Max is 6, but 7 is infinit
-      attrs.max_rd_atomic = 1; /*+ must be 1 for reads */ // RC Only: Number of pending atomic read operations initiated by this endpoint
+      attrs.max_rd_atomic = 1; /*+ must be 1 for reads */ // RC Only: Number of pending atomic read operations initiated by this endpoint. If more are posted, they will be stalled
     }
     attr_mask = IBV_QP_STATE | IBV_QP_SQ_PSN;
     if (qp_type == IBV_QPT_RC) {
@@ -1304,6 +1321,12 @@ bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr
 #endif
     send_wr.send_flags |= IBV_SEND_SIGNALED; // Can only do this for the QP's max number of pending send requests before a signal is needed to avoid overrunning the request buffer
   }
+  /*+ allow Takyon send_request to define if a fence should be used to make sure all previously posted sends are complete before this send request is allowed to start
+    - This is typically done if a read or atomic operation is done (changes local memory) just before sending the results of either of those operations
+    - send_wr.send_flags |= IBV_SEND_FENCE;
+      - This means that the processing of this WR will be blocked until all prior posted RDMA Read and Atomic WRs will be completed. For RC only.
+    The throughput examples and hello-one-side example aparently don't need a fence between the write then read
+  */
 
   // Start the send transfer
   struct ibv_send_wr *bad_wr;
