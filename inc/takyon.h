@@ -166,12 +166,15 @@ typedef struct {
 
 typedef struct {
   // Functions
-  bool OneSided_supported;
-  bool IsOneSidedDone_supported;
-  bool Send_supported;
-  bool IsSent_supported;
-  bool PostRecvs_supported;
-  bool IsRecved_supported;
+  bool OneSided_function_supported;       // May only include a subset of read, write, atomic compare and swap, atomic add
+  bool one_sided_write_supported;
+  bool one_sided_read_supported;
+  bool one_sided_atomics_supported;
+  bool IsOneSidedDone_function_supported; // Only supported when interconnect is non blocking (does not involve the CPU)
+  bool Send_function_supported;
+  bool IsSent_function_supported;         // Only supported when interconnect is non blocking (does not involve the CPU)
+  bool PostRecvs_function_supported;      // Can be supported for blocking and non blocking interconnects, but not for stream interconnects (e.g. sockets)
+  bool IsRecved_function_supported;
   // Extra features
   bool is_unreliable;                  // Sent messages may be quietly dropped, arrive out of order, or be duplicated
   bool piggyback_messages_supported;   // True if comm allows sending a 32bit message piggy backed on the primary message
@@ -200,16 +203,28 @@ extern char *takyonCreate(TakyonPathAttributes *attrs, uint32_t post_recv_count,
 extern char *takyonDestroy(TakyonPath *path, double timeout_seconds);
 
 // ONE-SIDED TRANSFERS
+// -------------------
 //   Write message: one way send (i.e. push data to the remote endpoint), no involvement from the remote endpoint
 //     A --> (B not involved)
 //     B --> (A not involved)
 //   Read message: one way recv (i.e. pulling the data from the remote endpoint), no involvement from the remote endpoint
 //     A <-- (B not involved)
 //     B <-- (A not involved)
+//   Atomic compare and swap uint64:
+//     if (remote_value == local_compare_value) {
+//       sub_buffers[2][0] = sub_buffers[0][0];
+//       remote_value = sub_buffers[1][0];
+//     }
+//   Atomic add uint64:
+//     {
+//       sub_buffers[1][0] = remote_value;
+//       remote_value += sub_buffers[0][0];
+//     }
 extern bool takyonOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double timeout_seconds, bool *timed_out_ret);
 extern bool takyonIsOneSidedDone(TakyonPath *path, TakyonOneSidedRequest *request, double timeout_seconds, bool *timed_out_ret);
 
 // TWO-SIDED TRANSFERS
+// -------------------
 //   Send a message (both endpoints are involved in the transfer)
 //     A (send) --> B (recv)
 //     A (recv) <-- B (send)

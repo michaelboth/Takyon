@@ -88,22 +88,22 @@ if [ "$socket" == "yes" ]; then
     if [ "$endpoint" == "A" ]; then
         sleep 1
         echo ""
-        ./hello_mp $endpoint "SocketUdpSend -unicast -remoteIP=$remote_ip -port=23458" 10
+        ./hello_mp $endpoint "SocketUdpSend -unicast -remoteIP=$remote_ip -port=23458" 50
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     else
         echo ""
-        ./hello_mp $endpoint "SocketUdpRecv -unicast -localIP=$local_ip -port=23458 -reuse" 10
+        ./hello_mp $endpoint "SocketUdpRecv -unicast -localIP=$local_ip -port=23458 -reuse" 50
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     fi
     if [ "$multicast" == "yes" ]; then
         if [ "$endpoint" == "A" ]; then
             sleep 1
             echo ""
-            ./hello_mp $endpoint "SocketUdpSend -multicast -localIP=$local_ip -groupIP=233.23.33.56 -port=23459" 10
+            ./hello_mp $endpoint "SocketUdpSend -multicast -localIP=$local_ip -groupIP=233.23.33.56 -port=23459" 50
             if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         else
             echo ""
-            ./hello_mp $endpoint "SocketUdpRecv -multicast -localIP=$local_ip -groupIP=233.23.33.56 -port=23459 -reuse" 10
+            ./hello_mp $endpoint "SocketUdpRecv -multicast -localIP=$local_ip -groupIP=233.23.33.56 -port=23459 -reuse" 50
             if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         fi
     fi
@@ -138,7 +138,7 @@ if [ "$rdma" == "yes" ]; then
         ./hello_mp $endpoint "RdmaUC -server -localIP=$local_ip -port=23458 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1" 0
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
-        ./hello_mp $endpoint "RdmaUC -server -localIP=$local_ip -port=23459 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1" 25
+        ./hello_mp $endpoint "RdmaUC -server -localIP=$local_ip -port=23459 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1" 50
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     fi
 
@@ -154,7 +154,7 @@ if [ "$rdma" == "yes" ]; then
         ./hello_mp $endpoint "RdmaUDUnicastRecv -server -localIP=$local_ip -port=23456 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1" 0
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
-        ./hello_mp $endpoint "RdmaUDUnicastRecv -server -localIP=$local_ip -port=23457 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1" 25
+        ./hello_mp $endpoint "RdmaUDUnicastRecv -server -localIP=$local_ip -port=23457 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1" 50
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     fi
 
@@ -166,7 +166,7 @@ if [ "$rdma" == "yes" ]; then
             if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         else
             echo ""
-            ./hello_mp $endpoint "RdmaUDMulticastRecv -localIP=$local_ip -groupIP=233.23.33.57" 25
+            ./hello_mp $endpoint "RdmaUDMulticastRecv -localIP=$local_ip -groupIP=233.23.33.57" 50
             if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         fi
     fi

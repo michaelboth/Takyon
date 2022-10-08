@@ -31,7 +31,7 @@
 
 #define NUM_TAKYON_BUFFERS 3
 #define MAX_MESSAGE_BYTES 100
-#define MESSAGE_SPLIT_BYTES 10
+#define MESSAGE_SPLIT_BYTES 7
 #define FIRST_RECV_TIMEOUT_SECONDS 5.0    // Wait longer regardless if the connection is reliable or unreliable
 #define ACTIVE_RECV_TIMEOUT_SECONDS 0.25  // After the first message is received, don't want to sit around waiting if the connection is unreliable
 
@@ -39,20 +39,23 @@ static uint64_t buildMultiBufferMessage(TakyonPath *path, uint32_t message_index
   // STEP 1: Get addresses for the multi-buffer message
   char *message_addr1 = (char *)path->attrs.buffers[0].addr;
   char *message_addr2 = (char *)path->attrs.buffers[1].addr; // Won't be used if Provider doesn't support multi-buffers
+  const char *endpoint_text = path->attrs.is_endpointA ? "A" : "B";
+  int num_sub_buffers = path->capabilities.multi_sub_buffers_supported ? 2 : 1;
+  const char *sub_buffer_text = path->capabilities.multi_sub_buffers_supported ? "sub buffers" : "sub buffer";
 
   // STEP 2: Fill in the message data (the entire greeting) in the first Takyon buffer
 #ifdef ENABLE_CUDA
   // Cuda memory: first put in temporary CPU memory, then copy to CUDA
   char message_addr_cpu[MAX_MESSAGE_BYTES];
-  snprintf(message_addr_cpu, MAX_MESSAGE_BYTES, "--- Iteration %u: Hello from %s (CUDA, %d %s) ---", message_index+1, path->attrs.is_endpointA ? "A" : "B",
-           path->capabilities.multi_sub_buffers_supported ? 2 : 1, path->capabilities.multi_sub_buffers_supported ? "sub buffers" : "sub buffer");
+  snprintf(message_addr_cpu, MAX_MESSAGE_BYTES, "Hello %u from %s", message_index+1, endpoint_text);
+  printf("  %s (CUDA, %d %s) sending:  \"%s\"\n", endpoint_text, num_sub_buffers, sub_buffer_text, message_addr_cpu);
   uint64_t message_bytes = strlen(message_addr_cpu) + 1;
   cudaError_t cuda_status = cudaMemcpy(message_addr1, message_addr_cpu, message_bytes, cudaMemcpyDefault);
   if (cuda_status != cudaSuccess) { printf("cudaMemcpy() failed: %s\n", cudaGetErrorString(cuda_status)); exit(EXIT_FAILURE); }
 #else
   // CPU memory
-  snprintf(message_addr1, MAX_MESSAGE_BYTES, "--- Iteration %u: Hello from %s (CPU, %d %s) ---", message_index+1, path->attrs.is_endpointA ? "A" : "B",
-           path->capabilities.multi_sub_buffers_supported ? 2 : 1, path->capabilities.multi_sub_buffers_supported ? "sub buffers" : "sub buffer");
+  snprintf(message_addr1, MAX_MESSAGE_BYTES, "Hello %u from %s", message_index+1, endpoint_text);
+  printf("  %s (CPU, %d %s) sending:  \"%s\"\n", endpoint_text, num_sub_buffers, sub_buffer_text, message_addr1);
   uint64_t message_bytes = strlen(message_addr1) + 1;
 #endif
 
@@ -95,14 +98,11 @@ static void sendMessage(TakyonPath *path, uint64_t message_bytes, uint32_t messa
                                      .usec_sleep_between_poll_attempts = 0 };
 
   // STEP 3: Start the Takyon send
-  uint32_t piggyback_message = (path->capabilities.piggyback_messages_supported) ? message_index : 0;
+  uint32_t piggyback_message = (path->capabilities.piggyback_messages_supported) ? message_index+1 : 0;
   takyonSend(path, &send_request, piggyback_message, TAKYON_WAIT_FOREVER, NULL);
-  if (path->capabilities.is_unreliable) {
-    printf("Message %d sent (%d %s, " UINT64_FORMAT " bytes)\n", message_index+1, path->capabilities.multi_sub_buffers_supported ? 2 : 1, path->capabilities.multi_sub_buffers_supported ? "sub buffers" : "sub buffer", message_bytes);
-  }
 
   // STEP 4: If the Takyon Provider supports non-blocking sends, then need to know when it's complete
-  if (path->capabilities.IsSent_supported && send_request.use_is_sent_notification) {
+  if (path->capabilities.IsSent_function_supported && send_request.use_is_sent_notification) {
     takyonIsSent(path, &send_request, TAKYON_WAIT_FOREVER, NULL);
   }
 }
@@ -138,22 +138,22 @@ static void processSingleBufferMessage(TakyonPath *path, TakyonRecvRequest *recv
   cudaError_t cuda_status = cudaMemcpy(message_addr_cpu, message_addr, bytes_received, cudaMemcpyDefault);
   if (cuda_status != cudaSuccess) { printf("cudaMemcpy() failed: %s\n", cudaGetErrorString(cuda_status)); exit(EXIT_FAILURE); }
   if (path->capabilities.piggyback_messages_supported) {
-    printf("%s (CUDA): Got message '%s', bytes=" UINT64_FORMAT ", piggyback_message=%u\n", path->attrs.is_endpointA ? "A" : "B", message_addr_cpu, bytes_received, piggyback_message);
+    printf("  %s (CUDA,  1 sub buffer) received: \"%s\", bytes=" UINT64_FORMAT ", piggyback_message=%u\n", path->attrs.is_endpointA ? "A" : "B", message_addr_cpu, bytes_received, piggyback_message);
   } else {
-    printf("%s (CUDA): Got message '%s', bytes=" UINT64_FORMAT ", piggyback_message=NOT SUPPORTED\n", path->attrs.is_endpointA ? "A" : "B", message_addr_cpu, bytes_received);
+    printf("  %s (CUDA,  1 sub buffer) received: \"%s\", bytes=" UINT64_FORMAT ", piggyback_message=NOT SUPPORTED\n", path->attrs.is_endpointA ? "A" : "B", message_addr_cpu, bytes_received);
   }
 #else
   // CPU memory
   if (path->capabilities.piggyback_messages_supported) {
-    printf("%s (CPU): Got message '%s', bytes=" UINT64_FORMAT ", piggyback_message=%u\n", path->attrs.is_endpointA ? "A" : "B", message_addr, bytes_received, piggyback_message);
+    printf("  %s (CPU,  1 sub buffer) received: \"%s\", bytes=" UINT64_FORMAT ", piggyback_message=%u\n", path->attrs.is_endpointA ? "A" : "B", message_addr, bytes_received, piggyback_message);
   } else {
-    printf("%s (CPU): Got message '%s', bytes=" UINT64_FORMAT ", piggyback_message=NOT SUPPORTED\n", path->attrs.is_endpointA ? "A" : "B", message_addr, bytes_received);
+    printf(  "%s (CPU,  1 sub buffer) received: \"%s\", bytes=" UINT64_FORMAT ", piggyback_message=NOT SUPPORTED\n", path->attrs.is_endpointA ? "A" : "B", message_addr, bytes_received);
   }
 #endif
 }
 
 void hello(const bool is_endpointA, const char *provider, const uint32_t iterations) {
-  printf("Hello Takyon Example (two-sided): endpoint %s: provider '%s'\n", is_endpointA ? "A" : "B", provider);
+  printf("Hello Takyon Example (two-sided, iterations=%u): endpoint %s: provider '%s'\n", iterations, is_endpointA ? "A" : "B", provider);
 
   // Create the memory buffers used with transfering data
   //   - The first 2 are for the sender, and the 3rd is for the receiver
@@ -172,7 +172,7 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
       // Since this memory will transfer asynchronously via GPUDirect, need to mark the memory to be synchronous when accessing it after being received
       unsigned int flag = 1;
       CUresult cuda_result = cuPointerSetAttribute(&flag, CU_POINTER_ATTRIBUTE_SYNC_MEMOPS, (CUdeviceptr)buffer->addr);
-      if (cuda_result != CUDA_SUCCESS) { printf("cuPointerSetAttribute() cuda_result: %d\n", cuda_result); exit(EXIT_FAILURE); }
+      if (cuda_result != CUDA_SUCCESS) { printf("cuPointerSetAttribute() failed: return_code=%d\n", cuda_result); exit(EXIT_FAILURE); }
     }
 #endif
 #else
@@ -234,7 +234,7 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
         bool ok = recvMessage(path, &recv_request, ACTIVE_RECV_TIMEOUT_SECONDS, &bytes_received, &piggyback_message);
         if (!ok) break; // Probably dropped packets and sender is done
         processSingleBufferMessage(path, &recv_request, is_rdma_UD, bytes_received, piggyback_message);
-        if (path->capabilities.PostRecvs_supported) { takyonPostRecvs(path, 1, &recv_request); }
+        if (path->capabilities.PostRecvs_function_supported) { takyonPostRecvs(path, 1, &recv_request); }
       }
 
     } else {
@@ -245,7 +245,7 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
       bool ok = recvMessage(path, &recv_request, timeout, &bytes_received, &piggyback_message);
       if (!ok) break; // Probably dropped packets and sender is done
       processSingleBufferMessage(path, &recv_request, is_rdma_UD, bytes_received, piggyback_message);
-      if (path->capabilities.PostRecvs_supported) { takyonPostRecvs(path, 1, &recv_request); }
+      if (path->capabilities.PostRecvs_function_supported) { takyonPostRecvs(path, 1, &recv_request); }
 
       if (!path->capabilities.is_unreliable) {
         // Prepare the message and send it

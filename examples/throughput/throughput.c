@@ -104,7 +104,7 @@ static void sendMessage(TakyonPath *path, const uint64_t message_bytes, uint64_t
   takyonSend(path, &send_request, piggyback_message, TAKYON_WAIT_FOREVER, NULL);
 
   // If the provider supports non blocking sends, then need to know when it's complete
-  if (path->capabilities.IsSent_supported && send_request.use_is_sent_notification) takyonIsSent(path, &send_request, TAKYON_WAIT_FOREVER, NULL);
+  if (path->capabilities.IsSent_function_supported && send_request.use_is_sent_notification) takyonIsSent(path, &send_request, TAKYON_WAIT_FOREVER, NULL);
 }
 
 static bool recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, const uint32_t message_index, uint32_t iterations, uint32_t messages_received, uint64_t *bytes_received_out, uint32_t *piggyback_message_out) {
@@ -153,7 +153,7 @@ static void writeMessage(TakyonPath *path, const uint64_t message_bytes, const u
   takyonOneSided(path, &request, TAKYON_WAIT_FOREVER, NULL);
 
   // If the provider supports non blocking sends, then need to know when it's complete
-  if (path->capabilities.IsOneSidedDone_supported && request.use_is_done_notification) takyonIsOneSidedDone(path, &request, TAKYON_WAIT_FOREVER, NULL);
+  if (path->capabilities.IsOneSidedDone_function_supported && request.use_is_done_notification) takyonIsOneSidedDone(path, &request, TAKYON_WAIT_FOREVER, NULL);
 }
 
 static void readMessage(TakyonPath *path, const uint64_t message_bytes, const uint64_t message_offset, const bool use_polling_completion, const bool use_is_done_notification) {
@@ -173,7 +173,7 @@ static void readMessage(TakyonPath *path, const uint64_t message_bytes, const ui
   takyonOneSided(path, &request, TAKYON_WAIT_FOREVER, NULL);
 
   // If the provider supports non blocking sends, then need to know when it's complete
-  if (path->capabilities.IsOneSidedDone_supported && request.use_is_done_notification) takyonIsOneSidedDone(path, &request, TAKYON_WAIT_FOREVER, NULL);
+  if (path->capabilities.IsOneSidedDone_function_supported && request.use_is_done_notification) takyonIsOneSidedDone(path, &request, TAKYON_WAIT_FOREVER, NULL);
 }
 
 static void sendSignal(TakyonPath *path, const bool use_polling_completion) {
@@ -190,7 +190,7 @@ static void sendSignal(TakyonPath *path, const bool use_polling_completion) {
   takyonSend(path, &send_request, piggyback_message, TAKYON_WAIT_FOREVER, NULL);
 
   // If the provider supports non blocking sends, then need to know when it's complete
-  if (path->capabilities.IsSent_supported && send_request.use_is_sent_notification) takyonIsSent(path, &send_request, TAKYON_WAIT_FOREVER, NULL);
+  if (path->capabilities.IsSent_function_supported && send_request.use_is_sent_notification) takyonIsSent(path, &send_request, TAKYON_WAIT_FOREVER, NULL);
 }
 
 static bool recvSignal(TakyonPath *path, TakyonRecvRequest *recv_request) {
@@ -205,7 +205,7 @@ static bool recvSignal(TakyonPath *path, TakyonRecvRequest *recv_request) {
   if (bytes_received != 0) { printf("\nExpected a zero-byte message, but got " UINT64_FORMAT " bytes.\n", bytes_received); exit(EXIT_FAILURE); }
 
   // If the provider supports pre-posting, then need to post the recv to be ready for the next send, before the send starts
-  if (path->capabilities.PostRecvs_supported) takyonPostRecvs(path, 1, recv_request);
+  if (path->capabilities.PostRecvs_function_supported) takyonPostRecvs(path, 1, recv_request);
 
   return true;
 }
@@ -337,7 +337,7 @@ static void twoSidedThroughput(const bool is_endpointA, const char *provider, co
 	// IMPORTANT: Posting half at a time allows for data to continue arriving (in the old posted recvs) while new recvs are being posted
 	TakyonRecvRequest *half_recv_requests = post_first_half ? recv_requests : &recv_requests[half_recv_buffer_count];
 	post_first_half = !post_first_half;
-        if (path->capabilities.PostRecvs_supported) takyonPostRecvs(path, half_recv_buffer_count, half_recv_requests);
+        if (path->capabilities.PostRecvs_function_supported) takyonPostRecvs(path, half_recv_buffer_count, half_recv_requests);
         // Let the send know the recvs are posted, but if the provider is unreliable then no needed since dropped messages are allowed
         if (!path->capabilities.is_unreliable) sendSignal(path, use_polling_completion);
       }

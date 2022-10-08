@@ -41,7 +41,7 @@ if %mmap% == yes (
   if ERRORLEVEL 1 ( echo "Failed to run hello-two_sided" & GOTO:done )
   hello_mp %endpoint% "InterProcessUC -pathID=2" 1
   if ERRORLEVEL 1 ( echo "Failed to run hello-two_sided" & GOTO:done )
-  hello_mp %endpoint% "InterProcessUC -pathID=3" 10
+  hello_mp %endpoint% "InterProcessUC -pathID=3" 50
   if ERRORLEVEL 1 ( echo "Failed to run hello-two_sided" & GOTO:done )
 )
 if %socket% == yes (
@@ -78,21 +78,21 @@ if %socket% == yes (
   if %endpoint% == A (
     rem sleep 1
     CHOICE /N /C YN /T 1 /D Y >NUL
-    hello_mp %endpoint% "SocketUdpSend -unicast -remoteIP=127.0.0.1 -port=23456" 10
+    hello_mp %endpoint% "SocketUdpSend -unicast -remoteIP=127.0.0.1 -port=23456" 50
     if ERRORLEVEL 1 ( echo "Failed to run hello-two_sided" & GOTO:done )
   )
   if %endpoint% == B (
-    hello_mp %endpoint% "SocketUdpRecv -unicast -localIP=127.0.0.1 -port=23456 -reuse" 10
+    hello_mp %endpoint% "SocketUdpRecv -unicast -localIP=127.0.0.1 -port=23456 -reuse" 50
     if ERRORLEVEL 1 ( echo "Failed to run hello-two_sided" & GOTO:done )
   )
   if %endpoint% == A (
     rem sleep 1
     CHOICE /N /C YN /T 1 /D Y >NUL
-    hello_mp %endpoint% "SocketUdpSend -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23456" 10
+    hello_mp %endpoint% "SocketUdpSend -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23456" 50
     if ERRORLEVEL 1 ( echo "Failed to run hello-two_sided" & GOTO:done )
   )
   if %endpoint% == B (
-    hello_mp %endpoint% "SocketUdpRecv -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23456 -reuse" 10
+    hello_mp %endpoint% "SocketUdpRecv -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23456 -reuse" 50
     if ERRORLEVEL 1 ( echo "Failed to run hello-two_sided" & GOTO:done )
   )
 )

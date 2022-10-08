@@ -60,7 +60,7 @@ if [ "$mmap" == "yes" ]; then
     ./hello_mp $endpoint "InterProcessUC -pathID=2" 1
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     echo ""
-    ./hello_mp $endpoint "InterProcessUC -pathID=3" 10
+    ./hello_mp $endpoint "InterProcessUC -pathID=3" 50
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
 fi
 if [ "$socket" == "yes" ]; then
@@ -105,21 +105,21 @@ if [ "$socket" == "yes" ]; then
     if [ "$endpoint" == "A" ]; then
         sleep 1
         echo ""
-        ./hello_mp $endpoint "SocketUdpSend -unicast -remoteIP=127.0.0.1 -port=23456" 10
+        ./hello_mp $endpoint "SocketUdpSend -unicast -remoteIP=127.0.0.1 -port=23456" 50
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     else
         echo ""
-        ./hello_mp $endpoint "SocketUdpRecv -unicast -localIP=127.0.0.1 -port=23456 -reuse" 10
+        ./hello_mp $endpoint "SocketUdpRecv -unicast -localIP=127.0.0.1 -port=23456 -reuse" 50
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     fi
     if [ "$endpoint" == "A" ]; then
         sleep 1
         echo ""
-        ./hello_mp $endpoint "SocketUdpSend -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23456" 10
+        ./hello_mp $endpoint "SocketUdpSend -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23456" 50
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     else
         echo ""
-        ./hello_mp $endpoint "SocketUdpRecv -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23456 -reuse" 10
+        ./hello_mp $endpoint "SocketUdpRecv -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23456 -reuse" 50
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     fi
 fi
