@@ -16,8 +16,8 @@ Linux & Mac
       A> ./runInterProcessor.bash A 192.168.0.210 192.168.0.211 socket multicast ephemeral rdma
       B> ./runInterProcessor.bash B 192.168.0.210 192.168.0.211 socket multicast ephemeral rdma
     If using CUDA:
-      A> ./runInterProcessor.bash A 192.168.0.210 192.168.0.211 rdma
-      B> ./runInterProcessor.bash B 192.168.0.210 192.168.0.211 rdma
+      A> ./runInterProcessor.bash A 192.168.0.210 192.168.0.211 rdma multicast
+      B> ./runInterProcessor.bash B 192.168.0.210 192.168.0.211 rdma multicast
   Clean
     > ./buildExamples.bash clean
 

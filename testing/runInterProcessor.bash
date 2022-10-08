@@ -350,29 +350,29 @@ if [ "$rdma" == "yes" ]; then
 
     if [ "$endpoint" == "A" ]; then
         echo ""
-        ./throughput_mp $endpoint "RdmaRC -client -remoteIP=$remote_ip -port=23456 -rdmaDevice=mlx5_0 -rdmaPort=1" -i=100000 -bytes=40960 -sbufs=10 -dbufs=100 -V -write
+        ./throughput_mp $endpoint "RdmaRC -client -remoteIP=$remote_ip -port=23456 -rdmaDevice=mlx5_0 -rdmaPort=1" -i=100000 -bytes=40960 -sbufs=10 -dbufs=10 -V -write
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
-        ./throughput_mp $endpoint "RdmaRC -client -remoteIP=$remote_ip -port=23457 -rdmaDevice=mlx5_0 -rdmaPort=1" -i=100000 -bytes=40960 -sbufs=10 -dbufs=100 -write
+        ./throughput_mp $endpoint "RdmaRC -client -remoteIP=$remote_ip -port=23457 -rdmaDevice=mlx5_0 -rdmaPort=1" -i=100000 -bytes=40960 -sbufs=10 -dbufs=10 -write
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
-        ./throughput_mp $endpoint "RdmaRC -client -remoteIP=$remote_ip -port=23458 -rdmaDevice=mlx5_0 -rdmaPort=1" -i=100000 -bytes=40960 -sbufs=10 -dbufs=100 -V -e -write
+        ./throughput_mp $endpoint "RdmaRC -client -remoteIP=$remote_ip -port=23458 -rdmaDevice=mlx5_0 -rdmaPort=1" -i=100000 -bytes=40960 -sbufs=10 -dbufs=10 -V -e -write
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
-        ./throughput_mp $endpoint "RdmaRC -client -remoteIP=$remote_ip -port=23458 -rdmaDevice=mlx5_0 -rdmaPort=1" -i=100000 -bytes=40960 -sbufs=10 -dbufs=100 -e -write
+        ./throughput_mp $endpoint "RdmaRC -client -remoteIP=$remote_ip -port=23458 -rdmaDevice=mlx5_0 -rdmaPort=1" -i=100000 -bytes=40960 -sbufs=10 -dbufs=10 -e -write
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     else
         echo ""
-        ./throughput_mp $endpoint "RdmaRC -server -localIP=$local_ip -port=23456 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1" -i=100000 -bytes=40960 -dbufs=100 -V -write
+        ./throughput_mp $endpoint "RdmaRC -server -localIP=$local_ip -port=23456 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1" -i=100000 -bytes=40960 -dbufs=10 -V -write
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
-        ./throughput_mp $endpoint "RdmaRC -server -localIP=$local_ip -port=23457 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1" -i=100000 -bytes=40960 -dbufs=100 -write
+        ./throughput_mp $endpoint "RdmaRC -server -localIP=$local_ip -port=23457 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1" -i=100000 -bytes=40960 -dbufs=10 -write
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
-        ./throughput_mp $endpoint "RdmaRC -server -localIP=$local_ip -port=23458 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1" -i=100000 -bytes=40960 -dbufs=100 -V -e -write
+        ./throughput_mp $endpoint "RdmaRC -server -localIP=$local_ip -port=23458 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1" -i=100000 -bytes=40960 -dbufs=10 -V -e -write
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
-        ./throughput_mp $endpoint "RdmaRC -server -localIP=$local_ip -port=23458 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1" -i=100000 -bytes=40960 -dbufs=100 -e -write
+        ./throughput_mp $endpoint "RdmaRC -server -localIP=$local_ip -port=23458 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1" -i=100000 -bytes=40960 -dbufs=10 -e -write
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     fi
 
