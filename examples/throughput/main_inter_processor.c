@@ -28,15 +28,15 @@ static bool L_two_sided = true;
 static bool L_validate = false;
 
 static void printUsageAndExit(const char *program) {
-  printf("usage: %s <A|B> \"<provider>\" [-h] [-n=<uint32>] [-b=<uint64>] [-s=<uint32>] [-r=<uint32>] [-e] [-o] [-v]\n", program);
-  printf("   -h          : Print this message and exit\n");
-  printf("   -n=<uint32> : Number of messages to send. Default is %u\n", L_iterations);
-  printf("   -b=<uint64> : Bytes per message. Can use 0 if two-sided and supported by provider. Default is " UINT64_FORMAT "\n", L_message_bytes);
-  printf("   -s=<uint32> : Send/read/write message buffer count. Default is %u\n", L_send_buffer_count);
-  printf("   -r=<uint32> : Recv message buffer count (only for two-sided transfers). Default is %u\n", L_recv_buffer_count);
-  printf("   -e          : Event driven completion notification. Default is polling\n");
-  printf("   -o          : Switch to one-sided (endpoint B not involved in transfers). Default is '%s'\n", L_two_sided ? "two-sided" : "one-sided");
-  printf("   -v          : Validate the messages. Default is '%s'\n", L_validate ? "yes" : "no");
+  printf("usage: %s <A|B> \"<provider>\" [-h] [-i=<uint32>] [-bytes=<uint64>] [-sbufs=<uint32>] [-dbufs=<uint32>] [-e] [-write] [-V]\n", program);
+  printf("   -h              : Print this message and exit\n");
+  printf("   -i=<uint32>     : Number of messages to send. Default is %u\n", L_iterations);
+  printf("   -bytes=<uint64> : Bytes per message. Can use 0 if two-sided and supported by provider. Default is " UINT64_FORMAT "\n", L_message_bytes);
+  printf("   -sbufs=<uint32> : Source message buffer count. Default is %u\n", L_send_buffer_count);
+  printf("   -dbufs=<uint32> : Recv message buffer count (only for two-sided transfers). Default is %u\n", L_recv_buffer_count);
+  printf("   -e              : Event driven completion notification. Default is polling\n");
+  printf("   -write          : Switch to one-sided (endpoint B not involved in transfers). Default is '%s'\n", L_two_sided ? "two-sided" : "one-sided");
+  printf("   -V              : Validate the messages. Default is '%s'\n", L_validate ? "yes" : "no");
   exit(EXIT_FAILURE);
 }
 
@@ -52,25 +52,25 @@ int main(int argc, char **argv) {
   for (int i=3; i<argc; i++) {
     if (strcmp(argv[i], "-e") == 0) {
       L_use_polling_completion = false;
-    } else if (strcmp(argv[i], "-v") == 0) {
+    } else if (strcmp(argv[i], "-V") == 0) {
       L_validate = true;
-    } else if (strcmp(argv[i], "-o") == 0) {
+    } else if (strcmp(argv[i], "-write") == 0) {
       L_two_sided = false;
-    } else if (strncmp(argv[i], "-n=", 3) == 0) {
-      int tokens = sscanf(argv[i], "-n=%u", &L_iterations);
-      if (tokens != 1) { printf("Arg -n='%s' is invalid.\n", argv[i]); printUsageAndExit(argv[0]); }
-      if (L_iterations == 0) { printf("Arg -n='%s' must be greater than zero.\n", argv[i]); printUsageAndExit(argv[0]); }
-    } else if (strncmp(argv[i], "-s=", 3) == 0) {
-      int tokens = sscanf(argv[i], "-s=%u", &L_send_buffer_count);
-      if (tokens != 1) { printf("Arg -s='%s' is invalid.\n", argv[i]); printUsageAndExit(argv[0]); }
-      if (L_send_buffer_count == 0) { printf("Arg -s='%s' must be greater than zero.\n", argv[i]); printUsageAndExit(argv[0]); }
-    } else if (strncmp(argv[i], "-r=", 3) == 0) {
-      int tokens = sscanf(argv[i], "-r=%u", &L_recv_buffer_count);
-      if (tokens != 1) { printf("Arg -r='%s' is invalid.\n", argv[i]); printUsageAndExit(argv[0]); }
-      if (L_recv_buffer_count == 0) { printf("Arg -r='%s' must be greater than zero.\n", argv[i]); printUsageAndExit(argv[0]); }
-    } else if (strncmp(argv[i], "-b=", 3) == 0) {
-      int tokens = sscanf(argv[i], "-b=" UINT64_FORMAT, &L_message_bytes);
-      if (tokens != 1) { printf("Arg -b='%s' is invalid.\n", argv[i]); printUsageAndExit(argv[0]); }
+    } else if (strncmp(argv[i], "-i=", 3) == 0) {
+      int tokens = sscanf(argv[i], "-i=%u", &L_iterations);
+      if (tokens != 1) { printf("Arg -i='%s' is invalid.\n", argv[i]); printUsageAndExit(argv[0]); }
+      if (L_iterations == 0) { printf("Arg -i='%s' must be greater than zero.\n", argv[i]); printUsageAndExit(argv[0]); }
+    } else if (strncmp(argv[i], "-sbufs=", 3) == 0) {
+      int tokens = sscanf(argv[i], "-sbufs=%u", &L_send_buffer_count);
+      if (tokens != 1) { printf("Arg -sbufs='%s' is invalid.\n", argv[i]); printUsageAndExit(argv[0]); }
+      if (L_send_buffer_count == 0) { printf("Arg -sbufs='%s' must be greater than zero.\n", argv[i]); printUsageAndExit(argv[0]); }
+    } else if (strncmp(argv[i], "-dbufs=", 3) == 0) {
+      int tokens = sscanf(argv[i], "-dbufs=%u", &L_recv_buffer_count);
+      if (tokens != 1) { printf("Arg -dbufs='%s' is invalid.\n", argv[i]); printUsageAndExit(argv[0]); }
+      if (L_recv_buffer_count == 0) { printf("Arg -dbufs='%s' must be greater than zero.\n", argv[i]); printUsageAndExit(argv[0]); }
+    } else if (strncmp(argv[i], "-bytes=", 3) == 0) {
+      int tokens = sscanf(argv[i], "-bytes=" UINT64_FORMAT, &L_message_bytes);
+      if (tokens != 1) { printf("Arg -bytes='%s' is invalid.\n", argv[i]); printUsageAndExit(argv[0]); }
     } else {
       printUsageAndExit(argv[0]);
     }

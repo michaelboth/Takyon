@@ -142,96 +142,96 @@ fi
 toFolder ../throughput
 if [ "$mmap" == "yes" ]; then
     echo ""
-    ./throughput_mp $endpoint "InterProcessRC -pathID=1" -n=100000 -b=32768 -v
+    ./throughput_mp $endpoint "InterProcessRC -pathID=1" -i=100000 -bytes=32768 -V
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     echo ""
-    ./throughput_mp $endpoint "InterProcessRC -pathID=2" -n=100000 -b=32768 -v -e
+    ./throughput_mp $endpoint "InterProcessRC -pathID=2" -i=100000 -bytes=32768 -V -e
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     echo ""
-    ./throughput_mp $endpoint "InterProcessRC -pathID=3" -n=100000 -b=32768
+    ./throughput_mp $endpoint "InterProcessRC -pathID=3" -i=100000 -bytes=32768
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     echo ""
-    ./throughput_mp $endpoint "InterProcessRC -pathID=4" -n=100000 -b=32768 -e
+    ./throughput_mp $endpoint "InterProcessRC -pathID=4" -i=100000 -bytes=32768 -e
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     echo ""
-    ./throughput_mp $endpoint "InterProcessRC -pathID=1" -n=100000 -b=32768 -v -o
+    ./throughput_mp $endpoint "InterProcessRC -pathID=1" -i=100000 -bytes=32768 -V -write
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     echo ""
-    ./throughput_mp $endpoint "InterProcessRC -pathID=2" -n=100000 -b=32768 -v -o -e
+    ./throughput_mp $endpoint "InterProcessRC -pathID=2" -i=100000 -bytes=32768 -V -write -e
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     echo ""
-    ./throughput_mp $endpoint "InterProcessRC -pathID=3" -n=100000 -b=32768 -o
+    ./throughput_mp $endpoint "InterProcessRC -pathID=3" -i=100000 -bytes=32768 -write
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     echo ""
-    ./throughput_mp $endpoint "InterProcessRC -pathID=4" -n=100000 -b=32768 -o -e
+    ./throughput_mp $endpoint "InterProcessRC -pathID=4" -i=100000 -bytes=32768 -write -e
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     echo ""
-    ./throughput_mp $endpoint "InterProcessUC -pathID=1" -n=100000 -b=32768 -v
+    ./throughput_mp $endpoint "InterProcessUC -pathID=1" -i=100000 -bytes=32768 -V
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     echo ""
-    ./throughput_mp $endpoint "InterProcessUC -pathID=2" -n=100000 -b=32768 -v -e
+    ./throughput_mp $endpoint "InterProcessUC -pathID=2" -i=100000 -bytes=32768 -V -e
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     echo ""
-    ./throughput_mp $endpoint "InterProcessUC -pathID=3" -n=100000 -b=32768
+    ./throughput_mp $endpoint "InterProcessUC -pathID=3" -i=100000 -bytes=32768
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     echo ""
-    ./throughput_mp $endpoint "InterProcessUC -pathID=4" -n=100000 -b=32768 -e
+    ./throughput_mp $endpoint "InterProcessUC -pathID=4" -i=100000 -bytes=32768 -e
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
 fi
 
 if [ "$socket" == "yes" ]; then
     echo ""
-    ./throughput_mp $endpoint "SocketTcp -local -pathID=1" -n=100000 -b=1024 -v
+    ./throughput_mp $endpoint "SocketTcp -local -pathID=1" -i=100000 -bytes=1024 -V
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     echo ""
-    ./throughput_mp $endpoint "SocketTcp -local -pathID=2" -n=100000 -b=1024
+    ./throughput_mp $endpoint "SocketTcp -local -pathID=2" -i=100000 -bytes=1024
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     echo ""
-    ./throughput_mp $endpoint "SocketTcp -local -pathID=2" -n=100000 -b=1024 -e
+    ./throughput_mp $endpoint "SocketTcp -local -pathID=2" -i=100000 -bytes=1024 -e
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
 
     if [ "$endpoint" == "A" ]; then
         echo ""
-        ./throughput_mp $endpoint "SocketTcp -client -remoteIP=127.0.0.1 -port=23456" -n=100000 -b=1024 -v
+        ./throughput_mp $endpoint "SocketTcp -client -remoteIP=127.0.0.1 -port=23456" -i=100000 -bytes=1024 -V
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
-        ./throughput_mp $endpoint "SocketTcp -client -remoteIP=127.0.0.1 -port=23457" -n=100000 -b=1024
+        ./throughput_mp $endpoint "SocketTcp -client -remoteIP=127.0.0.1 -port=23457" -i=100000 -bytes=1024
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
-        ./throughput_mp $endpoint "SocketTcp -client -remoteIP=127.0.0.1 -port=23457" -n=100000 -b=1024 -e
+        ./throughput_mp $endpoint "SocketTcp -client -remoteIP=127.0.0.1 -port=23457" -i=100000 -bytes=1024 -e
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     else
         echo ""
-        ./throughput_mp $endpoint "SocketTcp -server -localIP=127.0.0.1 -port=23456 -reuse" -n=100000 -b=1024 -v
+        ./throughput_mp $endpoint "SocketTcp -server -localIP=127.0.0.1 -port=23456 -reuse" -i=100000 -bytes=1024 -V
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
-        ./throughput_mp $endpoint "SocketTcp -server -localIP=127.0.0.1 -port=23457 -reuse" -n=100000 -b=1024
+        ./throughput_mp $endpoint "SocketTcp -server -localIP=127.0.0.1 -port=23457 -reuse" -i=100000 -bytes=1024
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
-        ./throughput_mp $endpoint "SocketTcp -server -localIP=127.0.0.1 -port=23457 -reuse" -n=100000 -b=1024 -e
+        ./throughput_mp $endpoint "SocketTcp -server -localIP=127.0.0.1 -port=23457 -reuse" -i=100000 -bytes=1024 -e
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     fi
 
     if [ "$ephemeral" == "yes" ]; then
         if [ "$endpoint" == "A" ]; then
             echo ""
-            ./throughput_mp $endpoint "SocketTcp -client -remoteIP=127.0.0.1 -ephemeralID=1" -n=100000 -b=1024 -v
+            ./throughput_mp $endpoint "SocketTcp -client -remoteIP=127.0.0.1 -ephemeralID=1" -i=100000 -bytes=1024 -V
             if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
             echo ""
-            ./throughput_mp $endpoint "SocketTcp -client -remoteIP=127.0.0.1 -ephemeralID=1" -n=100000 -b=1024
+            ./throughput_mp $endpoint "SocketTcp -client -remoteIP=127.0.0.1 -ephemeralID=1" -i=100000 -bytes=1024
             if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
             echo ""
-            ./throughput_mp $endpoint "SocketTcp -client -remoteIP=127.0.0.1 -ephemeralID=1" -n=100000 -b=1024 -e
+            ./throughput_mp $endpoint "SocketTcp -client -remoteIP=127.0.0.1 -ephemeralID=1" -i=100000 -bytes=1024 -e
             if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         else
             echo ""
-            ./throughput_mp $endpoint "SocketTcp -server -localIP=127.0.0.1 -ephemeralID=1" -n=100000 -b=1024 -v
+            ./throughput_mp $endpoint "SocketTcp -server -localIP=127.0.0.1 -ephemeralID=1" -i=100000 -bytes=1024 -V
             if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
             echo ""
-            ./throughput_mp $endpoint "SocketTcp -server -localIP=127.0.0.1 -ephemeralID=1" -n=100000 -b=1024
+            ./throughput_mp $endpoint "SocketTcp -server -localIP=127.0.0.1 -ephemeralID=1" -i=100000 -bytes=1024
             if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
             echo ""
-            ./throughput_mp $endpoint "SocketTcp -server -localIP=127.0.0.1 -ephemeralID=1" -n=100000 -b=1024 -e
+            ./throughput_mp $endpoint "SocketTcp -server -localIP=127.0.0.1 -ephemeralID=1" -i=100000 -bytes=1024 -e
             if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         fi
     fi
@@ -239,50 +239,50 @@ if [ "$socket" == "yes" ]; then
     if [ "$endpoint" == "A" ]; then
         sleep 1
         echo ""
-        ./throughput_mp $endpoint "SocketUdpSend -unicast -remoteIP=127.0.0.1 -port=23456" -n=100000 -b=1024 -v
+        ./throughput_mp $endpoint "SocketUdpSend -unicast -remoteIP=127.0.0.1 -port=23456" -i=100000 -bytes=1024 -V
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         sleep 1
         echo ""
-        ./throughput_mp $endpoint "SocketUdpSend -unicast -remoteIP=127.0.0.1 -port=23456" -n=100000 -b=1024
+        ./throughput_mp $endpoint "SocketUdpSend -unicast -remoteIP=127.0.0.1 -port=23456" -i=100000 -bytes=1024
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         sleep 1
         echo ""
-        ./throughput_mp $endpoint "SocketUdpSend -unicast -remoteIP=127.0.0.1 -port=23456" -n=100000 -b=1024 -e
+        ./throughput_mp $endpoint "SocketUdpSend -unicast -remoteIP=127.0.0.1 -port=23456" -i=100000 -bytes=1024 -e
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     else
         echo ""
-        ./throughput_mp $endpoint "SocketUdpRecv -unicast -localIP=127.0.0.1 -port=23456 -reuse" -n=100000 -b=1024 -v
+        ./throughput_mp $endpoint "SocketUdpRecv -unicast -localIP=127.0.0.1 -port=23456 -reuse" -i=100000 -bytes=1024 -V
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
-        ./throughput_mp $endpoint "SocketUdpRecv -unicast -localIP=127.0.0.1 -port=23456 -reuse" -n=100000 -b=1024
+        ./throughput_mp $endpoint "SocketUdpRecv -unicast -localIP=127.0.0.1 -port=23456 -reuse" -i=100000 -bytes=1024
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
-        ./throughput_mp $endpoint "SocketUdpRecv -unicast -localIP=127.0.0.1 -port=23456 -reuse" -n=100000 -b=1024 -e
+        ./throughput_mp $endpoint "SocketUdpRecv -unicast -localIP=127.0.0.1 -port=23456 -reuse" -i=100000 -bytes=1024 -e
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     fi
 
     if [ "$endpoint" == "A" ]; then
         sleep 1
         echo ""
-        ./throughput_mp $endpoint "SocketUdpSend -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23457" -n=100000 -b=1024 -v
+        ./throughput_mp $endpoint "SocketUdpSend -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23457" -i=100000 -bytes=1024 -V
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         sleep 1
         echo ""
-        ./throughput_mp $endpoint "SocketUdpSend -multicast -localIP=127.0.0.1 -groupIP=233.23.33.57 -port=23457" -n=100000 -b=1024
+        ./throughput_mp $endpoint "SocketUdpSend -multicast -localIP=127.0.0.1 -groupIP=233.23.33.57 -port=23457" -i=100000 -bytes=1024
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         sleep 1
         echo ""
-        ./throughput_mp $endpoint "SocketUdpSend -multicast -localIP=127.0.0.1 -groupIP=233.23.33.58 -port=23457" -n=100000 -b=1024 -e
+        ./throughput_mp $endpoint "SocketUdpSend -multicast -localIP=127.0.0.1 -groupIP=233.23.33.58 -port=23457" -i=100000 -bytes=1024 -e
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     else
         echo ""
-        ./throughput_mp $endpoint "SocketUdpRecv -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23457 -reuse" -n=100000 -b=1024 -v
+        ./throughput_mp $endpoint "SocketUdpRecv -multicast -localIP=127.0.0.1 -groupIP=233.23.33.56 -port=23457 -reuse" -i=100000 -bytes=1024 -V
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
-        ./throughput_mp $endpoint "SocketUdpRecv -multicast -localIP=127.0.0.1 -groupIP=233.23.33.57 -port=23457 -reuse" -n=100000 -b=1024
+        ./throughput_mp $endpoint "SocketUdpRecv -multicast -localIP=127.0.0.1 -groupIP=233.23.33.57 -port=23457 -reuse" -i=100000 -bytes=1024
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
         echo ""
-        ./throughput_mp $endpoint "SocketUdpRecv -multicast -localIP=127.0.0.1 -groupIP=233.23.33.58 -port=23457 -reuse" -n=100000 -b=1024 -e
+        ./throughput_mp $endpoint "SocketUdpRecv -multicast -localIP=127.0.0.1 -groupIP=233.23.33.58 -port=23457 -reuse" -i=100000 -bytes=1024 -e
         if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     fi
 fi

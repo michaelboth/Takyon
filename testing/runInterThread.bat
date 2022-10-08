@@ -32,32 +32,32 @@ if ERRORLEVEL 1 ( echo "Failed to run hello-one_sided" & GOTO:done )
 rem throughput
 cd ..\throughput
 if ERRORLEVEL 1 ( echo "Failed to cd ..\examples\throughput" & GOTO:done )
-throughput_mt "InterThreadRC -pathID=1" -b=32768 -v
+throughput_mt "InterThreadRC -pathID=1" -bytes=32768 -V
 if ERRORLEVEL 1 ( echo "Failed to run throughput_mt" & GOTO:done )
-throughput_mt "InterThreadRC -pathID=1" -b=32768
+throughput_mt "InterThreadRC -pathID=1" -bytes=32768
 if ERRORLEVEL 1 ( echo "Failed to run throughput_mt" & GOTO:done )
-throughput_mt "InterThreadRC -pathID=1" -b=32768 -v -o
+throughput_mt "InterThreadRC -pathID=1" -bytes=32768 -V -write
 if ERRORLEVEL 1 ( echo "Failed to run throughput_mt" & GOTO:done )
-throughput_mt "InterThreadRC -pathID=1" -b=32768 -o
-if ERRORLEVEL 1 ( echo "Failed to run throughput_mt" & GOTO:done )
-
-throughput_mt "InterThreadRC -pathID=1" -b=32768 -v -e
-if ERRORLEVEL 1 ( echo "Failed to run throughput_mt" & GOTO:done )
-throughput_mt "InterThreadRC -pathID=1" -b=32768 -e
-if ERRORLEVEL 1 ( echo "Failed to run throughput_mt" & GOTO:done )
-throughput_mt "InterThreadRC -pathID=1" -b=32768 -v -o -e
-if ERRORLEVEL 1 ( echo "Failed to run throughput_mt" & GOTO:done )
-throughput_mt "InterThreadRC -pathID=1" -b=32768 -o -e
+throughput_mt "InterThreadRC -pathID=1" -bytes=32768 -write
 if ERRORLEVEL 1 ( echo "Failed to run throughput_mt" & GOTO:done )
 
-throughput_mt "InterThreadUC -pathID=1" -b=32768 -v
+throughput_mt "InterThreadRC -pathID=1" -bytes=32768 -V -e
 if ERRORLEVEL 1 ( echo "Failed to run throughput_mt" & GOTO:done )
-throughput_mt "InterThreadUC -pathID=1" -b=32768
+throughput_mt "InterThreadRC -pathID=1" -bytes=32768 -e
+if ERRORLEVEL 1 ( echo "Failed to run throughput_mt" & GOTO:done )
+throughput_mt "InterThreadRC -pathID=1" -bytes=32768 -V -write -e
+if ERRORLEVEL 1 ( echo "Failed to run throughput_mt" & GOTO:done )
+throughput_mt "InterThreadRC -pathID=1" -bytes=32768 -write -e
 if ERRORLEVEL 1 ( echo "Failed to run throughput_mt" & GOTO:done )
 
-throughput_mt "InterThreadUC -pathID=1" -b=32768 -v -e
+throughput_mt "InterThreadUC -pathID=1" -bytes=32768 -i=100000 -V
 if ERRORLEVEL 1 ( echo "Failed to run throughput_mt" & GOTO:done )
-throughput_mt "InterThreadUC -pathID=1" -b=32768 -e
+throughput_mt "InterThreadUC -pathID=1" -bytes=32768
+if ERRORLEVEL 1 ( echo "Failed to run throughput_mt" & GOTO:done )
+
+throughput_mt "InterThreadUC -pathID=1" -bytes=32768 -i=100000 -V -e
+if ERRORLEVEL 1 ( echo "Failed to run throughput_mt" & GOTO:done )
+throughput_mt "InterThreadUC -pathID=1" -bytes=32768 -e
 if ERRORLEVEL 1 ( echo "Failed to run throughput_mt" & GOTO:done )
 
 GOTO:done

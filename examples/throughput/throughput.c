@@ -136,7 +136,7 @@ static bool recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, const
   return true;
 }
 
-static void writeMessage(TakyonPath *path, const uint64_t message_bytes, const uint64_t message_offset, const bool use_polling_completion, const bool use_is_done_notification) {
+static void writeMessage(TakyonPath *path, const uint64_t message_bytes, const uint64_t message_offset, const bool use_polling_completion) {
   // Setup the one-sided write request
   TakyonSubBuffer sub_buffer = { .buffer_index = 0, .bytes = message_bytes, .offset = message_offset };
   TakyonOneSidedRequest request = { .operation = TAKYON_OP_WRITE,
@@ -145,7 +145,7 @@ static void writeMessage(TakyonPath *path, const uint64_t message_bytes, const u
                                     .remote_buffer_index = 0,
                                     .remote_offset = message_offset,
                                     .submit_fence = false,
-                                    .use_is_done_notification = use_is_done_notification,
+                                    .use_is_done_notification = false,
                                     .use_polling_completion = use_polling_completion,
                                     .usec_sleep_between_poll_attempts = 0 };
 
@@ -156,6 +156,7 @@ static void writeMessage(TakyonPath *path, const uint64_t message_bytes, const u
   if (path->capabilities.IsOneSidedDone_function_supported && request.use_is_done_notification) takyonIsOneSidedDone(path, &request, TAKYON_WAIT_FOREVER, NULL);
 }
 
+/*+ use this with 'read' throughput test
 static void readMessage(TakyonPath *path, const uint64_t message_bytes, const uint64_t message_offset, const bool use_polling_completion, const bool use_is_done_notification) {
   // Setup the one-sided write request
   TakyonSubBuffer sub_buffer = { .buffer_index = 0, .bytes = message_bytes, .offset = path->attrs.max_pending_one_sided_requests * message_bytes + message_offset };
@@ -175,6 +176,7 @@ static void readMessage(TakyonPath *path, const uint64_t message_bytes, const ui
   // If the provider supports non blocking sends, then need to know when it's complete
   if (path->capabilities.IsOneSidedDone_function_supported && request.use_is_done_notification) takyonIsOneSidedDone(path, &request, TAKYON_WAIT_FOREVER, NULL);
 }
+*/
 
 static void sendSignal(TakyonPath *path, const bool use_polling_completion) {
   // Setup the send request
@@ -368,6 +370,7 @@ static void twoSidedThroughput(const bool is_endpointA, const char *provider, co
       last_print_time = curr_time;
     }
     if (elapsed_time >= 3.0) {
+      // Reset stats
       start_time = curr_time;
       bytes_transferred = 0;
     }
@@ -384,8 +387,9 @@ static void twoSidedThroughput(const bool is_endpointA, const char *provider, co
   }
 }
 
-static void oneSidedThroughput(const bool is_endpointA, const char *provider, const uint32_t iterations, const uint64_t message_bytes, const uint32_t send_buffer_count, const bool use_polling_completion, const bool validate, TakyonBuffer *buffer) {
+static void oneSidedThroughput(const bool is_endpointA, const char *provider, const uint32_t iterations, const uint64_t message_bytes, const uint32_t send_buffer_count, const uint32_t recv_buffer_count, const bool use_polling_completion, const bool validate, const bool is_multi_threaded, TakyonBuffer *buffer) {
   if (message_bytes == 0) { printf("Message bytes can't be zero for one-sided transfers\n"); exit(EXIT_FAILURE); }
+  if (send_buffer_count != recv_buffer_count) { printf("For one-sided transfers, -r=<n> and -s=<n> must be the same\n"); exit(EXIT_FAILURE); }
 
   // Define the path attributes
   //   - Can't be changed after path creation
@@ -395,78 +399,99 @@ static void oneSidedThroughput(const bool is_endpointA, const char *provider, co
   attrs.failure_mode                          = TAKYON_EXIT_ON_ERROR;
   attrs.verbosity                             = TAKYON_VERBOSITY_ERRORS; //  | TAKYON_VERBOSITY_CREATE_DESTROY | TAKYON_VERBOSITY_CREATE_DESTROY_MORE | TAKYON_VERBOSITY_TRANSFERS | TAKYON_VERBOSITY_TRANSFERS_MORE;
   attrs.buffer_count                          = 1;
-  attrs.buffers                               = buffer;
-  attrs.max_pending_send_requests             = 0;
-  attrs.max_pending_recv_requests             = 0;
+  attrs.buffers                               = buffer;                  // One buffer holds enough room for 'send_buffer_count' messages
+  attrs.max_pending_send_requests             = 2;
+  attrs.max_pending_recv_requests             = 2;
   attrs.max_pending_one_sided_requests        = send_buffer_count;
   attrs.max_sub_buffers_per_send_request      = 0;
   attrs.max_sub_buffers_per_recv_request      = 0;
   attrs.max_sub_buffers_per_one_sided_request = 1;
 
+  // Recv request used for signaling
+  TakyonRecvRequest recv_requests[2];
+  for (uint32_t i=0; i<2; i++) {
+    recv_requests[i].sub_buffer_count = 0;
+    recv_requests[i].sub_buffers = NULL;
+    recv_requests[i].use_polling_completion = use_polling_completion;
+    recv_requests[i].usec_sleep_between_poll_attempts = 0;
+  }
+
   // Create one side of the path
   //   - The other side will be created in a different thread/process
   TakyonPath *path;
-  (void)takyonCreate(&attrs, 0, NULL, TAKYON_WAIT_FOREVER, &path);
+  (void)takyonCreate(&attrs, 2, recv_requests, TAKYON_WAIT_FOREVER, &path);
 
-  // Do the transfers, and calculate the throughput
+  // 'write' throughput
+  uint32_t completed_iterations = 0;
   double start_time = clockTimeSeconds();
-  uint32_t first_message_index_to_validate = 0;
-  uint32_t messages_to_validate = 0;
-  int64_t bytes_transferred = 0;
   double last_print_time = start_time - 1.0;
-  for (uint32_t i=0; i<iterations; i++) {
-    // Transfer message
-    if (path->attrs.is_endpointA) {
-      // Prepare message if validating
-      uint32_t message_index = i % path->attrs.max_pending_one_sided_requests;
-      uint64_t message_offset = message_index * message_bytes;
-      if (validate) {
-	TakyonBuffer *buffer = &path->attrs.buffers[0]; // Source message will be put in first half of the buffer
-	fillInMessage(buffer, message_bytes, message_offset, i);
-      }
-      // Write the message
-      bool use_is_done_notification = true;
-      //*+ not yet working with RDMA */bool use_is_done_notification = (i == (iterations-1) || ((i+1) % path->attrs.max_pending_one_sided_requests) == 0); // Need to get sent notification to implicitly wait for all pending transfers to complete or else the provider may get a buffer overflow
-      writeMessage(path, message_bytes, message_offset, use_polling_completion, use_is_done_notification);
-      // Read the message that was just written
-      readMessage(path, message_bytes, message_offset, use_polling_completion, use_is_done_notification);
-      messages_to_validate++;
-      // Validate messages that have arrived but not yet processed
-      if (validate && use_is_done_notification) {
-	static uint32_t previous_start_value = 0;
-	TakyonBuffer *buffer = &path->attrs.buffers[0]; // Result is in second half of the buffer
-	for (uint32_t j=0; j<messages_to_validate; j++) {
-	  message_index = (first_message_index_to_validate+j) % path->attrs.max_pending_one_sided_requests;
-	  message_offset = message_index * message_bytes;
-	  validateMessage(buffer, message_bytes, message_offset, first_message_index_to_validate+j, &previous_start_value);
-	}
-	first_message_index_to_validate += messages_to_validate;
-	messages_to_validate = 0;
-      }
-    } else {
-      // Endpoint B is not involved
-    }
+  int64_t bytes_transferred = 0;
+  while (completed_iterations < iterations) {
+    // Transfer in one half at a time to allow for overlapping of 'writes' and receiving signals
+    for (uint32_t half_index=0; half_index<2; half_index++) {
+      if (path->attrs.is_endpointA) {
+        // Wait for permission to write (no need to wait if this is the first round of transfers)
+        if (completed_iterations > 0) {
+          recvSignal(path, &recv_requests[half_index]);
+        }
+        for (uint32_t i=0; i<send_buffer_count/2; i++) {
+          uint32_t i2 = (half_index==0) ? i : send_buffer_count/2+i;
+          uint32_t iteration = completed_iterations + i2;
+          uint32_t message_index = i2 % send_buffer_count;
+          uint64_t message_offset = message_index * message_bytes;
+          if (validate) {
+            // Fill in the message
+            TakyonBuffer *buffer = &path->attrs.buffers[0]; // Source message will be put in first half of the buffer
+            fillInMessage(buffer, message_bytes, message_offset, iteration);
+          }
+          // Write the message
+          writeMessage(path, message_bytes, message_offset, use_polling_completion);
+        }
+        // Let the remote endpoint know the set of messages arrived
+        sendSignal(path, use_polling_completion);
 
-    // Print the current throughput
-    if (path->attrs.is_endpointA) {
+      } else {
+        // Wait for signal to inform that messages were written
+        recvSignal(path, &recv_requests[half_index]);
+        // Validate messages
+        if (validate) {
+          static uint32_t previous_start_value = 0;
+          for (uint32_t i=0; i<send_buffer_count/2; i++) {
+            uint32_t i2 = (half_index==0) ? i : send_buffer_count/2+i;
+            uint32_t message_index = i2 % send_buffer_count;
+            uint64_t message_offset = message_index * message_bytes;
+            TakyonBuffer *buffer = &path->attrs.buffers[0]; // Result is in second half of the buffer
+            validateMessage(buffer, message_bytes, message_offset, message_index, &previous_start_value);
+          }
+        }
+        // Send signal to inform the remote endpoint that more message can be written
+        sendSignal(path, use_polling_completion);
+      }
+    }
+    completed_iterations += send_buffer_count;
+
+    // Print stats
+    if (!is_multi_threaded || !path->attrs.is_endpointA) {
       double curr_time = clockTimeSeconds();
       double elapsed_time = curr_time - start_time;
-      bytes_transferred += message_bytes*2;
+      bytes_transferred += send_buffer_count * message_bytes;
       double GB_per_sec = (bytes_transferred / 1000000000.0) / elapsed_time;
       double Gb_per_sec = GB_per_sec * 8;
       double elapsed_print_time = curr_time - last_print_time;
-      if (i == (iterations-1) || elapsed_print_time > 0.05) {
-        printf("\rReader & Writer (one-sided): completed %u %s transfers, %0.3f GB/sec, %0.3f Gb/sec", i+1, MEMORY_TYPE, GB_per_sec, Gb_per_sec);
+      if (completed_iterations >= iterations || elapsed_print_time > 0.05) {
+        printf("\r%s: completed %u %s 'write' transfers, %0.3f GB/sec, %0.3f Gb/sec", path->attrs.is_endpointA ? "A" : "B", completed_iterations, MEMORY_TYPE, GB_per_sec, Gb_per_sec);
         fflush(stdout);
         last_print_time = curr_time;
       }
       if (elapsed_time >= 3.0) {
+        // Reset stats
         start_time = curr_time;
         bytes_transferred = 0;
       }
     }
   }
-  if (path->attrs.is_endpointA) {
+
+  if (!is_multi_threaded || !path->attrs.is_endpointA) {
     printf("\n");
   }
 
@@ -487,17 +512,14 @@ void throughput(const bool is_endpointA, const char *provider, const uint32_t it
     printf("  Data Validation Enabled:      %s\n", validate ? "yes" : "no");
   }
   if (iterations > 0xfffffff) { printf("Message count needs to be <= %u\n", 0xfffffff); exit(EXIT_FAILURE); }
+  if ((send_buffer_count%2) != 0) { printf("-s=<n> must be an even number\n"); exit(EXIT_FAILURE); }
   if (validate && (message_bytes%4) != 0) { printf("When validation is enabled, message_bytes must be a multiple of 4\n"); exit(EXIT_FAILURE); }
 
   // Create the memory buffer used with transfering data
   // Only need one allocation that is then split with sub buffers
   TakyonBuffer buffer;
   if (message_bytes > 0) {
-    if (two_sided) {
-      buffer.bytes = (is_endpointA) ? message_bytes*send_buffer_count : message_bytes*recv_buffer_count;
-    } else {
-      buffer.bytes = (is_endpointA) ? 2*message_bytes*send_buffer_count : message_bytes*recv_buffer_count;
-    }
+    buffer.bytes = (is_endpointA) ? message_bytes*send_buffer_count : message_bytes*recv_buffer_count;
     buffer.app_data = NULL;
 #ifdef ENABLE_CUDA
     buffer.app_data = calloc(1, buffer.bytes); // Need a temp buffer for data validation
@@ -532,7 +554,7 @@ void throughput(const bool is_endpointA, const char *provider, const uint32_t it
   if (two_sided) {
     twoSidedThroughput(is_endpointA, provider, iterations, message_bytes, send_buffer_count, recv_buffer_count, use_polling_completion, validate, is_multi_threaded, &buffer);
   } else {
-    oneSidedThroughput(is_endpointA, provider, iterations, message_bytes, send_buffer_count, use_polling_completion, validate, &buffer);
+    oneSidedThroughput(is_endpointA, provider, iterations, message_bytes, send_buffer_count, recv_buffer_count, use_polling_completion, validate, is_multi_threaded, &buffer);
   }
 
   // Free the takyon buffers
