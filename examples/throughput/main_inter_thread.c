@@ -26,12 +26,12 @@ static uint64_t L_message_bytes = 1024;
 static uint32_t L_src_buffer_count = 10;
 static uint32_t L_dest_buffer_count = 10;
 static bool L_use_polling_completion = true;
-static bool L_two_sided = true;
 static bool L_validate = false;
+static char *L_transfer_mode = "send/recv"; // Also allow "read", "write"
 
 static void *throughputThread(void *user_data) {
   bool is_endpointA = (user_data != NULL);
-  throughput(is_endpointA, L_provider, L_iterations, L_message_bytes, L_src_buffer_count, L_dest_buffer_count, L_use_polling_completion, L_two_sided, L_validate);
+  throughput(is_endpointA, L_provider, L_iterations, L_message_bytes, L_src_buffer_count, L_dest_buffer_count, L_use_polling_completion, L_transfer_mode, L_validate);
   return NULL;
 }
 
@@ -43,7 +43,8 @@ static void printUsageAndExit(const char *program) {
   printf("   -sbufs=<uint32> : Source message buffer count. Default is %u\n", L_src_buffer_count);
   printf("   -dbufs=<uint32> : Destination message buffer count. Default is %u\n", L_dest_buffer_count);
   printf("   -e              : Event driven completion notification. Default is polling\n");
-  printf("   -write          : Switch to one-sided (endpoint B not involved in transfers). Default is '%s'\n", L_two_sided ? "two-sided" : "one-sided");
+  printf("   -write          : Switch to one-sided 'write' (endpoint B not involved in message transfers). Default is '%s'\n", L_transfer_mode);
+  printf("   -read           : Switch to one-sided 'read'  (endpoint B not involved in message transfers). Default is '%s'\n", L_transfer_mode);
   printf("   -V              : Validate the messages. Default is '%s'\n", L_validate ? "yes" : "no");
   exit(EXIT_FAILURE);
 }
@@ -61,7 +62,9 @@ int main(int argc, char **argv) {
     } else if (strcmp(argv[i], "-V") == 0) {
       L_validate = true;
     } else if (strcmp(argv[i], "-write") == 0) {
-      L_two_sided = false;
+      L_transfer_mode = "write";
+    } else if (strcmp(argv[i], "-read") == 0) {
+      L_transfer_mode = "read";
     } else if (strncmp(argv[i], "-i=", 3) == 0) {
       int tokens = sscanf(argv[i], "-i=%u", &L_iterations);
       if (tokens != 1) { printf("Arg -i='%s' is invalid.\n", argv[i]); printUsageAndExit(argv[0]); }

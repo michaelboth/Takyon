@@ -20,6 +20,7 @@ Mac and Linux
     Inter-Thread (reliable)
       > ./throughput_mt "InterThreadRC -pathID=1"
       > ./throughput_mt "InterThreadRC -pathID=1" -write
+      > ./throughput_mt "InterThreadRC -pathID=1" -read
     Inter-Thread (unreliable)
       > ./throughput_mt "InterThreadUC -pathID=1"
     Inter-Process (reliable)
@@ -27,6 +28,8 @@ Mac and Linux
       B> ./throughput_mp B "InterProcessRC -pathID=1"
       A> ./throughput_mp A "InterProcessRC -pathID=1" -write
       B> ./throughput_mp B "InterProcessRC -pathID=1" -write
+      A> ./throughput_mp A "InterProcessRC -pathID=1" -read
+      B> ./throughput_mp B "InterProcessRC -pathID=1" -read
     Inter-Process (unreliable)
       A> ./throughput_mp A "InterProcessUC -pathID=1"
       B> ./throughput_mp B "InterProcessUC -pathID=1"
@@ -50,6 +53,8 @@ Mac and Linux
       B> ./throughput_mp B "RdmaRC -server -localIP=192.168.50.234 -port=23456 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1" -i=1000000 -bytes=40960 -dbufs=100
       A> ./throughput_mp A "RdmaRC -client -remoteIP=192.168.50.234 -port=23456 -rdmaDevice=mlx5_0 -rdmaPort=1" -i=1000000 -bytes=40960 -sbufs=10 -dbufs=10 -write
       B> ./throughput_mp B "RdmaRC -server -localIP=192.168.50.234 -port=23456 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1" -i=1000000 -bytes=40960 -sbufs=10 -dbufs=10 -write
+      A> ./throughput_mp A "RdmaRC -client -remoteIP=192.168.50.234 -port=23456 -rdmaDevice=mlx5_0 -rdmaPort=1" -i=1000000 -bytes=40960 -sbufs=10 -dbufs=10 -read
+      B> ./throughput_mp B "RdmaRC -server -localIP=192.168.50.234 -port=23456 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1" -i=1000000 -bytes=40960 -sbufs=10 -dbufs=10 -read
     RDMA UC (Unreliable Connected): only one receiver, messages may be quietly dropped
       A> ./throughput_mp A "RdmaUC -client -remoteIP=192.168.50.234 -port=23456 -rdmaDevice=mlx5_0 -rdmaPort=1" -i=1000000 -bytes=40960 -sbufs=10 -dbufs=100
       B> ./throughput_mp B "RdmaUC -server -localIP=192.168.50.234 -port=23456 -reuse -rdmaDevice=mlx5_0 -rdmaPort=1" -i=1000000 -bytes=40960 -dbufs=100

@@ -166,6 +166,18 @@ if [ "$mmap" == "yes" ]; then
     ./throughput_mp $endpoint "InterProcessRC -pathID=4" -i=100000 -bytes=32768 -write -e
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     echo ""
+    ./throughput_mp $endpoint "InterProcessRC -pathID=1" -i=100000 -bytes=32768 -V -read
+    if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+    echo ""
+    ./throughput_mp $endpoint "InterProcessRC -pathID=2" -i=100000 -bytes=32768 -V -read -e
+    if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+    echo ""
+    ./throughput_mp $endpoint "InterProcessRC -pathID=3" -i=100000 -bytes=32768 -read
+    if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+    echo ""
+    ./throughput_mp $endpoint "InterProcessRC -pathID=4" -i=100000 -bytes=32768 -read -e
+    if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
+    echo ""
     ./throughput_mp $endpoint "InterProcessUC -pathID=1" -i=100000 -bytes=32768 -V
     if [ $? -ne 0 ]; then echo "Failed to run example"; exit 1; fi
     echo ""

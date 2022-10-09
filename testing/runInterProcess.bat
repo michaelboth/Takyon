@@ -129,6 +129,14 @@ if %mmap% == yes (
   if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
   throughput_mp %endpoint% "InterProcessRC -pathID=4" -i=100000 -bytes=32768 -write -e
   if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
+  throughput_mp %endpoint% "InterProcessRC -pathID=1" -i=100000 -bytes=32768 -V -read
+  if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
+  throughput_mp %endpoint% "InterProcessRC -pathID=2" -i=100000 -bytes=32768 -V -read -e
+  if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
+  throughput_mp %endpoint% "InterProcessRC -pathID=3" -i=100000 -bytes=32768 -read
+  if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
+  throughput_mp %endpoint% "InterProcessRC -pathID=4" -i=100000 -bytes=32768 -read -e
+  if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
   throughput_mp %endpoint% "InterProcessUC -pathID=1" -i=100000 -bytes=32768 -V
   if ERRORLEVEL 1 ( echo "Failed to run throughput" & GOTO:done )
   throughput_mp %endpoint% "InterProcessUC -pathID=2" -i=100000 -bytes=32768 -V -e
