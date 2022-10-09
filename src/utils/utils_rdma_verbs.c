@@ -42,8 +42,6 @@
       - BUG: RDMA UC will stop receiving messages (posted recvs are never producing WCs), even if less than MTU size, if the sender is sending faster than the receiver can consume them. This does not occur with RDMA UD.
 */
 
-//*+*/#define MY_MAX(_a,_b) ((_a>_b) ? _a : _b)
-
 #define PORT_INFO_TEXT_BYTES 200
 
 typedef struct  {
@@ -349,13 +347,12 @@ static struct ibv_qp *createQueuePair(TakyonPath *path, struct ibv_pd *pd, struc
   return qp;
 }
 
-static bool moveQpStateToRTS(struct ibv_qp *qp, struct ibv_pd *pd, enum ibv_qp_type qp_type, bool is_UD_sender, /*+uint32_t max_send_wr,*/ uint32_t rdma_port_id, PortInfo *local_port_info, PortInfo *remote_port_info, RdmaAppOptions app_options, enum ibv_mtu mtu_mode, char *error_message, int max_error_message_chars, struct ibv_ah **unicast_sender_ah_ret) {
-  //*+*/printf("max_send_wr=%u, remote_port_info->max_send_wr=%u\n", max_send_wr, remote_port_info->max_send_wr);
+static bool moveQpStateToRTS(struct ibv_qp *qp, struct ibv_pd *pd, enum ibv_qp_type qp_type, bool is_UD_sender, uint32_t rdma_port_id, PortInfo *local_port_info, PortInfo *remote_port_info, RdmaAppOptions app_options, enum ibv_mtu mtu_mode, char *error_message, int max_error_message_chars, struct ibv_ah **unicast_sender_ah_ret) {
   struct ibv_qp_attr attrs = { .qp_state    = IBV_QPS_RTR,
                                .path_mtu    = mtu_mode, //*+ how to auto detect where it also accounts for intermediate switch MTUs?
                                .dest_qp_num = remote_port_info->qpn,
                                .rq_psn      = remote_port_info->psn,
-			       .max_dest_rd_atomic = 1/*+MY_MAX(1,remote_port_info->max_send_wr)*/, // RC only: Number of pending read or atomic operations with this endpoint as the destination. If more are posted, they will be stalled.
+			       .max_dest_rd_atomic = 1,                     // RC only: Number of pending read or atomic operations with this endpoint as the destination. If more are posted, an error may occur or transfers will be stalled.
 			       .min_rnr_timer = app_options.min_rnr_timer,  // RC only: Defines index into timeout table. Index is 0 .. 31, 0 = 665 msecs, 1 = 0.01 msecs, 31 = 491 msecs.
                                .ah_attr     = { .is_global     = 0,
                                                 .dlid          = remote_port_info->lid,
@@ -394,7 +391,7 @@ static bool moveQpStateToRTS(struct ibv_qp *qp, struct ibv_pd *pd, enum ibv_qp_t
       attrs.timeout       = app_options.retransmit_timeout; // RC Only: Retransmit timeout. Defines index into timeout table. Index is 0 .. 31, 0 = infinite, 1 = 8.192 usecs, 14 = .0671 secs, 31 = 8800 secs
       attrs.retry_cnt     = app_options.retry_cnt;          // RC Only: Max re-transmits before erroring (without remote NACK). Max is 7
       attrs.rnr_retry     = app_options.rnr_retry;          // RC Only: Max re-transmits before erroring (with remote NACK). Max is 6, but 7 is infinit
-      attrs.max_rd_atomic = 1/*+MY_MAX(1,max_send_wr)*/;          // RC Only: Number of pending read or atomic operations initiated by this endpoint. If more are posted, they will be stalled.
+      attrs.max_rd_atomic = 1;                              // RC Only: Number of pending read or atomic operations initiated by this endpoint. If more are posted, an error may occur or transfers will be stalled.
     }
     attr_mask = IBV_QP_STATE | IBV_QP_SQ_PSN;
     if (qp_type == IBV_QPT_RC) {
@@ -897,7 +894,7 @@ RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int read_p
     goto failed;
   }
   if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) printf("  Will use %s between endpoints\n", mtuModeToText(mtu_mode));
-  if (!moveQpStateToRTS(qp, pd, qp_type, is_UD_sender, /*+max_send_wr,*/ rdma_port_id, &local_port_info, &remote_port_info, app_options, mtu_mode, error_message, MAX_ERROR_MESSAGE_CHARS, &unicast_sender_ah)) goto failed;
+  if (!moveQpStateToRTS(qp, pd, qp_type, is_UD_sender, rdma_port_id, &local_port_info, &remote_port_info, app_options, mtu_mode, error_message, MAX_ERROR_MESSAGE_CHARS, &unicast_sender_ah)) goto failed;
   if (qp_type == IBV_QPT_UD) {
     endpoint->unicast_sender_ah = unicast_sender_ah;
     endpoint->unicast_remote_qp_num = remote_port_info.qpn;
