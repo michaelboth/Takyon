@@ -352,7 +352,7 @@ static bool moveQpStateToRTS(struct ibv_qp *qp, struct ibv_pd *pd, enum ibv_qp_t
                                .path_mtu    = mtu_mode, //*+ how to auto detect where it also accounts for intermediate switch MTUs?
                                .dest_qp_num = remote_port_info->qpn,
                                .rq_psn      = remote_port_info->psn,
-			       .max_dest_rd_atomic = 1,                     // RC only: Number of pending read or atomic operations with this endpoint as the destination. If more are posted, an error may occur or transfers will be stalled.
+			       .max_dest_rd_atomic = 1/*+ allow up to max */,                     // RC only: Number of pending read or atomic operations with this endpoint as the destination. If more are posted, an error may occur or transfers will be stalled.
 			       .min_rnr_timer = app_options.min_rnr_timer,  // RC only: Defines index into timeout table. Index is 0 .. 31, 0 = 665 msecs, 1 = 0.01 msecs, 31 = 491 msecs.
                                .ah_attr     = { .is_global     = 0,
                                                 .dlid          = remote_port_info->lid,
@@ -391,7 +391,7 @@ static bool moveQpStateToRTS(struct ibv_qp *qp, struct ibv_pd *pd, enum ibv_qp_t
       attrs.timeout       = app_options.retransmit_timeout; // RC Only: Retransmit timeout. Defines index into timeout table. Index is 0 .. 31, 0 = infinite, 1 = 8.192 usecs, 14 = .0671 secs, 31 = 8800 secs
       attrs.retry_cnt     = app_options.retry_cnt;          // RC Only: Max re-transmits before erroring (without remote NACK). Max is 7
       attrs.rnr_retry     = app_options.rnr_retry;          // RC Only: Max re-transmits before erroring (with remote NACK). Max is 6, but 7 is infinit
-      attrs.max_rd_atomic = 1;                              // RC Only: Number of pending read or atomic operations initiated by this endpoint. If more are posted, an error may occur or transfers will be stalled.
+      attrs.max_rd_atomic = 1/*+ allow up to max */;                              // RC Only: Number of pending read or atomic operations initiated by this endpoint. If more are posted, an error may occur or transfers will be stalled.
     }
     attr_mask = IBV_QP_STATE | IBV_QP_SQ_PSN;
     if (qp_type == IBV_QPT_RC) {
@@ -1246,7 +1246,7 @@ static bool waitForCompletion(bool is_send, RdmaEndpoint *endpoint, uint64_t exp
   return true;
 }
 
-bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr_opcode transfer_mode, uint64_t transfer_id, uint32_t sub_buffer_count, TakyonSubBuffer *sub_buffers, struct ibv_sge *sge_list, uint64_t remote_addr, uint32_t rkey, uint32_t piggyback_message, bool invoke_fence, bool use_is_sent_notification, char *error_message, int max_error_message_chars) {
+bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr_opcode transfer_mode, uint64_t transfer_id, uint32_t sub_buffer_count, TakyonSubBuffer *sub_buffers, struct ibv_sge *sge_list, uint64_t *atomics, uint64_t remote_addr, uint32_t rkey, uint32_t piggyback_message, bool invoke_fence, bool use_is_sent_notification, char *error_message, int max_error_message_chars) {
   struct ibv_send_wr send_wr;
 
   // Fill in message to be sent
@@ -1287,12 +1287,11 @@ bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr
   } else if (transfer_mode == IBV_WR_RDMA_WRITE || transfer_mode == IBV_WR_RDMA_READ) {
     if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Posting %s: nSGEs=%d\n", (transfer_mode == IBV_WR_RDMA_WRITE) ? "write" : "read", send_wr.num_sge);
   } else if (transfer_mode == IBV_WR_ATOMIC_CMP_AND_SWP) {
-    uint64_t *compare_value_ptr = (uint64_t *)send_wr.sg_list[0].addr;
-    uint64_t *swap_value_ptr = (uint64_t *)send_wr.sg_list[1].addr;
-    if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Posting atomic compare and swap: comapre=%ju, swap=%ju\n", *compare_value_ptr, *swap_value_ptr);
+    uint64_t *value_ptr = (uint64_t *)send_wr.sg_list[0].addr;
+    if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Posting atomic compare and swap: comapre=%ju, swap=%ju\n", value_ptr[1], value_ptr[2]);
   } else if (transfer_mode == IBV_WR_ATOMIC_FETCH_AND_ADD) {
     uint64_t *value_ptr = (uint64_t *)send_wr.sg_list[0].addr;
-    if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Posting atomic fetch and add: value=%ju\n", *value_ptr);
+    if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Posting atomic fetch and add: value=%ju\n", value_ptr[1]);
   }
 #endif
 
@@ -1322,12 +1321,10 @@ bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr
     } else if (transfer_mode == IBV_WR_ATOMIC_CMP_AND_SWP || transfer_mode == IBV_WR_ATOMIC_FETCH_AND_ADD) {
       // Atomics
 #ifdef EXTRA_ERROR_CHECKING
-      if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  RDMA %s: rkey=%u, raddr=0x%jx\n", (transfer_mode == IBV_WR_RDMA_WRITE) ? "write" : "read", rkey, remote_addr);
+      if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  RDMA atomic %s: rkey=%u, raddr=0x%jx\n", (transfer_mode == IBV_WR_ATOMIC_CMP_AND_SWP) ? "CAS" : "add", rkey, remote_addr);
 #endif
-      uint64_t *compare_add_value_ptr = (uint64_t *)send_wr.sg_list[0].addr;
-      uint64_t *swap_value_ptr = (uint64_t *)send_wr.sg_list[1].addr;
-      send_wr.wr.atomic.compare_add = *compare_add_value_ptr;
-      send_wr.wr.atomic.swap = *swap_value_ptr; // Only used if IBV_WR_ATOMIC_CMP_AND_SWP
+      send_wr.wr.atomic.compare_add = atomics[0];
+      send_wr.wr.atomic.swap = atomics[1];
       send_wr.wr.atomic.rkey = rkey;
       send_wr.wr.atomic.remote_addr = remote_addr;
     }

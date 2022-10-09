@@ -92,7 +92,7 @@ extern bool rdmaDestroyEndpoint(TakyonPath *path, RdmaEndpoint *endpoint, char *
 extern bool rdmaEndpointPostRecvs(TakyonPath *path, RdmaEndpoint *endpoint, uint32_t request_count, TakyonRecvRequest *requests, char *error_message, int max_error_message_chars);
 extern bool rdmaEndpointIsRecved(RdmaEndpoint *endpoint, uint64_t expected_transfer_id, int read_pipe_fd, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars, uint64_t *bytes_received_ret, uint32_t *piggyback_message_ret);
 
-extern bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr_opcode transfer_mode, uint64_t transfer_id, uint32_t sub_buffer_count, TakyonSubBuffer *sub_buffers, struct ibv_sge *sge_list, uint64_t remote_addr, uint32_t rkey, uint32_t piggyback_message, bool invoke_fence, bool use_is_sent_notification, char *error_message, int max_error_message_chars);
+extern bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr_opcode transfer_mode, uint64_t transfer_id, uint32_t sub_buffer_count, TakyonSubBuffer *sub_buffers, struct ibv_sge *sge_list, uint64_t *atomics, uint64_t remote_addr, uint32_t rkey, uint32_t piggyback_message, bool invoke_fence, bool use_is_sent_notification, char *error_message, int max_error_message_chars);
 extern bool rdmaEndpointIsSent(RdmaEndpoint *endpoint, uint64_t expected_transfer_id, enum ibv_wc_opcode expected_opcode, int read_pipe_fd, bool use_polling_completion, uint32_t usec_sleep_between_poll_attempts, double timeout_seconds, bool *timed_out_ret, char *error_message, int max_error_message_chars);
 
 #ifdef __cplusplus

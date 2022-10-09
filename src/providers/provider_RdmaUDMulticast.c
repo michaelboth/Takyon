@@ -108,28 +108,29 @@ bool rdmaUDMulticastCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRec
   comm->data = private_path;
 
   // Create the RDMA structures that will hold the SGE list and any other needed info
-  uint32_t max_pending_send_and_one_sided_requests = path->attrs.max_pending_send_requests + path->attrs.max_pending_one_sided_requests;
-  uint32_t max_sub_buffers_per_send_and_one_sided_request = MY_MAX(path->attrs.max_sub_buffers_per_send_request, path->attrs.max_sub_buffers_per_one_sided_request);
+  // NOTE: Multicast does not support one sided ops, so ignoring max_pending_read_requests & max_pending_write_requests
+  uint32_t max_pending_send_requests = path->attrs.max_pending_send_requests;
+  uint32_t max_sub_buffers_per_send_request = path->attrs.max_sub_buffers_per_send_request;
   if (is_a_send) {
-    if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) printf("  Sender: Max send requests=%d, sub buffers per request=%d\n", max_pending_send_and_one_sided_requests, max_sub_buffers_per_send_and_one_sided_request);
-    if (max_pending_send_and_one_sided_requests == 0) {
-      TAKYON_RECORD_ERROR(path->error_message, "max_pending_send_and_one_sided_requests must be > 0 for RdmaUDMulticastSend\n");
+    if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) printf("  Sender: Max send requests=%d, sub buffers per request=%d\n", max_pending_send_requests, max_sub_buffers_per_send_request);
+    if (max_pending_send_requests == 0) {
+      TAKYON_RECORD_ERROR(path->error_message, "max_pending_send_requests must be > 0 for RdmaUDMulticastSend\n");
       goto failed;
     }
-    private_path->rdma_send_request_list = (RdmaSendRequest *)calloc(max_pending_send_and_one_sided_requests, sizeof(RdmaSendRequest));
+    private_path->rdma_send_request_list = (RdmaSendRequest *)calloc(max_pending_send_requests, sizeof(RdmaSendRequest));
     if (private_path->rdma_send_request_list == NULL) {
       TAKYON_RECORD_ERROR(path->error_message, "Out of memory\n");
       goto failed;
     }
-    uint32_t num_sges = max_pending_send_and_one_sided_requests * max_sub_buffers_per_send_and_one_sided_request;
+    uint32_t num_sges = max_pending_send_requests * max_sub_buffers_per_send_request;
     if (num_sges > 0) {
       private_path->sge_list = (struct ibv_sge *)calloc(num_sges, sizeof(struct ibv_sge));
       if (private_path->sge_list == NULL) {
         TAKYON_RECORD_ERROR(path->error_message, "Out of memory\n");
         goto failed;
       }
-      for (uint32_t i=0; i<max_pending_send_and_one_sided_requests; i++) {
-        private_path->rdma_send_request_list[i].sges = &private_path->sge_list[i*max_sub_buffers_per_send_and_one_sided_request];
+      for (uint32_t i=0; i<max_pending_send_requests; i++) {
+        private_path->rdma_send_request_list[i].sges = &private_path->sge_list[i*max_sub_buffers_per_send_request];
       }
     }
   } else {
@@ -179,7 +180,7 @@ bool rdmaUDMulticastCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRec
   // Create the one-sided RDMA endpoint
   RdmaEndpoint *endpoint;
   if (is_a_send) {
-    endpoint = rdmaCreateMulticastEndpoint(path, local_ip_addr, group_ip_addr, true, max_pending_send_and_one_sided_requests, 0, max_sub_buffers_per_send_and_one_sided_request, 0, 0, NULL, timeout_seconds, error_message, MAX_ERROR_MESSAGE_CHARS);
+    endpoint = rdmaCreateMulticastEndpoint(path, local_ip_addr, group_ip_addr, true, max_pending_send_requests, 0, max_sub_buffers_per_send_request, 0, 0, NULL, timeout_seconds, error_message, MAX_ERROR_MESSAGE_CHARS);
     if (endpoint == NULL) {
       TAKYON_RECORD_ERROR(path->error_message, "Failed to create RDMA multicast sender: %s\n", error_message);
       goto failed;
@@ -271,9 +272,10 @@ bool rdmaUDMulticastSend(TakyonPath *path, TakyonSendRequest *request, uint32_t 
 #endif
 
   // Get the next unused rdma_request
-  uint32_t max_pending_send_and_one_sided_requests = path->attrs.max_pending_send_requests + path->attrs.max_pending_one_sided_requests;
+  // NOTE: Multicast does not support one sided ops, so ignoring max_pending_read_requests & max_pending_write_requests
+  uint32_t max_pending_send_requests = path->attrs.max_pending_send_requests;
   RdmaSendRequest *rdma_request = &private_path->rdma_send_request_list[private_path->curr_rdma_request_index];
-  private_path->curr_rdma_request_index = (private_path->curr_rdma_request_index + 1) % max_pending_send_and_one_sided_requests;
+  private_path->curr_rdma_request_index = (private_path->curr_rdma_request_index + 1) % max_pending_send_requests;
 
   // Start the 'send' RDMA transfer
   enum ibv_wr_opcode transfer_mode = IBV_WR_SEND_WITH_IMM;
@@ -281,7 +283,7 @@ bool rdmaUDMulticastSend(TakyonPath *path, TakyonSendRequest *request, uint32_t 
   struct ibv_sge *sge_list = rdma_request->sges;
   uint64_t remote_addr = 0;
   uint32_t rkey = 0;
-  if (!rdmaEndpointStartSend(path, endpoint, transfer_mode, transfer_id, request->sub_buffer_count, request->sub_buffers, sge_list, remote_addr, rkey, piggyback_message, request->submit_fence, request->use_is_sent_notification, error_message, MAX_ERROR_MESSAGE_CHARS)) {
+  if (!rdmaEndpointStartSend(path, endpoint, transfer_mode, transfer_id, request->sub_buffer_count, request->sub_buffers, sge_list, NULL, remote_addr, rkey, piggyback_message, request->submit_fence, request->use_is_sent_notification, error_message, MAX_ERROR_MESSAGE_CHARS)) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to start the RDMA send: %s\n", error_message);
     return false;
   }

@@ -64,13 +64,13 @@ typedef enum {
 typedef enum {
   TAKYON_OP_READ,
   TAKYON_OP_WRITE,
-  TAKYON_OP_ATOMIC_COMPARE_AND_SWAP_UINT64,  // if (remote_value == sub_buffers[0][0]) {
-                                             //   sub_buffers[2][0] = remote_value;
-                                             //   remote_value = sub_buffers[1][0];
+  TAKYON_OP_ATOMIC_COMPARE_AND_SWAP_UINT64,  // if (remote_value == request.atomics[0]) {
+                                             //   request.sub_buffers[0][0] = remote_value;
+                                             //   remote_value = request.atomics[1];
                                              // }
   TAKYON_OP_ATOMIC_ADD_UINT64,               // {
-                                             //   sub_buffers[1][0] = remote_value;
-                                             //   remote_value += sub_buffers[0][0];
+                                             //   request.sub_buffers[0][0] = remote_value;
+                                             //   remote_value += request.atomics[0];
                                              // }
 } TakyonOneSidedOp;
 
@@ -100,6 +100,8 @@ typedef struct {
   // Local memory info
   uint32_t sub_buffer_count;                 // Some comms will support > 1 (e.g. a mix of CUDA and CPU memory blocks)
   TakyonSubBuffer *sub_buffers;              // Local memory
+  // Only for atomics
+  uint64_t atomics[2];                       // See TAKYON_OP_ATOMIC_COMPARE_AND_SWAP_UINT64 and TAKYON_OP_ATOMIC_ADD_UINT64 above for details
   // Remote memory info
   uint32_t remote_buffer_index;              // Index into the remote buffer list
   uint64_t remote_offset;                    // Offset in bytes into the buffer addr
@@ -155,13 +157,16 @@ typedef struct {
   // Transport buffers. Some providers will pin this memory to avoid it being swapped out to RAM disk
   uint32_t buffer_count;
   TakyonBuffer *buffers;                           // App must maintain this memory for the life of the path
-  // Used for internal book keeping and to avoid internal memory allocations at transfer time
-  uint32_t max_pending_send_requests;              // If takyonIsSent() is supported, this defines how many active sends can be in progress
-  uint32_t max_pending_recv_requests;              // If takyonPostRecvs() is supported, this defines how many active recvs can be posted
-  uint32_t max_pending_one_sided_requests;         // If takyonIsOneSidedDone() is supported, this defines how many active one-sided transfers can be in progress
-  uint32_t max_sub_buffers_per_send_request;       // Defines the number of sub buffers in a single send message. Will be ignored if provider only supports 1.
-  uint32_t max_sub_buffers_per_recv_request;       // Defines the number of sub buffers in a single recv message. Will be ignored if provider only supports 1.
-  uint32_t max_sub_buffers_per_one_sided_request;  // Defines the number of sub buffers in a single one-sided message. Will be ignored if provider only supports 1.
+  // Used for internal book keeping
+  uint32_t max_pending_send_requests;              // If takyonIsSent() is supported, this defines how many active 'send' transfers can be in progress
+  uint32_t max_pending_recv_requests;              // If takyonPostRecvs() is supported, this defines how many active 'recv' transfers can be posted
+  uint32_t max_pending_write_requests;             // If takyonIsOneSidedDone() and one_sided_write_supported is supported, this defines how many active 'write' transfers can be in progress
+  uint32_t max_pending_read_requests;              // If takyonIsOneSidedDone() and one_sided_read_supported is supported, this defines how many active 'read' transfers can be in progress
+  uint32_t max_pending_atomic_requests;            // If takyonIsOneSidedDone() and one_sided_atomics_supported is supported, this defines how many active 'atomic' transfers can be in progress
+  uint32_t max_sub_buffers_per_send_request;       // Defines the number of sub buffers in a single 'send' message. Will be ignored if provider only supports 1.
+  uint32_t max_sub_buffers_per_recv_request;       // Defines the number of sub buffers in a single 'recv' message. Will be ignored if provider only supports 1.
+  uint32_t max_sub_buffers_per_write_request;      // Defines the number of sub buffers in a single 'write' message. Will be ignored if provider only supports 1.
+  uint32_t max_sub_buffers_per_read_request;       // Defines the number of sub buffers in a single 'read' message. Will be ignored if provider only supports 1.
 } TakyonPathAttributes;
 
 typedef struct {
@@ -211,15 +216,9 @@ extern char *takyonDestroy(TakyonPath *path, double timeout_seconds);
 //     A <-- (B not involved)
 //     B <-- (A not involved)
 //   Atomic compare and swap uint64:
-//     if (remote_value == local_compare_value) {
-//       sub_buffers[2][0] = sub_buffers[0][0];
-//       remote_value = sub_buffers[1][0];
-//     }
+//     See TAKYON_OP_ATOMIC_COMPARE_AND_SWAP_UINT64 above for details
 //   Atomic add uint64:
-//     {
-//       sub_buffers[1][0] = remote_value;
-//       remote_value += sub_buffers[0][0];
-//     }
+//     See TAKYON_OP_ATOMIC_ADD_UINT64 above for details
 extern bool takyonOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double timeout_seconds, bool *timed_out_ret);
 extern bool takyonIsOneSidedDone(TakyonPath *path, TakyonOneSidedRequest *request, double timeout_seconds, bool *timed_out_ret);
 

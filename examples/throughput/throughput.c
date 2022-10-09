@@ -217,17 +217,20 @@ static void twoSidedThroughput(const bool is_endpointA, const char *provider, co
   //   - Can't be changed after path creation
   TakyonPathAttributes attrs;
   strncpy(attrs.provider, provider, TAKYON_MAX_PROVIDER_CHARS-1);
-  attrs.is_endpointA                          = is_endpointA;
-  attrs.failure_mode                          = TAKYON_EXIT_ON_ERROR;
-  attrs.verbosity                             = TAKYON_VERBOSITY_ERRORS; //  | TAKYON_VERBOSITY_CREATE_DESTROY | TAKYON_VERBOSITY_CREATE_DESTROY_MORE | TAKYON_VERBOSITY_TRANSFERS | TAKYON_VERBOSITY_TRANSFERS_MORE;
-  attrs.buffer_count                          = (message_bytes==0) ? 0 : 1;
-  attrs.buffers                               = (message_bytes==0) ? NULL : buffer;
-  attrs.max_pending_send_requests             = is_endpointA ? src_buffer_count : 1;
-  attrs.max_pending_recv_requests             = is_endpointA ? 1 : dest_buffer_count;
-  attrs.max_pending_one_sided_requests        = 0;
-  attrs.max_sub_buffers_per_send_request      = is_endpointA ? 1 : 0;  // 0 means zero-byte message
-  attrs.max_sub_buffers_per_recv_request      = is_endpointA ? 0 : 1;  // 0 means zero-byte message
-  attrs.max_sub_buffers_per_one_sided_request = 0;
+  attrs.is_endpointA                      = is_endpointA;
+  attrs.failure_mode                      = TAKYON_EXIT_ON_ERROR;
+  attrs.verbosity                         = TAKYON_VERBOSITY_ERRORS; //  | TAKYON_VERBOSITY_CREATE_DESTROY | TAKYON_VERBOSITY_CREATE_DESTROY_MORE | TAKYON_VERBOSITY_TRANSFERS | TAKYON_VERBOSITY_TRANSFERS_MORE;
+  attrs.buffer_count                      = (message_bytes==0) ? 0 : 1;
+  attrs.buffers                           = (message_bytes==0) ? NULL : buffer;
+  attrs.max_pending_send_requests         = is_endpointA ? src_buffer_count : 1;
+  attrs.max_pending_recv_requests         = is_endpointA ? 1 : dest_buffer_count;
+  attrs.max_pending_write_requests        = 0;
+  attrs.max_pending_read_requests         = 0;
+  attrs.max_pending_atomic_requests       = 0;
+  attrs.max_sub_buffers_per_send_request  = is_endpointA ? 1 : 0;  // 0 means zero-byte message
+  attrs.max_sub_buffers_per_recv_request  = is_endpointA ? 0 : 1;  // 0 means zero-byte message
+  attrs.max_sub_buffers_per_write_request = 0;
+  attrs.max_sub_buffers_per_read_request  = 0;
 
   // Setup the receive request and it's sub buffer
   //   - This is done before the path is setup in the case the receiver needs the recvs posted before sending can start
@@ -388,22 +391,26 @@ static void twoSidedThroughput(const bool is_endpointA, const char *provider, co
 static void oneSidedThroughput(const bool is_endpointA, const char *provider, const uint32_t iterations, const uint64_t message_bytes, const uint32_t src_buffer_count, const uint32_t dest_buffer_count, const bool use_polling_completion, const bool validate, const bool is_multi_threaded, TakyonBuffer *buffer, const char *transfer_mode) {
   if (message_bytes == 0) { printf("-bytes=<n> can't be zero for one-sided transfers\n"); exit(EXIT_FAILURE); }
   if (src_buffer_count != dest_buffer_count) { printf("For one-sided transfers, -sbufs=<n> and -dbufs=<n> must be the same\n"); exit(EXIT_FAILURE); }
+  bool transfer_mode_is_read = (strcmp(transfer_mode, "read")==0);
 
   // Define the path attributes
   //   - Can't be changed after path creation
   TakyonPathAttributes attrs;
   strncpy(attrs.provider, provider, TAKYON_MAX_PROVIDER_CHARS-1);
-  attrs.is_endpointA                          = is_endpointA;
-  attrs.failure_mode                          = TAKYON_EXIT_ON_ERROR;
-  attrs.verbosity                             = TAKYON_VERBOSITY_ERRORS; //  | TAKYON_VERBOSITY_CREATE_DESTROY | TAKYON_VERBOSITY_CREATE_DESTROY_MORE | TAKYON_VERBOSITY_TRANSFERS | TAKYON_VERBOSITY_TRANSFERS_MORE;
-  attrs.buffer_count                          = 1;
-  attrs.buffers                               = buffer;                  // One buffer holds enough room for 'src_buffer_count' messages
-  attrs.max_pending_send_requests             = 2;
-  attrs.max_pending_recv_requests             = 2;
-  attrs.max_pending_one_sided_requests        = src_buffer_count;
-  attrs.max_sub_buffers_per_send_request      = 0;
-  attrs.max_sub_buffers_per_recv_request      = 0;
-  attrs.max_sub_buffers_per_one_sided_request = 1;
+  attrs.is_endpointA                      = is_endpointA;
+  attrs.failure_mode                      = TAKYON_EXIT_ON_ERROR;
+  attrs.verbosity                         = TAKYON_VERBOSITY_ERRORS; //  | TAKYON_VERBOSITY_CREATE_DESTROY | TAKYON_VERBOSITY_CREATE_DESTROY_MORE | TAKYON_VERBOSITY_TRANSFERS | TAKYON_VERBOSITY_TRANSFERS_MORE;
+  attrs.buffer_count                      = 1;
+  attrs.buffers                           = buffer;                  // One buffer holds enough room for 'src_buffer_count' messages
+  attrs.max_pending_send_requests         = 2;
+  attrs.max_pending_recv_requests         = 2;
+  attrs.max_pending_write_requests        = transfer_mode_is_read ? 0 : src_buffer_count;
+  attrs.max_pending_read_requests         = transfer_mode_is_read ? src_buffer_count : 0;
+  attrs.max_pending_atomic_requests       = 0;
+  attrs.max_sub_buffers_per_send_request  = 0;
+  attrs.max_sub_buffers_per_recv_request  = 0;
+  attrs.max_sub_buffers_per_write_request = 1;
+  attrs.max_sub_buffers_per_read_request  = 1;
 
   // Recv request used for signaling
   TakyonRecvRequest recv_requests[2];
@@ -419,7 +426,6 @@ static void oneSidedThroughput(const bool is_endpointA, const char *provider, co
   TakyonPath *path;
   (void)takyonCreate(&attrs, 2, recv_requests, TAKYON_WAIT_FOREVER, &path);
 
-  bool transfer_mode_is_read = (strcmp(transfer_mode, "read")==0);
   uint32_t completed_iterations = 0;
   double start_time = clockTimeSeconds();
   double last_print_time = start_time - 1.0;

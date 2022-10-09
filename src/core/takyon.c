@@ -265,8 +265,13 @@ bool takyonOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double tim
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
-  if (request->sub_buffer_count > path->attrs.max_sub_buffers_per_one_sided_request) {
-    TAKYON_RECORD_ERROR(path->error_message, "path->attrs.max_sub_buffers_per_one_sided_request is less than request->sub_buffer_count\n");
+  if (request->operation == TAKYON_OP_WRITE && request->sub_buffer_count > path->attrs.max_sub_buffers_per_write_request) {
+    TAKYON_RECORD_ERROR(path->error_message, "TAKYON_OP_WRITE: path->attrs.max_sub_buffers_per_write_request is less than request->sub_buffer_count\n");
+    handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
+    return false;
+  }
+  if (request->operation == TAKYON_OP_READ && request->sub_buffer_count > path->attrs.max_sub_buffers_per_read_request) {
+    TAKYON_RECORD_ERROR(path->error_message, "TAKYON_OP_READ: path->attrs.max_sub_buffers_per_read_request is less than request->sub_buffer_count\n");
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
@@ -281,14 +286,14 @@ bool takyonOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double tim
     return false;
   }
   if (request->operation == TAKYON_OP_ATOMIC_COMPARE_AND_SWAP_UINT64) {
-    if (request->sub_buffer_count != 3 || request->sub_buffers[0].bytes != 4 || request->sub_buffers[1].bytes != 4 || request->sub_buffers[2].bytes != 4) {
-      TAKYON_RECORD_ERROR(path->error_message, "ATOMIC_COMPARE_AND_SWAP_UINT64 requires request->sub_buffer_count == 3, request->sub_buffers[0].bytes == 4, request->sub_buffers[1].bytes == 4, and request->sub_buffers[2].bytes == 4\n");
+    if (request->sub_buffer_count != 1 || request->sub_buffers[0].bytes != 8) {
+      TAKYON_RECORD_ERROR(path->error_message, "ATOMIC_COMPARE_AND_SWAP_UINT64 requires request->sub_buffer_count == 1, request->sub_buffers[0].bytes == 8\n");
       handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
       return false;
     }
   } else if (request->operation == TAKYON_OP_ATOMIC_ADD_UINT64) {
-    if (request->sub_buffer_count != 2 || request->sub_buffers[0].bytes != 4 || request->sub_buffers[1].bytes != 4) {
-      TAKYON_RECORD_ERROR(path->error_message, "ATOMIC_ADD_UINT64 requires request->sub_buffer_count == 2, request->sub_buffers[0].bytes == 4, and request->sub_buffers[1].bytes == 4\n");
+    if (request->sub_buffer_count != 1 || request->sub_buffers[0].bytes != 8) {
+      TAKYON_RECORD_ERROR(path->error_message, "ATOMIC_ADD_UINT64 requires request->sub_buffer_count == 1, request->sub_buffers[0].bytes == 8\n");
       handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
       return false;
     }

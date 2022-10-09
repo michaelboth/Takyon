@@ -118,6 +118,78 @@ static void processMessage(char *message_addr) {
 #endif
 }
 
+static void atomicCompareAndSwapThenVerify(TakyonPath *path, uint64_t compare, uint64_t swap_value, uint64_t expected_old_remote_value) {
+  // Make sure the storage for the remote value is not the expected value
+  uint64_t *value_ptr = (uint64_t *)path->attrs.buffers[0].addr;
+  value_ptr[0] = expected_old_remote_value+1;
+
+  // STEP 1: Setup the Takyon sub buffer list
+  TakyonSubBuffer sub_buffer = { .buffer_index = 0, .bytes = sizeof(uint64_t), .offset = 0 };
+
+  // STEP 2: Setup the Takyon atomic request
+  TakyonOneSidedRequest atomic_request = { .operation = TAKYON_OP_ATOMIC_COMPARE_AND_SWAP_UINT64,
+					   .sub_buffer_count = 1,
+					   .sub_buffers = &sub_buffer,
+					   .atomics = { compare, swap_value },
+					   .remote_buffer_index = 0,
+					   .remote_offset = 0,
+					   .submit_fence = false,
+					   .use_is_done_notification = true,
+					   .use_polling_completion = false,
+					   .usec_sleep_between_poll_attempts = 0 };
+
+  // STEP 3: Start the Takyon one-sided read
+  takyonOneSided(path, &atomic_request, TAKYON_WAIT_FOREVER, NULL);
+
+  // STEP 4: If the Takyon Provider supports non-blocking reads, then need to know when it's complete
+  if (path->capabilities.IsOneSidedDone_function_supported && atomic_request.use_is_done_notification) {
+    takyonIsOneSidedDone(path, &atomic_request, TAKYON_WAIT_FOREVER, NULL);
+  }
+
+  // Verify expected old remote value
+  if (value_ptr[0] == expected_old_remote_value) {
+    printf("  Atomic compare and swap: got expected value " UINT64_FORMAT "\n", expected_old_remote_value);
+  } else {
+    printf("  Atomic compare and swap: GOT " UINT64_FORMAT ", BUT EXPECTED " UINT64_FORMAT "\n", value_ptr[0], expected_old_remote_value);
+  }
+}
+
+static void atomicAddThenVerify(TakyonPath *path, uint64_t add_value, uint64_t expected_old_remote_value) {
+  // Make sure the storage for the remote value is not the expected value
+  uint64_t *value_ptr = (uint64_t *)path->attrs.buffers[0].addr;
+  value_ptr[0] = expected_old_remote_value+1;
+
+  // STEP 1: Setup the Takyon sub buffer list
+  TakyonSubBuffer sub_buffer = { .buffer_index = 0, .bytes = sizeof(uint64_t), .offset = 0 };
+
+  // STEP 2: Setup the Takyon atomic request
+  TakyonOneSidedRequest atomic_request = { .operation = TAKYON_OP_ATOMIC_ADD_UINT64,
+					   .sub_buffer_count = 1,
+					   .sub_buffers = &sub_buffer,
+					   .atomics = { add_value, 0 },
+					   .remote_buffer_index = 0,
+					   .remote_offset = 0,
+					   .submit_fence = false,
+					   .use_is_done_notification = true,
+					   .use_polling_completion = false,
+					   .usec_sleep_between_poll_attempts = 0 };
+
+  // STEP 3: Start the Takyon one-sided read
+  takyonOneSided(path, &atomic_request, TAKYON_WAIT_FOREVER, NULL);
+
+  // STEP 4: If the Takyon Provider supports non-blocking reads, then need to know when it's complete
+  if (path->capabilities.IsOneSidedDone_function_supported && atomic_request.use_is_done_notification) {
+    takyonIsOneSidedDone(path, &atomic_request, TAKYON_WAIT_FOREVER, NULL);
+  }
+
+  // Verify expected old remote value
+  if (value_ptr[0] == expected_old_remote_value) {
+    printf("  Atomic add: got expected value " UINT64_FORMAT "\n", expected_old_remote_value);
+  } else {
+    printf("  Atomic add: got " UINT64_FORMAT ", but expected " UINT64_FORMAT "\n", value_ptr[0], expected_old_remote_value);
+  }
+}
+
 static void sendSignal(TakyonPath *path) {
   // Setup the send request
   TakyonSendRequest send_request = { .sub_buffer_count = 0,
@@ -183,17 +255,20 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
   //   - Can't be changed after path creation
   TakyonPathAttributes attrs;
   strncpy(attrs.provider, provider, TAKYON_MAX_PROVIDER_CHARS-1);
-  attrs.is_endpointA                          = is_endpointA;
-  attrs.failure_mode                          = TAKYON_EXIT_ON_ERROR;
-  attrs.verbosity                             = TAKYON_VERBOSITY_ERRORS; //  | TAKYON_VERBOSITY_CREATE_DESTROY | TAKYON_VERBOSITY_CREATE_DESTROY_MORE | TAKYON_VERBOSITY_TRANSFERS | TAKYON_VERBOSITY_TRANSFERS_MORE;
-  attrs.buffer_count                          = 1;
-  attrs.buffers                               = &buffer;
-  attrs.max_pending_send_requests             = 1; // Only used for signaling; no data transfers
-  attrs.max_pending_recv_requests             = 1; // Only used for signaling; no data transfers
-  attrs.max_pending_one_sided_requests        = 1; // 'A' will 'write', 'B' will 'read'
-  attrs.max_sub_buffers_per_send_request      = 0;
-  attrs.max_sub_buffers_per_recv_request      = 0;
-  attrs.max_sub_buffers_per_one_sided_request = 1;
+  attrs.is_endpointA                      = is_endpointA;
+  attrs.failure_mode                      = TAKYON_EXIT_ON_ERROR;
+  attrs.verbosity                         = TAKYON_VERBOSITY_ERRORS; //  | TAKYON_VERBOSITY_CREATE_DESTROY | TAKYON_VERBOSITY_CREATE_DESTROY_MORE | TAKYON_VERBOSITY_TRANSFERS | TAKYON_VERBOSITY_TRANSFERS_MORE;
+  attrs.buffer_count                      = 1;
+  attrs.buffers                           = &buffer;
+  attrs.max_pending_send_requests         = 1; // Only used for signaling; no data transfers
+  attrs.max_pending_recv_requests         = 1; // Only used for signaling; no data transfers
+  attrs.max_pending_write_requests        = 1;
+  attrs.max_pending_read_requests         = 1;
+  attrs.max_pending_atomic_requests       = 1;
+  attrs.max_sub_buffers_per_send_request  = 0;
+  attrs.max_sub_buffers_per_recv_request  = 0;
+  attrs.max_sub_buffers_per_write_request = 1;
+  attrs.max_sub_buffers_per_read_request  = 1;
 
   // Setup the initial recv request used for signaling
   TakyonRecvRequest recv_request;
@@ -256,16 +331,40 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
   }
 
   // One-sided reliable 'atomics'
-  /*+ atomics
   if (!path->capabilities.is_unreliable && path->capabilities.one_sided_atomics_supported) {
     printf("%s: Testing one-sided reliable 'atomics' via endpoint A\n", path->attrs.is_endpointA ? "A" : "B");
+    if (!path->attrs.is_endpointA) {
+      // Prepare the atomic value
+      uint64_t *value_ptr = (uint64_t *)path->attrs.buffers[0].addr;
+      value_ptr[0] = 0;
+    }
     for (uint32_t i=0; i<iterations; i++) {
       if (path->attrs.is_endpointA) {
+	// Wait until the remote side is prepared for the atomic operations
+	recvSignal(path, &recv_request);
+	// Do some atomic transfers
+	atomicCompareAndSwapThenVerify(path, i, 1000000, i);      // Remote side should now be 1000000
+	atomicAddThenVerify(path, -1, 1000000);                   // Remote side should now be 999999
+	atomicCompareAndSwapThenVerify(path, i, 123456, 999999);  // This one should not cause a change cause the comparison should fail
+	atomicCompareAndSwapThenVerify(path, 999999, i+1, 999999);        // Remote side should now be (i+1)
+	// Let the remote side know it's ready to inspect the remote value
+	sendSignal(path);
       } else {
+	// Let the remote side know it can do atomic operations
+	sendSignal(path);
+	// Wait until the remote side is done with its atomic operations
+	recvSignal(path, &recv_request);
+	// Print
+	uint64_t *value_ptr = (uint64_t *)path->attrs.buffers[0].addr;
+	uint64_t expected_value = i+1;
+	if (value_ptr[0] == expected_value) {
+	  printf("  Atomic value=" UINT64_FORMAT " is correct\n", expected_value);
+	} else {
+	  printf("  Atomic value incorrect: got " UINT64_FORMAT ", but expected " UINT64_FORMAT "\n", value_ptr[0], expected_value);
+	}
       }
     }
   }
-  */
 
   // Destroy the path
   takyonDestroy(path, TAKYON_WAIT_FOREVER);
