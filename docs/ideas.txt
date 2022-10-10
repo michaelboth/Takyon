@@ -4,7 +4,6 @@ To DO
   - BUG: OSX ephemeral sockets (seems the multicast packets are being blocked)
 
 Future Ideas
-  - Atomics
   - Collectives: base on Takyon 1.x graph extension
     - Also create GUI to make graph design easy
   - Strided (maybe)
