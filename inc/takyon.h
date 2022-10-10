@@ -94,7 +94,7 @@ typedef struct {
   void *private;        // Used internally; e.g. optimize posting receives
 } TakyonSubBuffer;
 
-// App must maintain this structure for the life of the transfer
+// App must maintain this structure for the life of the transfer, unless use_is_done_notification = false
 typedef struct {
   TakyonOneSidedOp operation;
   // Local memory info
@@ -106,8 +106,8 @@ typedef struct {
   uint32_t remote_buffer_index;              // Index into the remote buffer list
   uint64_t remote_offset;                    // Offset in bytes into the buffer addr
   // Completion fields
-  bool submit_fence;                         // Puts a barrier between the new request and preceding transfers (send, read, write, atomics) to force them to complete before the new transfer starts. Only relevant for non-blocking providers
-                                             // This is typically only needed if a 'read' or 'atomic' operation is done (changes local memory) just before sending the results of either of those two operations
+  bool submit_fence;                         // Forces preceding non-blocking transfers (send, read, write, atomics), where notification is turned off, to complete before the new transfer starts
+                                             // This is typically only needed if a preceding 'read' or 'atomic' operation is invoked (changes local memory) just before sending the results of the preceding operations
   bool use_is_done_notification;             // If true and takyonIsOneSidedDone() is supported, then must call takyonIsOneSidedDone()
   bool use_polling_completion;               // True: use CPU polling to detect transfer completion. False: use event driven (allows CPU to sleep) to passively detect completion.
   uint32_t usec_sleep_between_poll_attempts; // Use to avoid burning up CPU when polling
@@ -117,14 +117,14 @@ typedef struct {
   void *private;                             // Used internally; e.g. track the completion between takyonOneSided() and takyonIsOneSidedDone()
 } TakyonOneSidedRequest;
 
-// App must maintain this structure for the life of the transfer
+// App must maintain this structure for the life of the transfer, unless use_is_sent_notification = false
 typedef struct {
   // Transfer info fields
   uint32_t sub_buffer_count;                 // Some comms will support > 1 (e.g. a mix of CUDA and CPU memory blocks)
   TakyonSubBuffer *sub_buffers;
   // Completion fields
-  bool submit_fence;                         // Puts a barrier between the new request and preceding transfers (send, read, write, atomics) to force them to complete before the new transfer starts. Only relevant for non-blocking providers
-                                             // This is typically only needed if a 'read' or 'atomic' operation is done (changes local memory) just before sending the results of either of those two operations
+  bool submit_fence;                         // Forces preceding non-blocking transfers (send, read, write, atomics), where notification is turned off, to complete before the new transfer starts
+                                             // This is typically only needed if a preceding 'read' or 'atomic' operation is invoked (changes local memory) just before sending the results of the preceding operations
   bool use_is_sent_notification;             // If true and takyonIsSent() is supported, then must call takyonIsSent()
   bool use_polling_completion;               // True: use CPU polling to detect transfer completion. False: use event driven (allows CPU to sleep) to passively detect completion.
   uint32_t usec_sleep_between_poll_attempts; // Use to avoid burning up CPU when polling
