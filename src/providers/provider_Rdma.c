@@ -458,7 +458,7 @@ bool rdmaCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *r
   }
 
   // RDMA send requests and SGEs
-  /*+ also pass in read + atomics */
+  uint32_t max_pending_read_and_atomic_requests = path->attrs.max_pending_read_requests + path->attrs.max_pending_atomic_requests;
   uint32_t max_pending_send_and_one_sided_requests = path->attrs.max_pending_send_requests + path->attrs.max_pending_write_requests + path->attrs.max_pending_read_requests + path->attrs.max_pending_atomic_requests;
   uint32_t max_sub_buffers_per_send_and_one_sided_request = MY_MAX(path->attrs.max_sub_buffers_per_send_request, path->attrs.max_sub_buffers_per_write_request);
   max_sub_buffers_per_send_and_one_sided_request = MY_MAX(max_sub_buffers_per_send_and_one_sided_request, path->attrs.max_sub_buffers_per_read_request);
@@ -542,6 +542,7 @@ bool rdmaCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *r
   private_path->endpoint = rdmaCreateEndpoint(path, path->attrs.is_endpointA, private_path->socket_fd, qp_type, is_UD_sender, rdma_device_name, rdma_port_number,
 					      max_pending_send_and_one_sided_requests, path->attrs.max_pending_recv_requests,
 					      max_sub_buffers_per_send_and_one_sided_request, path->attrs.max_sub_buffers_per_recv_request,
+                                              max_pending_read_and_atomic_requests,
 					      post_recv_count, recv_requests, app_options, timeout_seconds, error_message, MAX_ERROR_MESSAGE_CHARS);
   if (private_path->endpoint == NULL) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to create RDMA endpoint: %s\n", error_message);

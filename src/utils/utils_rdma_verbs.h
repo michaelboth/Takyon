@@ -84,7 +84,7 @@ extern RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *l
                                                  uint32_t recv_request_count, TakyonRecvRequest *recv_requests,
                                                  double timeout_seconds, char *error_message, int max_error_message_chars);
 extern RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int read_pipe_fd, enum ibv_qp_type qp_type, bool is_UD_sender, const char *rdma_device_name, uint32_t rdma_port_id,
-					uint32_t max_send_wr, uint32_t max_recv_wr, uint32_t max_send_sges, uint32_t max_recv_sges,
+					uint32_t max_send_wr, uint32_t max_recv_wr, uint32_t max_send_sges, uint32_t max_recv_sges, uint32_t max_pending_read_and_atomic_requests,
 					uint32_t recv_request_count, TakyonRecvRequest *recv_requests,
 					RdmaAppOptions app_options, double timeout_seconds, char *error_message, int max_error_message_chars);
 extern bool rdmaDestroyEndpoint(TakyonPath *path, RdmaEndpoint *endpoint, char *error_message, int max_error_message_chars);

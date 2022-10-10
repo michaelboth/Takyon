@@ -118,6 +118,7 @@ static void processMessage(char *message_addr) {
 #endif
 }
 
+#ifndef ENABLE_CUDA
 static void atomicCompareAndSwapThenVerify(TakyonPath *path, uint64_t compare, uint64_t swap_value, uint64_t expected_old_remote_value) {
   // Make sure the storage for the remote value is not the expected value
   uint64_t *value_ptr = (uint64_t *)path->attrs.buffers[0].addr;
@@ -153,7 +154,9 @@ static void atomicCompareAndSwapThenVerify(TakyonPath *path, uint64_t compare, u
     printf("  Atomic compare and swap: GOT " UINT64_FORMAT ", BUT EXPECTED " UINT64_FORMAT "\n", value_ptr[0], expected_old_remote_value);
   }
 }
+#endif
 
+#ifndef ENABLE_CUDA
 static void atomicAddThenVerify(TakyonPath *path, uint64_t add_value, uint64_t expected_old_remote_value) {
   // Make sure the storage for the remote value is not the expected value
   uint64_t *value_ptr = (uint64_t *)path->attrs.buffers[0].addr;
@@ -189,6 +192,7 @@ static void atomicAddThenVerify(TakyonPath *path, uint64_t add_value, uint64_t e
     printf("  Atomic add: got " UINT64_FORMAT ", but expected " UINT64_FORMAT "\n", value_ptr[0], expected_old_remote_value);
   }
 }
+#endif
 
 static void sendSignal(TakyonPath *path) {
   // Setup the send request
@@ -330,6 +334,7 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
     }
   }
 
+#ifndef ENABLE_CUDA
   // One-sided reliable 'atomics'
   if (!path->capabilities.is_unreliable && path->capabilities.one_sided_atomics_supported) {
     printf("%s: Testing one-sided reliable 'atomics' via endpoint A\n", path->attrs.is_endpointA ? "A" : "B");
@@ -365,6 +370,7 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
       }
     }
   }
+#endif
 
   // Destroy the path
   takyonDestroy(path, TAKYON_WAIT_FOREVER);

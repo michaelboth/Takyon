@@ -145,7 +145,7 @@ static void writeMessage(TakyonPath *path, const uint64_t message_bytes, const u
                                     .remote_buffer_index = 0,
                                     .remote_offset = message_offset,
                                     .submit_fence = false,
-                                    .use_is_done_notification = false,
+                                    .use_is_done_notification = false, // Not needed since synchronization is at a higher level
                                     .use_polling_completion = use_polling_completion,
                                     .usec_sleep_between_poll_attempts = 0 };
 
@@ -156,7 +156,7 @@ static void writeMessage(TakyonPath *path, const uint64_t message_bytes, const u
   if (path->capabilities.IsOneSidedDone_function_supported && request.use_is_done_notification) takyonIsOneSidedDone(path, &request, TAKYON_WAIT_FOREVER, NULL);
 }
 
-static void readMessage(TakyonPath *path, const uint64_t message_bytes, const uint64_t message_offset, const bool use_polling_completion) {
+static void readMessage(TakyonPath *path, const uint64_t message_bytes, const uint64_t message_offset, const bool use_polling_completion, bool use_is_done_notification) {
   // Setup the one-sided write request
   TakyonSubBuffer sub_buffer = { .buffer_index = 0, .bytes = message_bytes, .offset = message_offset };
   TakyonOneSidedRequest request = { .operation = TAKYON_OP_READ,
@@ -165,7 +165,7 @@ static void readMessage(TakyonPath *path, const uint64_t message_bytes, const ui
                                     .remote_buffer_index = 0,
                                     .remote_offset = message_offset,
                                     .submit_fence = false,
-                                    .use_is_done_notification = true,
+                                    .use_is_done_notification = use_is_done_notification,
                                     .use_polling_completion = use_polling_completion,
                                     .usec_sleep_between_poll_attempts = 0 };
 
@@ -446,7 +446,7 @@ static void oneSidedThroughput(const bool is_endpointA, const char *provider, co
               uint32_t iteration = completed_iterations + i2;
               uint32_t message_index = i2 % src_buffer_count;
               uint64_t message_offset = message_index * message_bytes;
-              TakyonBuffer *buffer = &path->attrs.buffers[0]; // Source message will be put in first half of the buffer
+              TakyonBuffer *buffer = &path->attrs.buffers[0];
               fillInMessage(buffer, message_bytes, message_offset, iteration);
             }
           }
@@ -460,11 +460,17 @@ static void oneSidedThroughput(const bool is_endpointA, const char *provider, co
             uint32_t i2 = (half_index==0) ? i : src_buffer_count/2+i;
             uint32_t message_index = i2 % src_buffer_count;
             uint64_t message_offset = message_index * message_bytes;
-            TakyonBuffer *buffer = &path->attrs.buffers[0]; // Result is in second half of the buffer
-            readMessage(path, message_bytes, message_offset, use_polling_completion);
-            // Validate messages
-            if (validate) {
-              static uint32_t previous_start_value = 0;
+            bool use_is_done_notification = (i == (src_buffer_count/2)-1); // Only the last in the batch should be true
+            readMessage(path, message_bytes, message_offset, use_polling_completion, use_is_done_notification);
+          }
+          // Validate messages
+          if (validate) {
+            static uint32_t previous_start_value = 0;
+            TakyonBuffer *buffer = &path->attrs.buffers[0];
+            for (uint32_t i=0; i<src_buffer_count/2; i++) {
+              uint32_t i2 = (half_index==0) ? i : src_buffer_count/2+i;
+              uint32_t message_index = i2 % src_buffer_count;
+              uint64_t message_offset = message_index * message_bytes;
               validateMessage(buffer, message_bytes, message_offset, message_index, &previous_start_value);
             }
           }
@@ -489,10 +495,10 @@ static void oneSidedThroughput(const bool is_endpointA, const char *provider, co
             uint64_t message_offset = message_index * message_bytes;
             if (validate) {
               // Fill in the message
-              TakyonBuffer *buffer = &path->attrs.buffers[0]; // Source message will be put in first half of the buffer
+              TakyonBuffer *buffer = &path->attrs.buffers[0];
               fillInMessage(buffer, message_bytes, message_offset, iteration);
             }
-            // Write the message
+            // Write the message (without completion notification)
             writeMessage(path, message_bytes, message_offset, use_polling_completion);
           }
           // Let the remote endpoint know the set of messages arrived
@@ -508,7 +514,7 @@ static void oneSidedThroughput(const bool is_endpointA, const char *provider, co
               uint32_t i2 = (half_index==0) ? i : src_buffer_count/2+i;
               uint32_t message_index = i2 % src_buffer_count;
               uint64_t message_offset = message_index * message_bytes;
-              TakyonBuffer *buffer = &path->attrs.buffers[0]; // Result is in second half of the buffer
+              TakyonBuffer *buffer = &path->attrs.buffers[0];
               validateMessage(buffer, message_bytes, message_offset, message_index, &previous_start_value);
             }
           }

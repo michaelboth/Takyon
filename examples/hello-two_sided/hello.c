@@ -50,6 +50,7 @@ static uint64_t buildMultiBufferMessage(TakyonPath *path, uint32_t message_index
   snprintf(message_addr_cpu, MAX_MESSAGE_BYTES, "Hello %u from %s", message_index+1, endpoint_text);
   printf("  %s (CUDA, %d %s) sending:  \"%s\"\n", endpoint_text, num_sub_buffers, sub_buffer_text, message_addr_cpu);
   uint64_t message_bytes = strlen(message_addr_cpu) + 1;
+  /*+ not sure why failing if less than 33 */if (message_bytes < 33) message_bytes = 33;
   cudaError_t cuda_status = cudaMemcpy(message_addr1, message_addr_cpu, message_bytes, cudaMemcpyDefault);
   if (cuda_status != cudaSuccess) { printf("cudaMemcpy() failed: %s\n", cudaGetErrorString(cuda_status)); exit(EXIT_FAILURE); }
 #else

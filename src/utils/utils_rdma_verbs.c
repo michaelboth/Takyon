@@ -28,19 +28,20 @@
   - Avoiding use of inline bytes when sending since it only works with CPU memory, and adds complexity to track memory type
   - Posted UD recv requests need to have an extra sizeof(struct ibv_grh) bytes (40 bytes), which is the IB's Global Routing Header placed at the beginning of any UD received message
 
-  - Currently not testing with RoCE v1.x since that may be a dead RDMA variant
-  - Currently not testing with iWarp since that may be a dead RDMA variant
-  - Currently not creating the Network Direct SPI v2 variant as may be not any demand
+  - Currently not tested with RoCE v1.x since that may be a dead RDMA variant
+  - Currently not tested with iWarp since that may be a dead RDMA variant
+  - Currently not implemented the Network Direct SPI v2 variant as may be not any demand
 */
-
-/*+ Test with infiniband */
 
 /*+ MELLANOX questions:
     - Odd Results:
       - r3u04 is duplicating RDMA (not using sockets) multicast packets (is this a loopback issue? If so, how to turn off?)
     - Issues:
+      - How to detect max MTU for RoCEv2 across switches?
       - BUG: RDMA UC will stop receiving messages (posted recvs are never producing WCs), even if less than MTU size, if the sender is sending faster than the receiver can consume them. This does not occur with RDMA UD.
 */
+
+#define MY_MAX(_a, _b) ((_a)>(_b) ? (_a) : (_b))
 
 #define PORT_INFO_TEXT_BYTES 200
 
@@ -51,7 +52,7 @@ typedef struct  {
   union ibv_gid gid; // For RoCE
   char gid_text[33]; // For RoCE
   enum ibv_mtu mtu_mode;
-  uint32_t max_send_wr;
+  uint32_t max_pending_read_and_atomic_requests;
   uint32_t unicast_qkey;
   char socket_data[PORT_INFO_TEXT_BYTES]; // Use for transferring to remote side regardless of endian
 } PortInfo;
@@ -162,7 +163,7 @@ static const char *linkLayerToText(uint8_t link_layer) {
   }
 }
 
-static bool getLocalPortInfo(TakyonPath *path, struct ibv_context *context, struct ibv_qp *qp, uint32_t rdma_port_id, uint32_t max_send_wr, uint32_t unicast_local_qkey, int gid_index, PortInfo *port_info_ret, char *error_message, int max_error_message_chars) {
+static bool getLocalPortInfo(TakyonPath *path, struct ibv_context *context, struct ibv_qp *qp, uint32_t rdma_port_id, uint32_t max_pending_read_and_atomic_requests, uint32_t unicast_local_qkey, int gid_index, PortInfo *port_info_ret, char *error_message, int max_error_message_chars) {
   PortInfo port_info = {}; // Zero the structure
 
   struct ibv_port_attr port_attrs;
@@ -182,7 +183,7 @@ static bool getLocalPortInfo(TakyonPath *path, struct ibv_context *context, stru
     printf("    Link Layer:       %s\n", linkLayerToText(port_attrs.link_layer));
   }
 
-  port_info.max_send_wr = max_send_wr;
+  port_info.max_pending_read_and_atomic_requests = max_pending_read_and_atomic_requests;
   port_info.unicast_qkey = unicast_local_qkey;
   port_info.mtu_mode = port_attrs.active_mtu;
   port_info.qpn = qp->qp_num;
@@ -207,12 +208,12 @@ static bool getLocalPortInfo(TakyonPath *path, struct ibv_context *context, stru
     return false;
   }
   if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) {
-    printf("  Local connection info: LID 0x%04x, QPN 0x%06x, PSN 0x%06x, MTU %s, MaxSendWR %u, UnicastQKEY 0x%06x, GID '%s'\n",
-	   port_info.lid, port_info.qpn, port_info.psn, mtuModeToText(port_info.mtu_mode), port_info.max_send_wr, port_info.unicast_qkey, port_info.gid_text);
+    printf("  Local connection info: LID 0x%04x, QPN 0x%06x, PSN 0x%06x, MTU %s, MaxPendingReadAndAtomics %u, UnicastQKEY 0x%06x, GID '%s'\n",
+	   port_info.lid, port_info.qpn, port_info.psn, mtuModeToText(port_info.mtu_mode), port_info.max_pending_read_and_atomic_requests, port_info.unicast_qkey, port_info.gid_text);
   }
 
   gidToText(&port_info.gid, port_info.gid_text);
-  sprintf(port_info.socket_data, "%04x:%06x:%06x:%04x:%06x:%06x:%s", port_info.lid, port_info.qpn, port_info.psn, port_info.mtu_mode, port_info.max_send_wr, port_info.unicast_qkey, port_info.gid_text);
+  sprintf(port_info.socket_data, "%04x:%06x:%06x:%04x:%06x:%06x:%s", port_info.lid, port_info.qpn, port_info.psn, port_info.mtu_mode, port_info.max_pending_read_and_atomic_requests, port_info.unicast_qkey, port_info.gid_text);
 
   *port_info_ret = port_info;
 
@@ -352,7 +353,7 @@ static bool moveQpStateToRTS(struct ibv_qp *qp, struct ibv_pd *pd, enum ibv_qp_t
                                .path_mtu    = mtu_mode, //*+ how to auto detect where it also accounts for intermediate switch MTUs?
                                .dest_qp_num = remote_port_info->qpn,
                                .rq_psn      = remote_port_info->psn,
-			       .max_dest_rd_atomic = 1/*+ allow up to max */,                     // RC only: Number of pending read or atomic operations with this endpoint as the destination. If more are posted, an error may occur or transfers will be stalled.
+			       .max_dest_rd_atomic = MY_MAX(1,remote_port_info->max_pending_read_and_atomic_requests), // RC only: Number of pending read or atomic operations with this endpoint as the destination. If more are posted, an error may occur or transfers will be stalled.
 			       .min_rnr_timer = app_options.min_rnr_timer,  // RC only: Defines index into timeout table. Index is 0 .. 31, 0 = 665 msecs, 1 = 0.01 msecs, 31 = 491 msecs.
                                .ah_attr     = { .is_global     = 0,
                                                 .dlid          = remote_port_info->lid,
@@ -391,7 +392,7 @@ static bool moveQpStateToRTS(struct ibv_qp *qp, struct ibv_pd *pd, enum ibv_qp_t
       attrs.timeout       = app_options.retransmit_timeout; // RC Only: Retransmit timeout. Defines index into timeout table. Index is 0 .. 31, 0 = infinite, 1 = 8.192 usecs, 14 = .0671 secs, 31 = 8800 secs
       attrs.retry_cnt     = app_options.retry_cnt;          // RC Only: Max re-transmits before erroring (without remote NACK). Max is 7
       attrs.rnr_retry     = app_options.rnr_retry;          // RC Only: Max re-transmits before erroring (with remote NACK). Max is 6, but 7 is infinit
-      attrs.max_rd_atomic = 1/*+ allow up to max */;                              // RC Only: Number of pending read or atomic operations initiated by this endpoint. If more are posted, an error may occur or transfers will be stalled.
+      attrs.max_rd_atomic = MY_MAX(1,local_port_info->max_pending_read_and_atomic_requests); // RC Only: Number of pending read or atomic operations initiated by this endpoint. If more are posted, an error may occur or transfers will be stalled.
     }
     attr_mask = IBV_QP_STATE | IBV_QP_SQ_PSN;
     if (qp_type == IBV_QPT_RC) {
@@ -762,7 +763,7 @@ RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *local_NI
 }
 
 RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int read_pipe_fd, enum ibv_qp_type qp_type, bool is_UD_sender, const char *rdma_device_name, uint32_t rdma_port_id,
-				 uint32_t max_send_wr, uint32_t max_recv_wr, uint32_t max_send_sges, uint32_t max_recv_sges,
+				 uint32_t max_send_wr, uint32_t max_recv_wr, uint32_t max_send_sges, uint32_t max_recv_sges, uint32_t max_pending_read_and_atomic_requests,
 				 uint32_t recv_request_count, TakyonRecvRequest *recv_requests,
 				 RdmaAppOptions app_options, double timeout_seconds, char *error_message, int max_error_message_chars) {
   struct ibv_context *context = NULL;
@@ -777,7 +778,10 @@ RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int read_p
   int64_t timeout_nano_seconds = (int64_t)(timeout_seconds * NANOSECONDS_PER_SECOND_DOUBLE);
   bool timed_out = false;
 
-  if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) printf("  Create RDMA UC, max_send_wr=%u, max_recv_wr=%u, max_send_sges=%u, max_recv_sges=%u\n", max_send_wr, max_recv_wr, max_send_sges, max_recv_sges);
+  if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) {
+    printf("  Create RDMA UC, max_send_wr=%u, max_recv_wr=%u, max_send_sges=%u, max_recv_sges=%u, max_pending_read_and_atomic_requests=%u\n",
+           max_send_wr, max_recv_wr, max_send_sges, max_recv_sges, max_pending_read_and_atomic_requests);
+  }
 
   // Get handle to RDMA device
   context = getRdmaContextFromNamedDevice(path, rdma_device_name, error_message, max_error_message_chars);
@@ -843,7 +847,7 @@ RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int read_p
 
   // Get the local endpoint info that will be sent to the remote endpoint
   PortInfo local_port_info;
-  if (!getLocalPortInfo(path, context, qp, rdma_port_id, max_send_wr, unicast_local_qkey, app_options.gid_index, &local_port_info, error_message, max_error_message_chars)) goto failed;
+  if (!getLocalPortInfo(path, context, qp, rdma_port_id, max_pending_read_and_atomic_requests, unicast_local_qkey, app_options.gid_index, &local_port_info, error_message, max_error_message_chars)) goto failed;
 
   // Exchange QP and port info with the remote endpoint
   PortInfo remote_port_info;
@@ -868,15 +872,15 @@ RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int read_p
   }
 
   // Parse the remote port info
-  int tokens = sscanf(remote_port_info.socket_data, "%x:%x:%x:%x:%x:%x:%s", &remote_port_info.lid, &remote_port_info.qpn, &remote_port_info.psn, &remote_port_info.mtu_mode, &remote_port_info.max_send_wr, &remote_port_info.unicast_qkey, remote_port_info.gid_text);
+  int tokens = sscanf(remote_port_info.socket_data, "%x:%x:%x:%x:%x:%x:%s", &remote_port_info.lid, &remote_port_info.qpn, &remote_port_info.psn, &remote_port_info.mtu_mode, &remote_port_info.max_pending_read_and_atomic_requests, &remote_port_info.unicast_qkey, remote_port_info.gid_text);
   if (tokens != 7) {
     TAKYON_RECORD_ERROR(path->error_message, "Failed to parse the remote RDMA port info text\n");
     goto failed;
   }
   textToGid(remote_port_info.gid_text, &remote_port_info.gid);
   if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) {
-    printf("  Remote connection info: LID 0x%04x, QPN 0x%06x, PSN 0x%06x, MTU %s, MaxSendWR %u, UnicastQKEY 0x%06x, GID '%s'\n",
-           remote_port_info.lid, remote_port_info.qpn, remote_port_info.psn, mtuModeToText(remote_port_info.mtu_mode), remote_port_info.max_send_wr, remote_port_info.unicast_qkey, remote_port_info.gid_text);
+    printf("  Remote connection info: LID 0x%04x, QPN 0x%06x, PSN 0x%06x, MTU %s, MaxPendingReadAndAtomics %u, UnicastQKEY 0x%06x, GID '%s'\n",
+           remote_port_info.lid, remote_port_info.qpn, remote_port_info.psn, mtuModeToText(remote_port_info.mtu_mode), remote_port_info.max_pending_read_and_atomic_requests, remote_port_info.unicast_qkey, remote_port_info.gid_text);
   }
 
   // Move the QP state to RTS (ready to send)

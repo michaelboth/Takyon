@@ -55,5 +55,5 @@ The examples cover most of Takyon's features.
 Example | Description
 --------|------------
 hello-two_sided | Transfer a simple greeting between two endpoints using 'send' -> 'recv'.<br>Supports all Providers, CUDA, MMAPs, relialbe, unrelaible, and multiple memory blocks.
-hello-one_sided | Transfer a simple greeting between two endpoints using a one-sided 'read','write'.<br>Optionally supports CUDA & MMAPs. Only works with reliable Providers that support one sided.
+hello-one_sided | Transfer a simple greeting between two endpoints using a one-sided read, write, and atomic transfers.<br>Optionally supports CUDA & MMAPs. Only works with reliable Providers that support one sided.
 throughput | Determine transfer speed of a Provider; 'send' -> 'recv' or 'write','read'.<br>Supports all Providers, CUDA, and MMAPs.<br>Run with '-h' to see all the options.
