@@ -34,17 +34,14 @@
 */
 
 /*+ MELLANOX questions:
-    - Odd Results:
-      - r3u04 is duplicating RDMA (not using sockets) multicast packets (is this a loopback issue? If so, how to turn off?)
-    - Issues:
-      - How to detect max MTU for RoCEv2 across switches?
-      - BUG: RDMA UC will stop receiving messages (posted recvs are never producing WCs), even if less than MTU size, if the sender is sending faster than the receiver can consume them. This does not occur with RDMA UD.
-      - CUDA transfer need at least 33 bytes or ibv_poll_cq crashes (Segmentation fault (core dumped)):
-        GDB back trace:
-         #0  __memcpy_generic () at ../sysdeps/aarch64/multiarch/../memcpy.S:120
-	 #1  0x0000fffff007dcd4 in ?? () from /usr/lib/aarch64-linux-gnu/libibverbs/libmlx5-rdmav34.so
-	 #2  0x0000fffff004f8b8 in ?? () from /usr/lib/aarch64-linux-gnu/libibverbs/libmlx5-rdmav34.so
-	 #3  0x0000aaaaaaac1ed4 in ibv_poll_cq (cq=0xaaaaab099ac0, num_entries=1, wc=0xffffffffe568) at /usr/include/infiniband/verbs.h:2873
+   - How to detect max MTU for RoCEv2 across switches?
+   - CUDA transfer need at least 33 bytes or ibv_poll_cq crashes (Segmentation fault (core dumped)):
+     GDB back trace:
+      #0  __memcpy_generic () at ../sysdeps/aarch64/multiarch/../memcpy.S:120
+   	 #1  0x0000fffff007dcd4 in ?? () from /usr/lib/aarch64-linux-gnu/libibverbs/libmlx5-rdmav34.so
+   	 #2  0x0000fffff004f8b8 in ?? () from /usr/lib/aarch64-linux-gnu/libibverbs/libmlx5-rdmav34.so
+   	 #3  0x0000aaaaaaac1ed4 in ibv_poll_cq (cq=0xaaaaab099ac0, num_entries=1, wc=0xffffffffe568) at /usr/include/infiniband/verbs.h:2873
+   - r3u04 is duplicating RDMA (not using sockets) multicast packets (is this an RDMA loopback issue? If so, how to turn off?). This does not occur on mercuryRDP.
 */
 
 #define MY_MAX(_a, _b) ((_a)>(_b) ? (_a) : (_b))
