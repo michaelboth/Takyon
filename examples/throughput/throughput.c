@@ -121,13 +121,20 @@ static bool recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, const
     printf("\nTimed out waiting for messages: dropped %u of %u (%0.2f%%).\n", detected_drops, iterations, drop_percent);
     return false;
   }
-  if (bytes_received != recv_request->sub_buffers[0].bytes) {
-    if (strncmp(path->attrs.provider, "RdmaUD", 6) == 0) {
-      printf("\nGot " UINT64_FORMAT " bytes but expected " UINT64_FORMAT ". Make sure the sender matches byte size (RDMA UD receiver needs 40 extra bytes)\n", bytes_received-40, recv_request->sub_buffers[0].bytes-40);
-    } else {
-      printf("\nGot " UINT64_FORMAT " bytes but expected " UINT64_FORMAT ". Make sure the sender matches byte size\n", bytes_received, recv_request->sub_buffers[0].bytes);
+  if (recv_request->sub_buffer_count == 0) {
+    if (bytes_received != 0) {
+      printf("\nGot " UINT64_FORMAT " bytes but expected 0. Make sure the sender matches byte size\n", bytes_received);
+      exit(EXIT_FAILURE);
     }
-    exit(EXIT_FAILURE);
+  } else {
+    if (bytes_received != recv_request->sub_buffers[0].bytes) {
+      if (strncmp(path->attrs.provider, "RdmaUD", 6) == 0) {
+	printf("\nGot " UINT64_FORMAT " bytes but expected " UINT64_FORMAT ". Make sure the sender matches byte size (RDMA UD receiver needs 40 extra bytes)\n", bytes_received-40, recv_request->sub_buffers[0].bytes-40);
+      } else {
+	printf("\nGot " UINT64_FORMAT " bytes but expected " UINT64_FORMAT ". Make sure the sender matches byte size\n", bytes_received, recv_request->sub_buffers[0].bytes);
+      }
+      exit(EXIT_FAILURE);
+    }
   }
 
   *bytes_received_out = bytes_received;
@@ -301,9 +308,9 @@ static void twoSidedThroughput(const bool is_endpointA, const char *provider, co
 
       // Validate message
       // Verify bytes received
-      uint64_t expected_message_bytes = recv_request->sub_buffers[0].bytes;
+      uint64_t expected_message_bytes = (recv_request->sub_buffer_count == 0) ? 0 : recv_request->sub_buffers[0].bytes;
       if (bytes_received != expected_message_bytes) { printf("Message %u: Received " UINT64_FORMAT " bytes, but expect " UINT64_FORMAT " bytes\n", i+1, bytes_received, expected_message_bytes); exit(EXIT_FAILURE); }
-      uint64_t message_offset = recv_request->sub_buffers[0].offset;
+      uint64_t message_offset = (recv_request->sub_buffer_count == 0) ? 0 : recv_request->sub_buffers[0].offset;
       // IMPORTANT: if receiving from an RDMA UD (multicast or unicast) provider, then the receive buffer with start with the 40 byte RDMA Global Routing Header. Need to skip over this
       if (provider_is_RdmaUD) {
 	bytes_received -= 40;

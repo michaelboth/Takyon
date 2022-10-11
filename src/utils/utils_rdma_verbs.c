@@ -39,6 +39,12 @@
     - Issues:
       - How to detect max MTU for RoCEv2 across switches?
       - BUG: RDMA UC will stop receiving messages (posted recvs are never producing WCs), even if less than MTU size, if the sender is sending faster than the receiver can consume them. This does not occur with RDMA UD.
+      - CUDA transfer need at least 33 bytes or ibv_poll_cq crashes (Segmentation fault (core dumped)):
+        GDB back trace:
+         #0  __memcpy_generic () at ../sysdeps/aarch64/multiarch/../memcpy.S:120
+	 #1  0x0000fffff007dcd4 in ?? () from /usr/lib/aarch64-linux-gnu/libibverbs/libmlx5-rdmav34.so
+	 #2  0x0000fffff004f8b8 in ?? () from /usr/lib/aarch64-linux-gnu/libibverbs/libmlx5-rdmav34.so
+	 #3  0x0000aaaaaaac1ed4 in ibv_poll_cq (cq=0xaaaaab099ac0, num_entries=1, wc=0xffffffffe568) at /usr/include/infiniband/verbs.h:2873
 */
 
 #define MY_MAX(_a, _b) ((_a)>(_b) ? (_a) : (_b))
@@ -57,7 +63,7 @@ typedef struct  {
   char socket_data[PORT_INFO_TEXT_BYTES]; // Use for transferring to remote side regardless of endian
 } PortInfo;
 
-static struct ibv_context *getRdmaContextFromNamedDevice(TakyonPath *path, const char *rdma_device_name, char *error_message, int max_error_message_chars) {
+static struct ibv_context *getRdmaContextFromNamedDevice(TakyonPath *path, const char *rdma_device_name, char *error_message, int max_error_message_chars, int *max_qp_wr_ret, int *max_qp_rd_atom_ret) {
   // IMPORTANT: valgrind is reporting this memory is never freed even with ibv_free_device_list(dev_list) being called. Mellanox has been informed
   struct ibv_device **dev_list = ibv_get_device_list(NULL);
   if (dev_list == NULL) {
@@ -74,13 +80,16 @@ static struct ibv_context *getRdmaContextFromNamedDevice(TakyonPath *path, const
         return NULL;
       }
 
+      // Determine the device attributes
+      struct ibv_device_attr device_attr;
+      int rc = ibv_query_device(context, &device_attr);
+      if (rc != 0) {
+	snprintf(error_message, max_error_message_chars, "ibv_query_device() failed for device '%s': errno=%d", rdma_device_name, errno);
+	return NULL;
+      }
+      *max_qp_rd_atom_ret = device_attr.max_qp_rd_atom;
+      *max_qp_wr_ret = device_attr.max_qp_wr;
       if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) {
-	struct ibv_device_attr device_attr;
-	int rc = ibv_query_device(context, &device_attr);
-	if (rc != 0) {
-	  snprintf(error_message, max_error_message_chars, "ibv_query_device() failed for device '%s': errno=%d", rdma_device_name, errno);
-	  return NULL;
-	}
 	printf("  Device info:\n");
 	printf("    max_qp_wr = %d\n", device_attr.max_qp_wr);
 	printf("    max_qp_rd_atom = %d\n", device_attr.max_qp_rd_atom);
@@ -784,8 +793,18 @@ RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int read_p
   }
 
   // Get handle to RDMA device
-  context = getRdmaContextFromNamedDevice(path, rdma_device_name, error_message, max_error_message_chars);
+  int max_qp_wr;
+  int max_qp_rd_atom;
+  context = getRdmaContextFromNamedDevice(path, rdma_device_name, error_message, max_error_message_chars, &max_qp_wr, &max_qp_rd_atom);
   if (context == NULL) return NULL;
+  if (max_qp_wr < (int)(max_send_wr + max_recv_wr)) {
+    TAKYON_RECORD_ERROR(path->error_message, "Total send/recv/read/write/atomic requests must be <= %d\n", max_qp_wr);
+    goto failed;
+  }
+  if (max_qp_rd_atom < (int)max_pending_read_and_atomic_requests) {
+    TAKYON_RECORD_ERROR(path->error_message, "Total read and atomic requests must be <= %d\n", max_qp_rd_atom);
+    goto failed;
+  }
 
   // IMPORTANT: Transfers might be event driven so create the completion channel just in case
   // Completion channels

@@ -118,11 +118,16 @@ static void processMessage(char *message_addr) {
 #endif
 }
 
-#ifndef ENABLE_CUDA
 static void atomicCompareAndSwapThenVerify(TakyonPath *path, uint64_t compare, uint64_t swap_value, uint64_t expected_old_remote_value) {
   // Make sure the storage for the remote value is not the expected value
   uint64_t *value_ptr = (uint64_t *)path->attrs.buffers[0].addr;
+#ifdef ENABLE_CUDA
+  uint64_t temp = expected_old_remote_value+1;
+  cudaError_t cuda_status = cudaMemcpy(value_ptr, &temp, sizeof(uint64_t), cudaMemcpyDefault);
+  if (cuda_status != cudaSuccess) { printf("cudaMemcpy() failed: %s\n", cudaGetErrorString(cuda_status)); exit(EXIT_FAILURE); }
+#else
   value_ptr[0] = expected_old_remote_value+1;
+#endif
 
   // STEP 1: Setup the Takyon sub buffer list
   TakyonSubBuffer sub_buffer = { .buffer_index = 0, .bytes = sizeof(uint64_t), .offset = 0 };
@@ -148,19 +153,30 @@ static void atomicCompareAndSwapThenVerify(TakyonPath *path, uint64_t compare, u
   }
 
   // Verify expected old remote value
-  if (value_ptr[0] == expected_old_remote_value) {
+#ifdef ENABLE_CUDA
+  uint64_t old_remote_value;
+  cuda_status = cudaMemcpy(&old_remote_value, value_ptr, sizeof(uint64_t), cudaMemcpyDefault);
+  if (cuda_status != cudaSuccess) { printf("cudaMemcpy() failed: %s\n", cudaGetErrorString(cuda_status)); exit(EXIT_FAILURE); }
+#else
+  uint64_t old_remote_value = value_ptr[0];
+#endif
+  if (old_remote_value == expected_old_remote_value) {
     printf("  Atomic compare and swap: got expected value " UINT64_FORMAT "\n", expected_old_remote_value);
   } else {
-    printf("  Atomic compare and swap: GOT " UINT64_FORMAT ", BUT EXPECTED " UINT64_FORMAT "\n", value_ptr[0], expected_old_remote_value);
+    printf("  Atomic compare and swap: GOT " UINT64_FORMAT ", BUT EXPECTED " UINT64_FORMAT "\n", old_remote_value, expected_old_remote_value);
   }
 }
-#endif
 
-#ifndef ENABLE_CUDA
 static void atomicAddThenVerify(TakyonPath *path, uint64_t add_value, uint64_t expected_old_remote_value) {
   // Make sure the storage for the remote value is not the expected value
   uint64_t *value_ptr = (uint64_t *)path->attrs.buffers[0].addr;
+#ifdef ENABLE_CUDA
+  uint64_t temp = expected_old_remote_value+1;
+  cudaError_t cuda_status = cudaMemcpy(value_ptr, &temp, sizeof(uint64_t), cudaMemcpyDefault);
+  if (cuda_status != cudaSuccess) { printf("cudaMemcpy() failed: %s\n", cudaGetErrorString(cuda_status)); exit(EXIT_FAILURE); }
+#else
   value_ptr[0] = expected_old_remote_value+1;
+#endif
 
   // STEP 1: Setup the Takyon sub buffer list
   TakyonSubBuffer sub_buffer = { .buffer_index = 0, .bytes = sizeof(uint64_t), .offset = 0 };
@@ -186,13 +202,19 @@ static void atomicAddThenVerify(TakyonPath *path, uint64_t add_value, uint64_t e
   }
 
   // Verify expected old remote value
-  if (value_ptr[0] == expected_old_remote_value) {
+#ifdef ENABLE_CUDA
+  uint64_t old_remote_value;
+  cuda_status = cudaMemcpy(&old_remote_value, value_ptr, sizeof(uint64_t), cudaMemcpyDefault);
+  if (cuda_status != cudaSuccess) { printf("cudaMemcpy() failed: %s\n", cudaGetErrorString(cuda_status)); exit(EXIT_FAILURE); }
+#else
+  uint64_t old_remote_value = value_ptr[0];
+#endif
+  if (old_remote_value == expected_old_remote_value) {
     printf("  Atomic add: got expected value " UINT64_FORMAT "\n", expected_old_remote_value);
   } else {
-    printf("  Atomic add: got " UINT64_FORMAT ", but expected " UINT64_FORMAT "\n", value_ptr[0], expected_old_remote_value);
+    printf("  Atomic add: got " UINT64_FORMAT ", but expected " UINT64_FORMAT "\n", old_remote_value, expected_old_remote_value);
   }
 }
-#endif
 
 static void sendSignal(TakyonPath *path) {
   // Setup the send request
@@ -334,14 +356,19 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
     }
   }
 
-#ifndef ENABLE_CUDA
   // One-sided reliable 'atomics'
   if (!path->capabilities.is_unreliable && path->capabilities.one_sided_atomics_supported) {
     printf("%s: Testing one-sided reliable 'atomics' via endpoint A\n", path->attrs.is_endpointA ? "A" : "B");
     if (!path->attrs.is_endpointA) {
       // Prepare the atomic value
       uint64_t *value_ptr = (uint64_t *)path->attrs.buffers[0].addr;
+#ifdef ENABLE_CUDA
+      uint64_t temp = 0;
+      cudaError_t cuda_status = cudaMemcpy(value_ptr, &temp, sizeof(uint64_t), cudaMemcpyDefault);
+      if (cuda_status != cudaSuccess) { printf("cudaMemcpy() failed: %s\n", cudaGetErrorString(cuda_status)); exit(EXIT_FAILURE); }
+#else
       value_ptr[0] = 0;
+#endif
     }
     for (uint32_t i=0; i<iterations; i++) {
       if (path->attrs.is_endpointA) {
@@ -362,15 +389,21 @@ void hello(const bool is_endpointA, const char *provider, const uint32_t iterati
 	// Print
 	uint64_t *value_ptr = (uint64_t *)path->attrs.buffers[0].addr;
 	uint64_t expected_value = i+1;
-	if (value_ptr[0] == expected_value) {
+#ifdef ENABLE_CUDA
+	uint64_t new_atomic_value;
+	cudaError_t cuda_status = cudaMemcpy(&new_atomic_value, value_ptr, sizeof(uint64_t), cudaMemcpyDefault);
+	if (cuda_status != cudaSuccess) { printf("cudaMemcpy() failed: %s\n", cudaGetErrorString(cuda_status)); exit(EXIT_FAILURE); }
+#else
+	uint64_t new_atomic_value = value_ptr[0];
+#endif
+	if (new_atomic_value == expected_value) {
 	  printf("  Atomic value=" UINT64_FORMAT " is correct\n", expected_value);
 	} else {
-	  printf("  Atomic value incorrect: got " UINT64_FORMAT ", but expected " UINT64_FORMAT "\n", value_ptr[0], expected_value);
+	  printf("  Atomic value incorrect: got " UINT64_FORMAT ", but expected " UINT64_FORMAT "\n", new_atomic_value, expected_value);
 	}
       }
     }
   }
-#endif
 
   // Destroy the path
   takyonDestroy(path, TAKYON_WAIT_FOREVER);
