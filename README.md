@@ -36,7 +36,7 @@ InterProcess   | Reliable   | 0 .. >4 GB    | Recv         | Read, Write        
 InterProcess UC| Unreliable | 0 .. >4 GB    | Recv         |                    | Yes           | Yes                               | All
 Socket Tcp     | Reliable   | 0 .. 1 GB     |              |                    |               | Yes                               | All
 Socket Udp     | Unreliable | Unicast:<br>1 .. 64 KB<br>Multicast:<br>1 .. MTU  |     |   |     |                                   | All
-Rdma RC        | Reliable   | 0 .. 1 GB     | Send, Recv, Read, Write  | Read, Write, Atomics | Yes | Yes                           | Linux
+Rdma RC        | Reliable   | 0 .. 1 GB     | Send, Recv, Read, Write, Atomics | Read, Write, Atomics | Yes | Yes                   | Linux
 Rdma UC        | Unreliable | 0 .. 1 GB     | Send, Recv, Write        | Write  | Yes           | Yes                               | Linux
 Rdma UD        | Unreliable | 0 .. 4 KB     | Send, Recv               |        | Yes           | Yes                               | Linux
 
