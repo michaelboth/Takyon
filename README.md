@@ -41,13 +41,13 @@ Rdma UC        | Unreliable | 0 .. 1 GB     | Send, Recv, Write        | Write  
 Rdma UD        | Unreliable | 0 .. 4 KB     | Send, Recv               |        | Yes           | Yes                               | Linux
 
 # The API
-The 8 Takyon functions and most of the details are in the single header file: ```inc/takyon.h```<br>
-Sneak peak:
+Takyon's API only contains 8 functions which essentially forms the basis of all communication. For eHPC engineers, there's no need to bog them down in further details.
 Grouping | Functions | Description
 ---------|-----------|------------------
 Creation | takyonCreate()<br>takyonDestroy() | Create and destroy endpoints
 Two-Sided | takyonSend()<br>takyonIsSent()<br>takyonPostRecvs()<br>takyonIsRecved() | It's a coordinated effort by both endpoints. The source sides sends, and the destination receives.
 One-Sided | takyonOneSided()<br>takyonIsOneSidedDone() | Only one endpoint does all the work, and the other endpoint doesn't even know it's happening (i.e. it's not involved). This include 'read', 'write' and atomics.
+The Takyon functions and most of the details are in the single header file: ```inc/takyon.h```<br>The <a href="Takyon_Introduction.pdf">Takyon Introduction</a> presentation also conveys many of Takyon's features.
 
 # Building and Testing
 Takyon and its examples are provided as C code. Takyon is compiled into a library with only the Takyon Providers you want, and the examples are linked with the Takyon library.<br>
