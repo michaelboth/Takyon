@@ -24,10 +24,10 @@ This shows the Takyon features and reasoning behind creating a new point-to-poin
 - Supports GPU memory via CUDA's cudaMemcpy, CUDA IPC, and GPUDirect
 - Tested on Windows, Mac, & Linux
 
-### Supported Providers
-A Takyon Provider gives access to a specific communication interconnect.<br>
+### Takyon Providers
+A Takyon Provider gives the application access to a specific communication interconnect (see table below).<br>
 Each Takyon Provider supports a set of properties. See the details in ```src/providers/provider_<interconnect>.c```<br>
-Add your own Takyon Providers as needed (see ```src/providers/supported_providers.h```).<br>Currently supported Takyon Providers
+Add your own Takyon Providers as needed (see ```src/providers/supported_providers.h```).<br><br>Currently supported Takyon Providers
 Provider       | Type       | Message Bytes | Non-Blocking | Includes One-Sided | Supports CUDA | Supports 32 bit Piggyback Message | Platforms
 ---------------|------------|---------------|--------------|--------------------|---------------|-----------------------------------|----------
 InterThread    | Reliable   | 0 .. >4 GB    | Recv         | Read, Write        | Yes           | Yes                               | All
