@@ -41,7 +41,7 @@ Rdma UC        | Unreliable | 0 .. 1 GB     | Send, Recv, Write        | Write  
 Rdma UD        | Unreliable | 0 .. 4 KB     | Send, Recv               |        | Yes           | Yes                               | Linux
 
 # The API
-Takyon's API only contains 8 functions which essentially defines the basis of all communication. For eHPC engineers, there's no need to bog them down in further details.
+Takyon's API only contains 8 functions which essentially defines the basis of all communication. For eHPC engineers, there's no need to bog them down in further gory details.
 Grouping | Functions | Description
 ---------|-----------|------------------
 Creation | takyonCreate()<br>takyonDestroy() | Create and destroy endpoints
