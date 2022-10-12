@@ -42,6 +42,12 @@ Rdma UD        | Unreliable | 0 .. 4 KB     | Send, Recv               |        
 
 # The API
 The 8 Takyon functions and most of the details are in the single header file: ```inc/takyon.h```<br>
+Sneak peak:
+    | Functions | Group Description
+----|-----------|------------------
+    | takyonCreate()<br>takyonDestroy() | Create and destroy endpoints
+Two-Sided | takyonSend()<br>takyonIsSent()<br>takyonPostRecvs()<br>takyonIsRecved() | It's a coordinated effort by both endpoints. The source sides sends, and the destination receives.
+One-Sided | takyonOneSided()<br>takyonIsOneSidedDone() | Only one endpoint does all the work, and the other endpoint doesn't even know it's happening (i.e. it's not involved). This include 'read', 'write' and atomics.
 
 # Building and Testing
 Takyon and its examples are provided as C code. Takyon is compiled into a library with only the Takyon Providers you want, and the examples are linked with the Takyon library.<br>
