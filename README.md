@@ -31,9 +31,9 @@ Add your own Takyon Providers as needed (see ```src/providers/supported_provider
 Provider       | Type       | Message Bytes | Non-Blocking | Includes One-Sided | Supports CUDA | Supports 32 bit Piggyback Message | Platforms
 ---------------|------------|---------------|--------------|--------------------|---------------|-----------------------------------|----------
 InterThread    | Reliable   | 0 .. >4 GB    | Recv         | Read, Write        | Yes           | Yes                               | All
-InterThread UC | Uneliable  | 0 .. >4 GB    | Recv         |                    | Yes           | Yes                               | All
+InterThread UC | Uneliable  | 0 .. >4 GB    | Recv         | Read, Write        | Yes           | Yes                               | All
 InterProcess   | Reliable   | 0 .. >4 GB    | Recv         | Read, Write        | Yes           | Yes                               | All
-InterProcess UC| Unreliable | 0 .. >4 GB    | Recv         |                    | Yes           | Yes                               | All
+InterProcess UC| Unreliable | 0 .. >4 GB    | Recv         | Read, Write        | Yes           | Yes                               | All
 Socket Tcp     | Reliable   | 0 .. 1 GB     |              |                    |               | Yes                               | All
 Socket Udp     | Unreliable | Unicast:<br>1 .. 64 KB<br>Multicast:<br>1 .. MTU  |     |   |     |                                   | All
 Rdma RC        | Reliable   | 0 .. 1 GB     | Send, Recv, Read, Write, Atomics | Read, Write, Atomics | Yes | Yes                   | Linux
@@ -63,4 +63,4 @@ Example | Description
 --------|------------
 hello-two_sided | Transfer a simple greeting between two endpoints using 'send' -> 'recv'.<br>Supports all Takyon Providers, CUDA, MMAPs, reliable, unreliable, and multiple memory blocks.
 hello-one_sided | Transfer a simple greeting between two endpoints using one-sided read, write, and/or atomic transfers.<br>Optionally supports CUDA & MMAPs. Even though some unreliable Takyon Providers can support one sided, this example only works with reliable Providers.
-throughput | Determines the transfer speed of a Provider; 'send' -> 'recv' or 'write','read'.<br>Supports all Takyon Providers, CUDA, MMAPs, reliable, and unreliable.<br>Run with '-h' to see all the options.
+throughput | Determines the transfer speed of a Provider; 'send' -> 'recv' or 'write','read'.<br>Supports all Takyon Providers, CUDA, MMAPs, reliable, and unreliable (two-sided only).<br>Run with '-h' to see all the options.
