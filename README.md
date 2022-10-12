@@ -26,8 +26,8 @@ This shows the Takyon features and reasoning behind creating a new point-to-poin
 
 ### Supported Providers
 A Takyon Provider gives access to a specific communication interconnect.<br>
-Each Takyon Provider has it's own provider specification. To know the details see ```src/providers/provider_<interconnect>.c```<br>
-Add your own providers as needed (see ```src/providers/supported_providers.h```).
+Each Takyon Provider supports a set of properties. See the details in ```src/providers/provider_<interconnect>.c```<br>
+Add your own Takyon Providers as needed (see ```src/providers/supported_providers.h```).<br>Currently supported Takyon Providers
 Provider       | Type       | Message Bytes | Non-Blocking | Includes One-Sided | Supports CUDA | Supports 32 bit Piggyback Message | Platforms
 ---------------|------------|---------------|--------------|--------------------|---------------|-----------------------------------|----------
 InterThread    | Reliable   | 0 .. >4 GB    | Recv         | Read, Write        | Yes           | Yes                               | All
@@ -44,16 +44,16 @@ Rdma UD        | Unreliable | 0 .. 4 KB     | Send, Recv               |        
 The 8 Takyon functions and most of the details are in the single header file: ```inc/takyon.h```<br>
 
 # Building and Testing
-Takyon and its examples are provided as C code. Takyon is compiled into a library with only the providers you want, and the examples are linked with the Takyon library.<br>
+Takyon and its examples are provided as C code. Takyon is compiled into a library with only the Takyon Providers you want, and the examples are linked with the Takyon library.<br>
 <br>
 You can build and run with the direct approach or the more automated approach:
 1. **Direct**: To compile the library, see ```lib/README.txt```. To build an example, see ```examples/<example>/README.txt```.
-2. **Automated**: One script will build the Library and all the examples, then a second script will run many variations of the examples to validate the build and providers. See ```testing/README.txt```
+2. **Automated**: One script will build the library and all the examples, then a second script will run many variations of the examples to validate the build and Takyon Providers. See ```testing/README.txt```
 
 ### Examples
 The examples cover most of Takyon's features.
 Example | Description
 --------|------------
-hello-two_sided | Transfer a simple greeting between two endpoints using 'send' -> 'recv'.<br>Supports all Providers, CUDA, MMAPs, relialbe, unrelaible, and multiple memory blocks.
-hello-one_sided | Transfer a simple greeting between two endpoints using a one-sided read, write, and atomic transfers.<br>Optionally supports CUDA & MMAPs. Only works with reliable Providers that support one sided.
-throughput | Determine transfer speed of a Provider; 'send' -> 'recv' or 'write','read'.<br>Supports all Providers, CUDA, and MMAPs.<br>Run with '-h' to see all the options.
+hello-two_sided | Transfer a simple greeting between two endpoints using 'send' -> 'recv'.<br>Supports all Takyon Providers, CUDA, MMAPs, reliable, unreliable, and multiple memory blocks.
+hello-one_sided | Transfer a simple greeting between two endpoints using one-sided read, write, and/or atomic transfers.<br>Optionally supports CUDA & MMAPs. Even though some unreliable Takyon Providers can support one sided, this example only works with reliable Providers.
+throughput | Determines the transfer speed of a Provider; 'send' -> 'recv' or 'write','read'.<br>Supports all Takyon Providers, CUDA, MMAPs, reliable, and unreliable.<br>Run with '-h' to see all the options.
