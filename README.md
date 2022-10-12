@@ -38,7 +38,7 @@ Socket Tcp     | Reliable   | 0 .. 1 GB     |              |                    
 Socket Udp     | Unreliable | Unicast:<br>1 .. 64 KB<br>Multicast:<br>1 .. MTU  |     |   |     |                                   | All
 Rdma RC        | Reliable   | 0 .. 1 GB     | Send, Recv, Read, Write, Atomics | Read, Write, Atomics | Yes | Yes                   | Linux
 Rdma UC        | Unreliable | 0 .. 1 GB     | Send, Recv, Write        | Write  | Yes           | Yes                               | Linux
-Rdma UD        | Unreliable | 0 .. 4 KB     | Send, Recv               |        | Yes           | Yes                               | Linux
+Rdma UD        | Unreliable | 0 .. 4 KB<br>Unicast and Multicast | Send, Recv               |        | Yes           | Yes                               | Linux
 
 # The API
 Takyon's API only contains 8 functions which essentially defines the basis of all communication. For eHPC engineers, there's no need to bog them down in further gory details.
