@@ -28,9 +28,9 @@
 //     See the License for the specific language governing permissions and
 //     limitations under the License.
 
-#include "takyon_inter_thread_manager.h"
-#include "takyon_private.h"
+#include "utils_inter_thread_manager.h"
 #include "utils_thread_cond_timed_wait.h"
+#include "takyon_private.h"
 #include <stdlib.h>
 #include <stdio.h>
 

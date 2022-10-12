@@ -29,7 +29,7 @@
 //     limitations under the License.
 
 #include "provider_InterThread.h"
-#include "takyon_inter_thread_manager.h"
+#include "utils_inter_thread_manager.h"
 #include "takyon_private.h"
 #include "utils_arg_parser.h"
 #include "utils_time.h"

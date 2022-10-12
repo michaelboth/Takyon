@@ -26,7 +26,7 @@ NEED_utils_ephemeral_port_manager = No
 InterThread_C_FLAGS = -DENABLE_InterThread
 NEED_utils_time = Yes
 NEED_utils_thread_cond_timed_wait = Yes
-InterThread_C_OBJS = takyon_inter_thread_manager.obj provider_InterThread.obj
+InterThread_C_OBJS = utils_inter_thread_manager.obj provider_InterThread.obj
 !ENDIF
 
 #---------------------------------------------

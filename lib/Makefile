@@ -41,9 +41,9 @@ ifeq ($(InterThread),Yes)
     C_FLAGS      += -DENABLE_InterThread
     NEED_utils_time := Yes
     NEED_utils_thread_cond_timed_wait := Yes
-    C_OBJS       += takyon_inter_thread_manager.o
+    C_OBJS       += utils_inter_thread_manager.o
     C_OBJS       += provider_InterThread.o
-    HEADER_FILES += takyon_inter_thread_manager.h
+    HEADER_FILES += utils_inter_thread_manager.h
     HEADER_FILES += provider_InterThread.h
 endif
 

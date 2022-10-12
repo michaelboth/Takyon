@@ -19,7 +19,7 @@ extern "C"
 {
 #endif
 
-extern bool setProviderFunctionsAndCapabilities(const char *provider_name, TakyonComm *comm, TakyonPathCapabilities *capabilities);
+extern bool getProviderFunctionsAndCapabilities(const char *provider_name, TakyonComm *comm, TakyonPathCapabilities *capabilities);
 
 #ifdef __cplusplus
 }

@@ -163,9 +163,9 @@ char *takyonCreate(TakyonPathAttributes *attrs, uint32_t post_recv_count, Takyon
     return takyon_error_message;
   }
 
-  // Fill in path capabilities and functions
+  // Get the path capabilities and functions
   TakyonPathCapabilities capabilities;
-  bool ok = setProviderFunctionsAndCapabilities(provider_name, comm, &capabilities);
+  bool ok = getProviderFunctionsAndCapabilities(provider_name, comm, &capabilities);
   if (!ok) {
     TAKYON_RECORD_ERROR(takyon_error_message, "Provider '%s' is not found in 'supported_providers.c'\n", provider_name);
     free(comm);

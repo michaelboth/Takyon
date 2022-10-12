@@ -295,7 +295,7 @@ static CommInterface L_interfaces[] = {
 #endif
 };
 
-bool setProviderFunctionsAndCapabilities(const char *provider_name, TakyonComm *comm, TakyonPathCapabilities *capabilities) {
+bool getProviderFunctionsAndCapabilities(const char *provider_name, TakyonComm *comm, TakyonPathCapabilities *capabilities) {
   uint64_t num_interfaces = (sizeof(L_interfaces) / sizeof(CommInterface));
   for (uint64_t i=0; i<num_interfaces; i++) {
     CommInterface *interface = &L_interfaces[i];

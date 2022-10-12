@@ -28,11 +28,11 @@
 //     See the License for the specific language governing permissions and
 //     limitations under the License.
 
-#ifndef _takyon_inter_thread_manager_h_
-#define _takyon_inter_thread_manager_h_
+#ifndef _utils_inter_thread_manager_h_
+#define _utils_inter_thread_manager_h_
 
-#include <stdbool.h>
 #include "takyon.h"
+#include <stdbool.h>
 #include <stdint.h>
 #include <pthread.h>
 
