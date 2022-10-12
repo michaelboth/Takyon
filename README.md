@@ -44,8 +44,8 @@ Rdma UD        | Unreliable | 0 .. 4 KB     | Send, Recv               |        
 Takyon's API only contains 8 functions which essentially defines the basis of all communication. For eHPC engineers, there's no need to bog them down in further gory details.
 Grouping | Functions | Description
 ---------|-----------|------------------
-Creation | takyonCreate()<br>takyonDestroy() | Create and destroy endpoints
-Two-Sided | takyonSend()<br>takyonIsSent()<br>takyonPostRecvs()<br>takyonIsRecved() | It's a coordinated effort by both endpoints. The source sides sends, and the destination receives.
+Creation | takyonCreate()<br>takyonDestroy() | Create and destroy endpoints of a point-to-point communication path. The remote side is not required to be a Takyon endpoint (i.e. a sensor sending out UDP packets)
+Two-Sided | takyonSend()<br>takyonIsSent()<br>takyonPostRecvs()<br>takyonIsRecved() | Sending and receiving a coordinated effort by both endpoints. The source sides sends, and the destination receives.
 One-Sided | takyonOneSided()<br>takyonIsOneSidedDone() | Only one endpoint does all the work, and the other endpoint doesn't even know it's happening (i.e. it's not involved). This include 'read', 'write' and atomics.
 
 The Takyon functions and data structures are in the header file: ```inc/takyon.h```<br>The header file explains most of the usage details, and the <a href="Takyon_Introduction.pdf">Takyon Introduction</a> presentation is a good starting point to understand the general features.
