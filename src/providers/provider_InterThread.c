@@ -65,7 +65,7 @@ typedef struct {
 } PrivateTakyonPath;
 
 bool interThreadCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *recv_requests, double timeout_seconds) {
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   char error_message[MAX_ERROR_MESSAGE_CHARS];
 
   // Get the name of the provider
@@ -93,7 +93,7 @@ bool interThreadCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReq
 
   // Make sure each buffer knows it's for this path: need for verifications later on
   for (uint32_t i=0; i<path->attrs.buffer_count; i++) {
-    path->attrs.buffers[i].private = path;
+    path->attrs.buffers[i].private_data = path;
   }
 
   // Make sure enough room to post the initial recvs
@@ -136,7 +136,7 @@ bool interThreadCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReq
     TakyonRecvRequest *request = &recv_requests[i];
     private_path->posted_recvs[private_path->newest_posted_recv_index] = request;
     private_path->recv_completions[private_path->newest_posted_recv_index].transfer_complete = false;
-    request->private = (void *)((uint64_t)private_path->newest_posted_recv_index);
+    request->private_data = (void *)((uint64_t)private_path->newest_posted_recv_index);
     private_path->newest_posted_recv_index = (private_path->newest_posted_recv_index + 1) % path->attrs.max_pending_recv_requests; // Move to the next item
     private_path->posted_recv_count++;
   }
@@ -174,7 +174,7 @@ bool interThreadCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReq
 }
 
 bool interThreadDestroy(TakyonPath *path, double timeout_seconds) {
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
 
   // Do a coordinated disconnect
@@ -214,7 +214,7 @@ static bool doTwoSidedTransfer(TakyonPath *path, TakyonPath *remote_path, Takyon
   // IMPORTANT: mutex is locked at this point
 
   // Keep track of the remote memory blocks
-  TakyonComm *remote_comm = (TakyonComm *)remote_path->private;
+  TakyonComm *remote_comm = (TakyonComm *)remote_path->private_data;
   PrivateTakyonPath *remote_private_path = (PrivateTakyonPath *)remote_comm->data;
   if (remote_private_path->posted_recv_count == 0) {
     if (remote_private_path->is_unreliable) {
@@ -241,7 +241,7 @@ static bool doTwoSidedTransfer(TakyonPath *path, TakyonPath *remote_path, Takyon
       return false;
     }
     TakyonBuffer *src_buffer = &path->attrs.buffers[sub_buffer->buffer_index];
-    if (src_buffer->private != path) {
+    if (src_buffer->private_data != path) {
       TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer[%d].buffer_index is not from this Takyon path\n", i);
       return false;
     }
@@ -265,7 +265,7 @@ static bool doTwoSidedTransfer(TakyonPath *path, TakyonPath *remote_path, Takyon
       return false;
     }
     TakyonBuffer *remote_buffer = &remote_path->attrs.buffers[remote_sub_buffer->buffer_index];
-    if (remote_buffer->private != remote_path) {
+    if (remote_buffer->private_data != remote_path) {
       TAKYON_RECORD_ERROR(path->error_message, "'remote sub_buffers[%d] is not from the remote Takyon path\n", i);
       return false;
     }
@@ -320,7 +320,7 @@ static bool doTwoSidedTransfer(TakyonPath *path, TakyonPath *remote_path, Takyon
   }
 
   // Set the request results
-  uint64_t remote_post_index = (uint64_t)remote_request->private;
+  uint64_t remote_post_index = (uint64_t)remote_request->private_data;
   remote_private_path->recv_completions[remote_post_index].bytes_received = total_bytes_to_send;
   remote_private_path->recv_completions[remote_post_index].piggyback_message = piggyback_message;
 
@@ -355,7 +355,7 @@ static bool doOneSidedTransfer(TakyonPath *path, TakyonPath *remote_path, Takyon
       return false;
     }
     TakyonBuffer *local_buffer = &path->attrs.buffers[sub_buffer->buffer_index];
-    if (local_buffer->private != path) {
+    if (local_buffer->private_data != path) {
       TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer[%d].buffer_index is not from this Takyon path\n", i);
       return false;
     }
@@ -376,7 +376,7 @@ static bool doOneSidedTransfer(TakyonPath *path, TakyonPath *remote_path, Takyon
 #endif
   TakyonBuffer *remote_buffer = &remote_path->attrs.buffers[request->remote_buffer_index];
 #ifdef EXTRA_ERROR_CHECKING
-  if (remote_buffer->private != remote_path) {
+  if (remote_buffer->private_data != remote_path) {
     TAKYON_RECORD_ERROR(path->error_message, "Remote buffer is for a different Takyon path\n");
     return false;
   }
@@ -415,7 +415,7 @@ static bool doOneSidedTransfer(TakyonPath *path, TakyonPath *remote_path, Takyon
 bool interThreadOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double timeout_seconds, bool *timed_out_ret) {
   (void)timeout_seconds;
   *timed_out_ret = false;
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   InterThreadManagerItem *remote_thread_handle = private_path->remote_thread_handle;
 
@@ -446,7 +446,7 @@ bool interThreadOneSided(TakyonPath *path, TakyonOneSidedRequest *request, doubl
 bool interThreadSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggyback_message, double timeout_seconds, bool *timed_out_ret) {
   (void)timeout_seconds;
   *timed_out_ret = false;
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   InterThreadManagerItem *remote_thread_handle = private_path->remote_thread_handle;
 
@@ -475,7 +475,7 @@ bool interThreadSend(TakyonPath *path, TakyonSendRequest *request, uint32_t pigg
 }
 
 bool interThreadPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvRequest *requests) {
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   InterThreadManagerItem *remote_thread_handle = private_path->remote_thread_handle;
 
@@ -502,7 +502,7 @@ bool interThreadPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvRe
     TakyonRecvRequest *request = &requests[i];
     private_path->posted_recvs[private_path->newest_posted_recv_index] = request;
     private_path->recv_completions[private_path->newest_posted_recv_index].transfer_complete = false;
-    request->private = (void *)((uint64_t)private_path->newest_posted_recv_index);
+    request->private_data = (void *)((uint64_t)private_path->newest_posted_recv_index);
     private_path->newest_posted_recv_index = (private_path->newest_posted_recv_index + 1) % path->attrs.max_pending_recv_requests; // Go to the next item
     private_path->posted_recv_count++;
   }
@@ -515,7 +515,7 @@ bool interThreadPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvRe
 
 bool interThreadIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggyback_message_ret) {
   *timed_out_ret = false;
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   InterThreadManagerItem *remote_thread_handle = private_path->remote_thread_handle;
   int64_t timeout_nano_seconds = (int64_t)(timeout_seconds * NANOSECONDS_PER_SECOND_DOUBLE);
@@ -530,7 +530,7 @@ bool interThreadIsRecved(TakyonPath *path, TakyonRecvRequest *request, double ti
   // IMPORTANT: If polling, the mutex is unlocked while spinning on 'waiting for data' or 'the connection is broken',
   //            but should be fine since both are single integers and mutually exclusive
   // See if the data has been sent
-  uint64_t post_index = (uint64_t)request->private;
+  uint64_t post_index = (uint64_t)request->private_data;
   while (!private_path->recv_completions[post_index].transfer_complete && !remote_thread_handle->connection_broken) {
     // No data yet, so wait for data until the timeout occurs
     if (request->use_polling_completion) {

@@ -74,7 +74,7 @@ bool udpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReque
   (void)post_recv_count; // Quiet compiler checking
   (void)recv_requests; // Quiet compiler checking
   (void)timeout_seconds; // Quiet compiler checking
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   char error_message[MAX_ERROR_MESSAGE_CHARS];
 
   // Get the name of the provider
@@ -193,7 +193,7 @@ bool udpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReque
 
   // Make sure each buffer knows it's for this path: need for verifications later on
   for (uint32_t i=0; i<path->attrs.buffer_count; i++) {
-    path->attrs.buffers[i].private = path;
+    path->attrs.buffers[i].private_data = path;
   }
 
   // Allocate the private data
@@ -260,7 +260,7 @@ bool udpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReque
 
 bool udpSocketDestroy(TakyonPath *path, double timeout_seconds) {
   (void)timeout_seconds; // Quiet compiler checking
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
 
   // See if connection failed
@@ -284,7 +284,7 @@ bool udpSocketDestroy(TakyonPath *path, double timeout_seconds) {
 bool udpSocketSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggyback_message, double timeout_seconds, bool *timed_out_ret) {
   (void)piggyback_message;
   *timed_out_ret = false;
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   int64_t timeout_nano_seconds = (int64_t)(timeout_seconds * NANOSECONDS_PER_SECOND_DOUBLE);
   char error_message[MAX_ERROR_MESSAGE_CHARS];
@@ -327,7 +327,7 @@ bool udpSocketSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggyb
 #endif
   TakyonBuffer *src_buffer = &path->attrs.buffers[sub_buffer->buffer_index];
 #ifdef EXTRA_ERROR_CHECKING
-  if (src_buffer->private != path) {
+  if (src_buffer->private_data != path) {
     private_path->connection_failed = true;
     TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer[0] is not from this Takyon path\n");
     return false;
@@ -361,7 +361,7 @@ bool udpSocketSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggyb
 
 bool udpSocketIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggyback_message_ret) {
   *timed_out_ret = false;
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   int64_t timeout_nano_seconds = (int64_t)(timeout_seconds * NANOSECONDS_PER_SECOND_DOUBLE);
   char error_message[MAX_ERROR_MESSAGE_CHARS];
@@ -404,7 +404,7 @@ bool udpSocketIsRecved(TakyonPath *path, TakyonRecvRequest *request, double time
 #endif
   TakyonBuffer *buffer = &path->attrs.buffers[sub_buffer->buffer_index];
 #ifdef EXTRA_ERROR_CHECKING
-  if (buffer->private != path) {
+  if (buffer->private_data != path) {
     private_path->connection_failed = true;
     TAKYON_RECORD_ERROR(path->error_message, "'sub_buffers[0] is not from the remote Takyon path\n");
     return false;

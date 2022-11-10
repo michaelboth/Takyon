@@ -67,7 +67,7 @@ typedef struct {
 bool tcpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *recv_requests, double timeout_seconds) {
   (void)post_recv_count; // Quiet compiler checking
   (void)recv_requests; // Quiet compiler checking
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   int64_t timeout_nano_seconds = (int64_t)(timeout_seconds * NANOSECONDS_PER_SECOND_DOUBLE);
   char error_message[MAX_ERROR_MESSAGE_CHARS];
 
@@ -160,7 +160,7 @@ bool tcpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReque
 
   // Make sure each buffer knows it's for this path: need for verifications later on
   for (uint32_t i=0; i<path->attrs.buffer_count; i++) {
-    path->attrs.buffers[i].private = path;
+    path->attrs.buffers[i].private_data = path;
   }
 
   // Allocate the private data
@@ -238,7 +238,7 @@ bool tcpSocketCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvReque
 
 bool tcpSocketDestroy(TakyonPath *path, double timeout_seconds) {
   (void)timeout_seconds; // Quiet compiler checking
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
 
   // See if connection failed
@@ -265,7 +265,7 @@ bool tcpSocketDestroy(TakyonPath *path, double timeout_seconds) {
 
 bool tcpSocketSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggyback_message, double timeout_seconds, bool *timed_out_ret) {
   *timed_out_ret = false;
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   int64_t timeout_nano_seconds = (int64_t)(timeout_seconds * NANOSECONDS_PER_SECOND_DOUBLE);
   char error_message[MAX_ERROR_MESSAGE_CHARS];
@@ -298,7 +298,7 @@ bool tcpSocketSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggyb
       return false;
     }
     TakyonBuffer *src_buffer = &path->attrs.buffers[sub_buffer->buffer_index];
-    if (src_buffer->private != path) {
+    if (src_buffer->private_data != path) {
       private_path->connection_failed = true;
       TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer[%d] is not from this Takyon path\n", i);
       return false;
@@ -354,7 +354,7 @@ bool tcpSocketSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggyb
 
 bool tcpSocketIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggyback_message_ret) {
   *timed_out_ret = false;
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   int64_t timeout_nano_seconds = (int64_t)(timeout_seconds * NANOSECONDS_PER_SECOND_DOUBLE);
   char error_message[MAX_ERROR_MESSAGE_CHARS];
@@ -409,7 +409,7 @@ bool tcpSocketIsRecved(TakyonPath *path, TakyonRecvRequest *request, double time
         return false;
       }
       TakyonBuffer *buffer = &path->attrs.buffers[sub_buffer->buffer_index];
-      if (buffer->private != path) {
+      if (buffer->private_data != path) {
         private_path->connection_failed = true;
         TAKYON_RECORD_ERROR(path->error_message, "'sub_buffers[%d] is not from the remote Takyon path\n", i);
         return false;

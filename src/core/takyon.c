@@ -177,7 +177,7 @@ char *takyonCreate(TakyonPathAttributes *attrs, uint32_t post_recv_count, Takyon
   // Fill in the path
   path->attrs = *attrs;
   path->capabilities = capabilities;
-  path->private = comm;
+  path->private_data = comm;
   path->error_message = takyon_error_message;
 
   // Verbosity
@@ -206,7 +206,7 @@ char *takyonCreate(TakyonPathAttributes *attrs, uint32_t post_recv_count, Takyon
 }
 
 char *takyonDestroy(TakyonPath *path, double timeout_seconds) {
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   clearErrorMessage(path->error_message);
 
   // Verbosity
@@ -245,7 +245,7 @@ const char *takyonPrivateOneSidedOpToText(TakyonOneSidedOp op) {
 }
 
 bool takyonOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double timeout_seconds, bool *timed_out_ret) {
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   clearErrorMessage(path->error_message);
   if (timed_out_ret != NULL) *timed_out_ret = false;
 
@@ -327,7 +327,7 @@ bool takyonOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double tim
 }
 
 bool takyonIsOneSidedDone(TakyonPath *path, TakyonOneSidedRequest *request, double timeout_seconds, bool *timed_out_ret) {
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   clearErrorMessage(path->error_message);
   if (timed_out_ret != NULL) *timed_out_ret = false;
 
@@ -371,7 +371,7 @@ bool takyonIsOneSidedDone(TakyonPath *path, TakyonOneSidedRequest *request, doub
 }
 
 bool takyonSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggyback_message, double timeout_seconds, bool *timed_out_ret) {
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   clearErrorMessage(path->error_message);
   if (timed_out_ret != NULL) *timed_out_ret = false;
 
@@ -435,7 +435,7 @@ bool takyonSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggyback
 }
 
 bool takyonIsSent(TakyonPath *path, TakyonSendRequest *request, double timeout_seconds, bool *timed_out_ret) {
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   clearErrorMessage(path->error_message);
   if (timed_out_ret != NULL) *timed_out_ret = false;
 
@@ -479,7 +479,7 @@ bool takyonIsSent(TakyonPath *path, TakyonSendRequest *request, double timeout_s
 }
 
 bool takyonPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvRequest *requests) {
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   clearErrorMessage(path->error_message);
 
   // Verbosity
@@ -538,7 +538,7 @@ bool takyonPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvRequest
 }
 
 bool takyonIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggyback_message_ret) {
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   clearErrorMessage(path->error_message);
   if (timed_out_ret != NULL) *timed_out_ret = false;
 

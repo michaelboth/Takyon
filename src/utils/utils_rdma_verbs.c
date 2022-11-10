@@ -618,7 +618,7 @@ bool rdmaEndpointPostRecvs(TakyonPath *path, RdmaEndpoint *endpoint, uint32_t re
   struct ibv_recv_wr *curr_wr = NULL;
   for (uint32_t i=0; i<request_count; i++) {
     TakyonRecvRequest *takyon_request = &requests[i];
-    RdmaRecvRequest *rdma_request = (RdmaRecvRequest *)takyon_request->private;
+    RdmaRecvRequest *rdma_request = (RdmaRecvRequest *)takyon_request->private_data;
     // Add to wr chain
     if (first_wr == NULL) {
       first_wr = &rdma_request->recv_wr;
@@ -635,7 +635,7 @@ bool rdmaEndpointPostRecvs(TakyonPath *path, RdmaEndpoint *endpoint, uint32_t re
     for (uint32_t j=0; j<takyon_request->sub_buffer_count; j++) {
       TakyonSubBuffer *sub_buffer = &takyon_request->sub_buffers[j];
       TakyonBuffer *buffer = &path->attrs.buffers[sub_buffer->buffer_index];
-      RdmaBuffer *rdma_buffer = (RdmaBuffer *)buffer->private;
+      RdmaBuffer *rdma_buffer = (RdmaBuffer *)buffer->private_data;
       struct ibv_sge *sge = &curr_wr->sg_list[j];
       sge->addr = (uint64_t)buffer->addr + sub_buffer->offset;
       sge->length = sub_buffer->bytes;
@@ -709,7 +709,7 @@ RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *local_NI
   enum ibv_access_flags access = IBV_ACCESS_LOCAL_WRITE; // Need write access even for the sender since CUDA send memory needs write access
   for (uint32_t i=0; i<path->attrs.buffer_count; i++) {
     TakyonBuffer *takyon_buffer = &path->attrs.buffers[i];
-    RdmaBuffer *rdma_buffer = (RdmaBuffer *)takyon_buffer->private;
+    RdmaBuffer *rdma_buffer = (RdmaBuffer *)takyon_buffer->private_data;
     // IMPORTANT: assuming buffers are zeroed at init
     rdma_buffer->mr = registerMemoryRegion(id->pd, takyon_buffer->addr, takyon_buffer->bytes, access, error_message, max_error_message_chars);
     if (rdma_buffer->mr == NULL) goto failed;
@@ -758,7 +758,7 @@ RdmaEndpoint *rdmaCreateMulticastEndpoint(TakyonPath *path, const char *local_NI
   if (cq != NULL) ibv_destroy_cq(cq);
   for (uint32_t i=0; i<path->attrs.buffer_count; i++) {
     TakyonBuffer *takyon_buffer = &path->attrs.buffers[i];
-    RdmaBuffer *rdma_buffer = (RdmaBuffer *)takyon_buffer->private;
+    RdmaBuffer *rdma_buffer = (RdmaBuffer *)takyon_buffer->private_data;
     if (rdma_buffer->mr != NULL) ibv_dereg_mr(rdma_buffer->mr);
   }
   if (comp_ch != NULL) ibv_destroy_comp_channel(comp_ch);
@@ -837,7 +837,7 @@ RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int read_p
   }
   for (uint32_t i=0; i<path->attrs.buffer_count; i++) {
     TakyonBuffer *takyon_buffer = &path->attrs.buffers[i];
-    RdmaBuffer *rdma_buffer = (RdmaBuffer *)takyon_buffer->private;
+    RdmaBuffer *rdma_buffer = (RdmaBuffer *)takyon_buffer->private_data;
     // IMPORTANT: assuming buffers are zeroed at init
     rdma_buffer->mr = registerMemoryRegion(pd, takyon_buffer->addr, takyon_buffer->bytes, access, error_message, max_error_message_chars);
     if (rdma_buffer->mr == NULL) goto failed;
@@ -931,7 +931,7 @@ RdmaEndpoint *rdmaCreateEndpoint(TakyonPath *path, bool is_endpointA, int read_p
   if (recv_cq != NULL) ibv_destroy_cq(recv_cq);
   for (uint32_t i=0; i<path->attrs.buffer_count; i++) {
     TakyonBuffer *takyon_buffer = &path->attrs.buffers[i];
-    RdmaBuffer *rdma_buffer = (RdmaBuffer *)takyon_buffer->private;
+    RdmaBuffer *rdma_buffer = (RdmaBuffer *)takyon_buffer->private_data;
     if (rdma_buffer->mr != NULL) ibv_dereg_mr(rdma_buffer->mr);
   }
   if (pd != NULL) ibv_dealloc_pd(pd);
@@ -999,7 +999,7 @@ bool rdmaDestroyEndpoint(TakyonPath *path, RdmaEndpoint *endpoint, char *error_m
   }
   for (uint32_t i=0; i<path->attrs.buffer_count; i++) {
     TakyonBuffer *takyon_buffer = &path->attrs.buffers[i];
-    RdmaBuffer *rdma_buffer = (RdmaBuffer *)takyon_buffer->private;
+    RdmaBuffer *rdma_buffer = (RdmaBuffer *)takyon_buffer->private_data;
     if (rdma_buffer->mr != NULL) {
       int rc = ibv_dereg_mr(rdma_buffer->mr);
       if (rc != 0) {
@@ -1284,7 +1284,7 @@ bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr
   for (uint32_t j=0; j<sub_buffer_count; j++) {
     TakyonSubBuffer *sub_buffer = &sub_buffers[j];
     TakyonBuffer *buffer = &path->attrs.buffers[sub_buffer->buffer_index];
-    RdmaBuffer *rdma_buffer = (RdmaBuffer *)buffer->private;
+    RdmaBuffer *rdma_buffer = (RdmaBuffer *)buffer->private_data;
     struct ibv_sge *sge = &send_wr.sg_list[j];
     sge->addr = (uint64_t)buffer->addr + sub_buffer->offset;
     sge->length = sub_buffer->bytes;

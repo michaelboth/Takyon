@@ -68,7 +68,7 @@ typedef struct {
 #endif
 } RemoteTakyonBufferInfo;
 
-// Store this in buffer->private
+// Store this in buffer->private_data
 typedef struct {
   TakyonPath *path;
 #ifdef ENABLE_CUDA
@@ -213,7 +213,7 @@ static bool freeResources(TakyonPath *path, PrivateTakyonPath *private_path, Rem
   // Local buffers
   for (uint32_t i=0; i<path->attrs.buffer_count; i++) {
     TakyonBuffer *buffer = &path->attrs.buffers[i];
-    PrivateTakyonBuffer *private_buffer = (PrivateTakyonBuffer *)buffer->private;
+    PrivateTakyonBuffer *private_buffer = (PrivateTakyonBuffer *)buffer->private_data;
     if (private_buffer != NULL) {
 #ifdef ENABLE_CUDA
       if (private_buffer->is_cuda) {
@@ -274,7 +274,7 @@ static bool postRecvRequest(TakyonPath *path, PrivateTakyonPath *private_path, T
 }
 
 bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *recv_requests, double timeout_seconds) {
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   int64_t timeout_nano_seconds = (int64_t)(timeout_seconds * NANOSECONDS_PER_SECOND_DOUBLE);
   bool timed_out = false;
   char error_message[MAX_ERROR_MESSAGE_CHARS];
@@ -343,7 +343,7 @@ bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRe
   // And if CUDA memory, then provide some extra CUDA info and resourses
   for (uint32_t i=0; i<path->attrs.buffer_count; i++) {
     TakyonBuffer *buffer = &path->attrs.buffers[i];
-    buffer->private = NULL;
+    buffer->private_data = NULL;
   }
   for (uint32_t i=0; i<path->attrs.buffer_count; i++) {
     TakyonBuffer *buffer = &path->attrs.buffers[i];
@@ -352,7 +352,7 @@ bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRe
       TAKYON_RECORD_ERROR(path->error_message, "Out of memory\n");
       goto cleanup;
     }
-    buffer->private = private_buffer;
+    buffer->private_data = private_buffer;
     private_buffer->path = path;
     bool is_cuda = false;
 #ifdef ENABLE_CUDA
@@ -408,7 +408,7 @@ bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRe
     buffer_info->bytes = buffer->bytes;
     memcpy(buffer_info->name, buffer->name, TAKYON_MAX_BUFFER_NAME_CHARS);
 #ifdef ENABLE_CUDA
-    PrivateTakyonBuffer *private_buffer = (PrivateTakyonBuffer *)buffer->private;
+    PrivateTakyonBuffer *private_buffer = (PrivateTakyonBuffer *)buffer->private_data;
     if (private_buffer->is_cuda) {
       buffer_info->is_cuda = true;
       if (!cudaCreateIpcMapFromLocalAddr(buffer->addr, &buffer_info->ipc_addr_map, error_message, MAX_ERROR_MESSAGE_CHARS)) {
@@ -620,7 +620,7 @@ bool interProcessCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRe
 
 bool interProcessDestroy(TakyonPath *path, double timeout_seconds) {
   (void)timeout_seconds; // Quiet compiler checking
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   int64_t timeout_nano_seconds = (int64_t)(timeout_seconds * NANOSECONDS_PER_SECOND_DOUBLE);
   bool timed_out = false;
@@ -712,7 +712,7 @@ static bool transferData(void *dest_addr, void *src_addr, uint64_t bytes, char *
 bool interProcessOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double timeout_seconds, bool *timed_out_ret) {
   (void)timeout_seconds;
   *timed_out_ret = false;
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
 
   // Verify connection is good
@@ -741,7 +741,7 @@ bool interProcessOneSided(TakyonPath *path, TakyonOneSidedRequest *request, doub
       return false;
     }
     TakyonBuffer *local_buffer = &path->attrs.buffers[sub_buffer->buffer_index];
-    PrivateTakyonBuffer *local_private_buffer = (PrivateTakyonBuffer *)local_buffer->private;
+    PrivateTakyonBuffer *local_private_buffer = (PrivateTakyonBuffer *)local_buffer->private_data;
     if (local_private_buffer->path != path) {
       TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer[%d].buffer_index is not from this Takyon path\n", i);
       return false;
@@ -800,7 +800,7 @@ bool interProcessOneSided(TakyonPath *path, TakyonOneSidedRequest *request, doub
 bool interProcessSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggyback_message, double timeout_seconds, bool *timed_out_ret) {
   (void)timeout_seconds;
   *timed_out_ret = false;
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
 
   // Verify connection is good
@@ -820,7 +820,7 @@ bool interProcessSend(TakyonPath *path, TakyonSendRequest *request, uint32_t pig
       return false;
     }
     TakyonBuffer *src_buffer = &path->attrs.buffers[sub_buffer->buffer_index];
-    PrivateTakyonBuffer *src_private_buffer = (PrivateTakyonBuffer *)src_buffer->private;
+    PrivateTakyonBuffer *src_private_buffer = (PrivateTakyonBuffer *)src_buffer->private_data;
     if (src_private_buffer->path != path) {
       TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer[%d].buffer_index is not from this Takyon path\n", i);
       return false;
@@ -949,7 +949,7 @@ bool interProcessSend(TakyonPath *path, TakyonSendRequest *request, uint32_t pig
 }
 
 bool interProcessPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvRequest *requests) {
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
 
   // Verify connection is good
@@ -988,7 +988,7 @@ bool interProcessPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvR
 
 bool interProcessIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggyback_message_ret) {
   *timed_out_ret = false;
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   int64_t timeout_nano_seconds = (int64_t)(timeout_seconds * NANOSECONDS_PER_SECOND_DOUBLE);
   int64_t time1 = clockTimeNanoseconds();
@@ -1041,7 +1041,7 @@ bool interProcessIsRecved(TakyonPath *path, TakyonRecvRequest *request, double t
     RecvRequestAndCompletion *local_sub_buffer = &private_path->local_recv_request_and_completions[private_path->curr_local_posted_recv_request_index + i];
     uint64_t local_max_bytes = local_sub_buffer->bytes;
     TakyonBuffer *local_buffer = &path->attrs.buffers[local_sub_buffer->buffer_index];
-    PrivateTakyonBuffer *private_buffer = (PrivateTakyonBuffer *)local_buffer->private;
+    PrivateTakyonBuffer *private_buffer = (PrivateTakyonBuffer *)local_buffer->private_data;
     if (private_buffer->is_cuda && local_request->bytes_received > total_available_recv_bytes) {
       // Data was copied to this CUDA buffer, so need to know that it arrived
       uint32_t event_index = private_buffer->curr_cuda_event_index;

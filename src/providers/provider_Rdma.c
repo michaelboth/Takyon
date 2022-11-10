@@ -129,7 +129,7 @@ static bool sendRdmaBufferInfo(TakyonPath *path, PrivateTakyonPath *private_path
 
   for (uint32_t i=0; i<path->attrs.buffer_count; i++) {
     TakyonBuffer *buffer = &path->attrs.buffers[i];
-    RdmaBuffer *rdma_buffer = (RdmaBuffer *)buffer->private;
+    RdmaBuffer *rdma_buffer = (RdmaBuffer *)buffer->private_data;
     uint64_t bytes = buffer->bytes;
     uint64_t remote_addr = (uint64_t)buffer->addr; // This is the local address on this endpoint, but will be the remote addr on the remote endpoint
     uint32_t remote_key = rdma_buffer->mr->rkey;
@@ -218,7 +218,7 @@ static bool recvRdmaBufferInfo(TakyonPath *path, PrivateTakyonPath *private_path
 }
 
 bool rdmaCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *recv_requests, double timeout_seconds) {
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   int64_t timeout_nano_seconds = (int64_t)(timeout_seconds * NANOSECONDS_PER_SECOND_DOUBLE);
   char error_message[MAX_ERROR_MESSAGE_CHARS];
 
@@ -516,14 +516,14 @@ bool rdmaCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *r
   }
   for (uint32_t i=0; i<path->attrs.buffer_count; i++) {
     private_path->rdma_buffer_list[i].path = path;   // Make sure each buffer knows it's for this path: need for verifications later on
-    path->attrs.buffers[i].private = &private_path->rdma_buffer_list[i];
+    path->attrs.buffers[i].private_data = &private_path->rdma_buffer_list[i];
   }
 
   // Prepare for endpoint creation to post recvs
   for (uint32_t i=0; i<post_recv_count; i++) {
     RdmaRecvRequest *rdma_request = &private_path->rdma_recv_request_list[private_path->curr_rdma_recv_request_index];
     private_path->curr_rdma_recv_request_index = (private_path->curr_rdma_recv_request_index + 1) % path->attrs.max_pending_recv_requests;
-    recv_requests[i].private = rdma_request;
+    recv_requests[i].private_data = rdma_request;
   }
 
   // Fill in the app options
@@ -590,7 +590,7 @@ bool rdmaCreate(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *r
 
 bool rdmaDestroy(TakyonPath *path, double timeout_seconds) {
   (void)timeout_seconds; // Quiet compiler checking
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   RdmaEndpoint *endpoint = private_path->endpoint;
   int64_t timeout_nano_seconds = (int64_t)(timeout_seconds * NANOSECONDS_PER_SECOND_DOUBLE);
@@ -678,7 +678,7 @@ bool rdmaDestroy(TakyonPath *path, double timeout_seconds) {
 bool rdmaOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double timeout_seconds, bool *timed_out_ret) {
   (void)timeout_seconds; // Quiet compiler
   *timed_out_ret = false;
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   RdmaEndpoint *endpoint = private_path->endpoint;
   char error_message[MAX_ERROR_MESSAGE_CHARS];
@@ -715,7 +715,7 @@ bool rdmaOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double timeo
       return false;
     }
     TakyonBuffer *local_buffer = &path->attrs.buffers[sub_buffer->buffer_index];
-    RdmaBuffer *rdma_buffer = (RdmaBuffer *)local_buffer->private;
+    RdmaBuffer *rdma_buffer = (RdmaBuffer *)local_buffer->private_data;
     if (rdma_buffer->path != path) {
       TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer[%d].buffer_index is not from this Takyon path\n", i);
       return false;
@@ -778,7 +778,7 @@ bool rdmaOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double timeo
 
 bool rdmaIsOneSidedDone(TakyonPath *path, TakyonOneSidedRequest *request, double timeout_seconds, bool *timed_out_ret) {
   *timed_out_ret = false;
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   RdmaEndpoint *endpoint = private_path->endpoint;
   char error_message[MAX_ERROR_MESSAGE_CHARS];
@@ -813,7 +813,7 @@ bool rdmaIsOneSidedDone(TakyonPath *path, TakyonOneSidedRequest *request, double
 bool rdmaSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggyback_message, double timeout_seconds, bool *timed_out_ret) {
   (void)timeout_seconds; // Quiet compiler
   *timed_out_ret = false;
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   RdmaEndpoint *endpoint = private_path->endpoint;
   char error_message[MAX_ERROR_MESSAGE_CHARS];
@@ -833,7 +833,7 @@ bool rdmaSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggyback_m
       return false;
     }
     TakyonBuffer *src_buffer = &path->attrs.buffers[sub_buffer->buffer_index];
-    RdmaBuffer *rdma_buffer = (RdmaBuffer *)src_buffer->private;
+    RdmaBuffer *rdma_buffer = (RdmaBuffer *)src_buffer->private_data;
     if (rdma_buffer->path != path) {
       TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer[%d].buffer_index is not from this Takyon path\n", i);
       return false;
@@ -867,7 +867,7 @@ bool rdmaSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggyback_m
 
 bool rdmaIsSent(TakyonPath *path, TakyonSendRequest *request, double timeout_seconds, bool *timed_out_ret) {
   *timed_out_ret = false;
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   RdmaEndpoint *endpoint = private_path->endpoint;
   char error_message[MAX_ERROR_MESSAGE_CHARS];
@@ -890,7 +890,7 @@ bool rdmaIsSent(TakyonPath *path, TakyonSendRequest *request, double timeout_sec
 }
 
 bool rdmaPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvRequest *requests) {
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   RdmaEndpoint *endpoint = private_path->endpoint;
   char error_message[MAX_ERROR_MESSAGE_CHARS];
@@ -912,7 +912,7 @@ bool rdmaPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvRequest *
 	return false;
       }
       TakyonBuffer *dest_buffer = &path->attrs.buffers[sub_buffer->buffer_index];
-      RdmaBuffer *rdma_buffer = (RdmaBuffer *)dest_buffer->private;
+      RdmaBuffer *rdma_buffer = (RdmaBuffer *)dest_buffer->private_data;
       if (rdma_buffer->path != path) {
         TAKYON_RECORD_ERROR(path->error_message, "'sub_buffer[%d].buffer_index is not from this Takyon path\n", i);
         return false;
@@ -930,7 +930,7 @@ bool rdmaPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvRequest *
   for (uint32_t i=0; i<request_count; i++) {
     RdmaRecvRequest *rdma_request = &private_path->rdma_recv_request_list[private_path->curr_rdma_recv_request_index];
     private_path->curr_rdma_recv_request_index = (private_path->curr_rdma_recv_request_index + 1) % path->attrs.max_pending_recv_requests;
-    requests[i].private = rdma_request;
+    requests[i].private_data = rdma_request;
   }
 
   // Post the recv requests
@@ -944,7 +944,7 @@ bool rdmaPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvRequest *
 
 bool rdmaIsRecved(TakyonPath *path, TakyonRecvRequest *request, double timeout_seconds, bool *timed_out_ret, uint64_t *bytes_received_ret, uint32_t *piggyback_message_ret) {
   *timed_out_ret = false;
-  TakyonComm *comm = (TakyonComm *)path->private;
+  TakyonComm *comm = (TakyonComm *)path->private_data;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
   RdmaEndpoint *endpoint = private_path->endpoint;
   char error_message[MAX_ERROR_MESSAGE_CHARS];

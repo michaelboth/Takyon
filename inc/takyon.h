@@ -82,7 +82,7 @@ typedef struct {
   // Helpful for application dependent data; e.g. store an mmap or CUDA device ID
   void *app_data;                          // Application uses this as needed. Takyon does not look at this
   // Do not modify the following fields
-  void *private;                           // Used internally; e.g. registered memory info
+  void *private_data;                      // Used internally; e.g. registered memory info
 } TakyonBuffer;
 
 // Only used with multi buffer transfers
@@ -91,7 +91,7 @@ typedef struct {
   uint64_t bytes;       // Receiver can make this more than what is actually sent, takyonIsRecved() will report that actual bytes received
   uint64_t offset;      // In bytes
   // Do not modify the following fields
-  void *private;        // Used internally; e.g. optimize posting receives
+  void *private_data;   // Used internally; e.g. optimize posting receives
 } TakyonSubBuffer;
 
 // App must maintain this structure for the life of the transfer, unless use_is_done_notification = false
@@ -114,7 +114,7 @@ typedef struct {
   // Helpful for application dependent data
   void *app_data;                            // Application uses this as needed. Takyon does not look at this
   // Do not modify the following fields
-  void *private;                             // Used internally; e.g. track the completion between takyonOneSided() and takyonIsOneSidedDone()
+  void *private_data;                        // Used internally; e.g. track the completion between takyonOneSided() and takyonIsOneSidedDone()
 } TakyonOneSidedRequest;
 
 // App must maintain this structure for the life of the transfer, unless use_is_sent_notification = false
@@ -131,7 +131,7 @@ typedef struct {
   // Helpful for application dependent data
   void *app_data;                            // Application uses this as needed. Takyon does not look at this
   // Do not modify the following fields
-  void *private;                             // Used internally; e.g. track the completion between takyonSend() and takyonIsSent()
+  void *private_data;                        // Used internally; e.g. track the completion between takyonSend() and takyonIsSent()
 } TakyonSendRequest;
 
 // App must maintain this structure for the life of the transfer
@@ -145,7 +145,7 @@ typedef struct {
   // Helpful for application dependent data
   void *app_data;                            // Application uses this as needed. Takyon does not look at this
   // Do not modify the following fields
-  void *private;                             // Used internally; e.g. track the completion between takyonSend() and takyonIsSent()
+  void *private_data;                        // Used internally; e.g. track the completion between takyonSend() and takyonIsSent()
 } TakyonRecvRequest;
 
 // takyonCreate() will make a copy of this but the 'buffers' must be application allocated and persistant for the life of the app
@@ -192,7 +192,7 @@ typedef struct {
   TakyonPathAttributes attrs;   // Contains a copy of the attributes passed in from takyonCreate(), but does not copy contents of pointers
   TakyonPathCapabilities capabilities;
   char *error_message;                // For returning error messages if a failure occurs with sending, or receiving. This should not be freed by the application.
-  void *private;                      // Used internally; e.g. book keeping
+  void *private_data;                 // Used internally; e.g. book keeping
 } TakyonPath;
 
 
