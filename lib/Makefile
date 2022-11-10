@@ -91,6 +91,7 @@ ifeq ($(RdmaUDMulticast),Yes)
     C_FLAGS      += -DENABLE_RdmaUDMulticast
     NEED_utils_time := Yes
     NEED_utils_rdma := Yes
+    NEED_utils_socket := Yes
     C_OBJS       += provider_RdmaUDMulticast.o
     HEADER_FILES += provider_RdmaUDMulticast.h
 endif
