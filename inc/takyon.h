@@ -87,11 +87,11 @@ typedef struct {
 
 // Only used with multi buffer transfers
 typedef struct {
-  uint32_t buffer_index;
-  uint64_t bytes;       // Receiver can make this more than what is actually sent, takyonIsRecved() will report that actual bytes received
-  uint64_t offset;      // In bytes
+  uint32_t buffer_index;  // Index into the list of TakyonBuffer provided in TakyonPathAttributes
+  uint64_t bytes;         // This can be less than the full Takyon buffer. Receiver can make this more than what is actually sent, takyonIsRecved() will report that actual bytes received
+  uint64_t offset;        // Offset into the Takyon buffer
   // Do not modify the following fields
-  void *private_data;   // Used internally; e.g. optimize posting receives
+  void *private_data;     // Used internally; e.g. optimize posting receives
 } TakyonSubBuffer;
 
 // App must maintain this structure for the life of the transfer, unless use_is_done_notification = false

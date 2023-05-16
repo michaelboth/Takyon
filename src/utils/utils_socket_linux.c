@@ -1468,9 +1468,20 @@ bool socketCreateMulticastReceiver(const char *ip_addr, const char *multicast_gr
 #endif
   localSock.sin_family = AF_INET;
   localSock.sin_port = htons(port_number);
-  // NOTE: htonl(INADDR_ANY) will allow any IP interface to listen
-  // IMPORTANT: can't use an actual IP address here or else won't work. The interface address is set when the group is set (below).
-  localSock.sin_addr.s_addr = htonl(INADDR_ANY);
+  // The bind address needs to be the multicast group IP. Could use INADDR_ANY, but that would connect to any interface
+  //localSock.sin_addr.s_addr = htonl(INADDR_ANY);
+  {
+    int status = inet_pton(AF_INET, multicast_group, &localSock.sin_addr);
+    if (status == 0) {
+      snprintf(error_message, max_error_message_chars, "Could not get the IP address from the multicast group '%s'. Invalid name.", multicast_group);
+      close(socket_fd);
+      return false;
+    } else if (status == -1) {
+      snprintf(error_message, max_error_message_chars, "Could not get the IP address from the multicast group '%s'. errno=%d", multicast_group, errno);
+      close(socket_fd);
+      return false;
+    }
+  }
 
   if (allow_reuse) {
     // This will allow a previously closed socket, that is still in the TIME_WAIT stage, to be used.
@@ -1515,6 +1526,7 @@ bool socketCreateMulticastReceiver(const char *ip_addr, const char *multicast_gr
       close(socket_fd);
       return false;
     }
+    /*+ when the socket is closed, should setsockopt(IP_DROP_MEMBERSHIP) be used? */
   }
 
   *socket_fd_ret = socket_fd;
