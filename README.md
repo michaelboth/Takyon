@@ -11,17 +11,16 @@ This shows the Takyon features and reasoning behind creating a new point-to-poin
 <br>
 
 # Key Features
-- Point-to-point message passing communication API (reliable and unreliable)
+- Point-to-point message passing communication API
 - Heterogeneous: unifies RDMA, sockets, and many other communication interconnects
-- Takyon's abstration does not compromise performance
-- Only 8 functions... intuitive and can learn in a few days
-- Supports unreliable unicast & multicast
-- Supports blocking and non-blocking transfers
+- Supports reliable and unreliable (unicast and multicast)
+- Supports blocking and non-blocking (DMA based) transfers
 - Supports one-sided (read or write) and two-sided transfers (send -> recv)
-- Designed for zero-copy one-way (can't get any faster than that)
-- Supports multiple memory blocks in a single transfer (even mixing CPU and CUDA memeory)
+- Designed for zero-copy AND (not 'or') one-way (can't get any faster than that)
+- Supports multiple memory blocks in a single transfer (even mixing CPU and CUDA memory)
 - Designed to allow your app to be fault tolerant (via timeouts, disconnect detection, and dynamic path creation)
-- Supports GPU memory via CUDA's cudaMemcpy, CUDA IPC, and GPUDirect
+- Supports GPU memory via NVIDIA's cudaMemcpy, CUDA IPC, and GPUDirect
+- Only 8 functions... intuitive and can learn in a few days
 - Tested on Windows, Mac, & Linux
 
 # Takyon Providers
@@ -38,15 +37,15 @@ Socket Tcp     | Reliable   | 0 .. 1 GB     |              |                    
 Socket Udp     | Unreliable | Unicast:<br>1 .. 64 KB<br>Multicast:<br>1 .. MTU  |     |   |     |                                   | All
 Rdma RC        | Reliable   | 0 .. 1 GB     | Send, Recv, Read, Write, Atomics | Read, Write, Atomics | Yes | Yes                   | Linux
 Rdma UC        | Unreliable | 0 .. 1 GB     | Send, Recv, Write        | Write  | Yes           | Yes                               | Linux
-Rdma UD        | Unreliable | 0 .. 4 KB<br>Unicast Multicast | Send, Recv               |        | Yes           | Yes                               | Linux
+Rdma UD        | Unreliable | 0 .. 4 KB<br>Unicast Multicast | Send, Recv   |   | Yes           | Yes                               | Linux
 
 # The API
-Takyon's API only contains 8 functions which essentially defines the basis of all communication. For eHPC engineers, there's no need to bog them down in further gory details.
+Takyon's API only contains 8 functions which essentially defines the basis of all communication. For eHPC engineers, there's no need to bog them down in further gory details of the underlying communication.
 Grouping | Functions | Description
 ---------|-----------|------------------
-Creation | takyonCreate()<br>takyonDestroy() | Create and destroy endpoints of a point-to-point communication path. The remote side is not required to be a Takyon endpoint (i.e. a sensor sending out UDP packets)
-Two-Sided | takyonSend()<br>takyonIsSent()<br>takyonPostRecvs()<br>takyonIsRecved() | Sending and receiving a coordinated effort by both endpoints. The source sides sends, and the destination receives.
-One-Sided | takyonOneSided()<br>takyonIsOneSidedDone() | Only one endpoint does all the work, and the other endpoint doesn't even know it's happening (i.e. it's not involved). This include 'read', 'write' and atomics.
+Creation | takyonCreate()<br>takyonDestroy() | Create and destroy endpoints of a point-to-point communication path. The remote side is not required to be a Takyon endpoint (e.g. a sensor sending out UDP packets)
+Two-Sided | takyonSend()<br>takyonIsSent()<br>takyonPostRecvs()<br>takyonIsRecved() | Sending and receiving is a coordinated effort by both endpoints. The source side sends, and the destination side receives.
+One-Sided | takyonOneSided()<br>takyonIsOneSidedDone() | Only one endpoint does all the work, and the other endpoint doesn't even know it's happening (i.e. it's not involved). This includes 'read', 'write' and atomics.
 
 The Takyon functions and data structures are in the header file: ```inc/takyon.h```<br>The header file explains most of the usage details, and the <a href="Takyon_Introduction.pdf">Takyon Introduction</a> presentation is a good starting point to understand the general features.
 
@@ -58,9 +57,9 @@ You can build and run with the direct approach or the more automated approach:
 2. **Automated**: One script will build the library and all the examples, then a second script will run many variations of the examples to validate the build and Takyon Providers. See ```testing/README.txt```
 
 ### Examples
-The examples cover most of Takyon's features.
+The examples cover most of Takyon's features. Use these as the basis for your application and strip out all the features you don't need.
 Example | Description
 --------|------------
 hello-two_sided | Transfer a simple greeting between two endpoints using 'send' -> 'recv'.<br>Supports all Takyon Providers, CUDA, MMAPs, reliable, unreliable, and multiple memory blocks.
 hello-one_sided | Transfer a simple greeting between two endpoints using one-sided read, write, and/or atomic transfers.<br>Optionally supports CUDA & MMAPs. Even though some unreliable Takyon Providers can support one sided, this example only works with reliable Providers.
-throughput | Determines the transfer speed of a Provider; 'send' -> 'recv' or 'write','read'.<br>Supports all Takyon Providers, CUDA, MMAPs, reliable, and unreliable (two-sided only).<br>Run with '-h' to see all the options.
+throughput | Determines the transfer speed of a Provider; 'send' -> 'recv' or 'write','read'.<br>Supports all Takyon Providers, CUDA, MMAPs, reliable, and unreliable.<br>Run with '-h' to see all the options.
