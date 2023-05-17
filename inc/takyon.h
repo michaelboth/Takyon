@@ -74,7 +74,7 @@ typedef enum {
                                              // }
 } TakyonOneSidedOp;
 
-// App must maintain this memory for life of path
+// Used to register app provided memory for use with transfers. App must maintain this memory for life of path.
 typedef struct {
   void *addr;                              // Application must allocate the memory; CPU, CUDA, IO device, etc. The provider must support the type of memory allocated.
   uint64_t bytes;
@@ -85,7 +85,7 @@ typedef struct {
   void *private_data;                      // Used internally; e.g. registered memory info
 } TakyonBuffer;
 
-// Only used with multi buffer transfers
+// These are used in transer requests and represent a sub section of a TakyonBuffer. The memory represented by this should not be modifed while being sent/written, or read while being received/read.
 typedef struct {
   uint32_t buffer_index;  // Index into the list of TakyonBuffer provided in TakyonPathAttributes
   uint64_t bytes;         // This can be less than the full Takyon buffer. Receiver can make this more than what is actually sent, takyonIsRecved() will report that actual bytes received
