@@ -157,7 +157,8 @@ static void writeMessage(TakyonPath *path, const uint64_t message_bytes, const u
                                     .usec_sleep_between_poll_attempts = 0 };
 
   // Start the 'write'
-  takyonOneSided(path, &request, TAKYON_WAIT_FOREVER, NULL);
+  uint32_t piggyback_message = 0; // Not supported with TAKYON_OP_WRITE. FYI: piggyback is support with TAKYON_OP_WRITE_WITH_PIGGYBACK when using RDMA RC or UC
+  takyonOneSided(path, &request, piggyback_message, TAKYON_WAIT_FOREVER, NULL);
 
   // If the provider supports non blocking sends, then need to know when it's complete
   if (path->capabilities.IsOneSidedDone_function_supported && request.use_is_done_notification) takyonIsOneSidedDone(path, &request, TAKYON_WAIT_FOREVER, NULL);
@@ -177,7 +178,8 @@ static void readMessage(TakyonPath *path, const uint64_t message_bytes, const ui
                                     .usec_sleep_between_poll_attempts = 0 };
 
   // Start the 'read'
-  takyonOneSided(path, &request, TAKYON_WAIT_FOREVER, NULL);
+  uint32_t piggyback_message = 0; // Not supported with TAKYON_OP_READ
+  takyonOneSided(path, &request, piggyback_message, TAKYON_WAIT_FOREVER, NULL);
 
   // If the provider supports non blocking sends, then need to know when it's complete
   if (path->capabilities.IsOneSidedDone_function_supported && request.use_is_done_notification) takyonIsOneSidedDone(path, &request, TAKYON_WAIT_FOREVER, NULL);

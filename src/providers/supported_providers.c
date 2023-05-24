@@ -37,7 +37,7 @@ typedef struct {
   // Functions
   bool (*create)(TakyonPath *path, uint32_t post_recv_count, TakyonRecvRequest *recv_requests, double timeout_seconds);
   bool (*destroy)(TakyonPath *path, double timeout_seconds);
-  bool (*oneSided)(TakyonPath *path, TakyonOneSidedRequest *request, double timeout_seconds, bool *timed_out_ret);
+  bool (*oneSided)(TakyonPath *path, TakyonOneSidedRequest *request, uint32_t piggyback_message, double timeout_seconds, bool *timed_out_ret);
   bool (*isOneSidedDone)(TakyonPath *path, TakyonOneSidedRequest *request, double timeout_seconds, bool *timed_out_ret);
   bool (*send)(TakyonPath *path, TakyonSendRequest *request, uint32_t piggyback_message, double timeout_seconds, bool *timed_out_ret);
   bool (*isSent)(TakyonPath *path, TakyonSendRequest *request, double timeout_seconds, bool *timed_out_ret);

@@ -71,7 +71,8 @@ static void writeMessage(TakyonPath *path, uint64_t message_bytes) {
                                           .usec_sleep_between_poll_attempts = 0 };
 
   // STEP 3: Start the Takyon one-sided write
-  takyonOneSided(path, &write_request, TAKYON_WAIT_FOREVER, NULL);
+  uint32_t piggyback_message = 0; // Not supported with TAKYON_OP_WRITE. FYI: piggyback is support with TAKYON_OP_WRITE_WITH_PIGGYBACK when using RDMA RC or UC
+  takyonOneSided(path, &write_request, piggyback_message, TAKYON_WAIT_FOREVER, NULL);
 
   // STEP 4: If the Takyon Provider supports non-blocking writes, then need to know when it's complete
   if (path->capabilities.IsOneSidedDone_function_supported && write_request.use_is_done_notification) {
@@ -95,7 +96,8 @@ static void *readMessage(TakyonPath *path) {
                                          .usec_sleep_between_poll_attempts = 0 };
 
   // STEP 3: Start the Takyon one-sided read
-  takyonOneSided(path, &read_request, TAKYON_WAIT_FOREVER, NULL);
+  uint32_t piggyback_message = 0; // Not supported with TAKYON_OP_READ
+  takyonOneSided(path, &read_request, piggyback_message, TAKYON_WAIT_FOREVER, NULL);
 
   // STEP 4: If the Takyon Provider supports non-blocking reads, then need to know when it's complete
   if (path->capabilities.IsOneSidedDone_function_supported && read_request.use_is_done_notification) {
@@ -145,7 +147,8 @@ static void atomicCompareAndSwapThenVerify(TakyonPath *path, uint64_t compare, u
 					   .usec_sleep_between_poll_attempts = 0 };
 
   // STEP 3: Start the Takyon one-sided read
-  takyonOneSided(path, &atomic_request, TAKYON_WAIT_FOREVER, NULL);
+  uint32_t piggyback_message = 0; // Not supported with TAKYON_OP_ATOMIC_COMPARE_AND_SWAP_UINT64
+  takyonOneSided(path, &atomic_request, piggyback_message, TAKYON_WAIT_FOREVER, NULL);
 
   // STEP 4: If the Takyon Provider supports non-blocking reads, then need to know when it's complete
   if (path->capabilities.IsOneSidedDone_function_supported && atomic_request.use_is_done_notification) {
@@ -194,7 +197,8 @@ static void atomicAddThenVerify(TakyonPath *path, uint64_t add_value, uint64_t e
 					   .usec_sleep_between_poll_attempts = 0 };
 
   // STEP 3: Start the Takyon one-sided read
-  takyonOneSided(path, &atomic_request, TAKYON_WAIT_FOREVER, NULL);
+  uint32_t piggyback_message = 0; // Not supported with TAKYON_OP_ATOMIC_ADD_UINT64
+  takyonOneSided(path, &atomic_request, piggyback_message, TAKYON_WAIT_FOREVER, NULL);
 
   // STEP 4: If the Takyon Provider supports non-blocking reads, then need to know when it's complete
   if (path->capabilities.IsOneSidedDone_function_supported && atomic_request.use_is_done_notification) {

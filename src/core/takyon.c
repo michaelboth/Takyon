@@ -238,13 +238,14 @@ const char *takyonPrivateOneSidedOpToText(TakyonOneSidedOp op) {
   switch (op) {
   case TAKYON_OP_READ : return "read";
   case TAKYON_OP_WRITE : return "write";
+  case TAKYON_OP_WRITE_WITH_PIGGYBACK : return "write_with_piggyback";
   case TAKYON_OP_ATOMIC_COMPARE_AND_SWAP_UINT64 : return "atomic_cas";
   case TAKYON_OP_ATOMIC_ADD_UINT64 : return "atomic_add";
   default : return "unknown";
   }
 }
 
-bool takyonOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double timeout_seconds, bool *timed_out_ret) {
+bool takyonOneSided(TakyonPath *path, TakyonOneSidedRequest *request, uint32_t piggyback_message, double timeout_seconds, bool *timed_out_ret) {
   TakyonComm *comm = (TakyonComm *)path->private_data;
   clearErrorMessage(path->error_message);
   if (timed_out_ret != NULL) *timed_out_ret = false;
@@ -267,6 +268,11 @@ bool takyonOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double tim
   }
   if (request->operation == TAKYON_OP_WRITE && request->sub_buffer_count > path->attrs.max_sub_buffers_per_write_request) {
     TAKYON_RECORD_ERROR(path->error_message, "TAKYON_OP_WRITE: path->attrs.max_sub_buffers_per_write_request is less than request->sub_buffer_count\n");
+    handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
+    return false;
+  }
+  if (request->operation == TAKYON_OP_WRITE_WITH_PIGGYBACK && request->sub_buffer_count > path->attrs.max_sub_buffers_per_write_request) {
+    TAKYON_RECORD_ERROR(path->error_message, "TAKYON_OP_WRITE_WITH_PIGGYBACK: path->attrs.max_sub_buffers_per_write_request is less than request->sub_buffer_count\n");
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;
   }
@@ -311,7 +317,7 @@ bool takyonOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double tim
 
   // Initiate the send
   bool timed_out = false;
-  bool ok = comm->oneSided(path, request, timeout_seconds, &timed_out);
+  bool ok = comm->oneSided(path, request, piggyback_message, timeout_seconds, &timed_out);
   if (!ok) {
     handleErrorReporting(path->error_message, &path->attrs, __FUNCTION__);
     return false;

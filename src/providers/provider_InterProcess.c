@@ -709,8 +709,9 @@ static bool transferData(void *dest_addr, void *src_addr, uint64_t bytes, char *
   return true;
 }
 
-bool interProcessOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double timeout_seconds, bool *timed_out_ret) {
-  (void)timeout_seconds;
+bool interProcessOneSided(TakyonPath *path, TakyonOneSidedRequest *request, uint32_t piggyback_message, double timeout_seconds, bool *timed_out_ret) {
+  (void)timeout_seconds;   // Quiet compiler
+  (void)piggyback_message; // Quiet compiler
   *timed_out_ret = false;
   TakyonComm *comm = (TakyonComm *)path->private_data;
   PrivateTakyonPath *private_path = (PrivateTakyonPath *)comm->data;
@@ -783,7 +784,7 @@ bool interProcessOneSided(TakyonPath *path, TakyonOneSidedRequest *request, doub
     } else if (request->operation == TAKYON_OP_READ) {
       if (!transferData(local_addr, remote_addr, bytes, path->error_message)) return false;
     } else {
-      /*+ add support for atomics */
+      /*+ add support for atomics and write with piggyback */
       TAKYON_RECORD_ERROR(path->error_message, "One sided operation '%s' not supported\n", takyonPrivateOneSidedOpToText(request->operation));
       return false;
     }

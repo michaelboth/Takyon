@@ -36,7 +36,7 @@
 
 // Takyon version
 #define TAKYON_API_VERSION_MAJOR 2
-#define TAKYON_API_VERSION_MINOR 0
+#define TAKYON_API_VERSION_MINOR 1
 
 // Takyon text length limits
 #define TAKYON_MAX_PROVIDER_CHARS 1000      // Max size of text string to define a path's endpoint provider
@@ -64,6 +64,9 @@ typedef enum {
 typedef enum {
   TAKYON_OP_READ,
   TAKYON_OP_WRITE,
+  TAKYON_OP_WRITE_WITH_PIGGYBACK,            // This means the remote endpoint must have a posted receive with zero sub buffers in order
+                                             // to catch the 32bit piggyback message with takyonIsRecved(). The number of bytes written
+                                             // will also be reported by takyonIsRecved().
   TAKYON_OP_ATOMIC_COMPARE_AND_SWAP_UINT64,  // if (remote_value == request.atomics[0]) {
                                              //   request.sub_buffers[0][0] = remote_value;
                                              //   remote_value = request.atomics[1];
@@ -182,7 +185,7 @@ typedef struct {
   bool IsRecved_function_supported;
   // Extra features
   bool is_unreliable;                  // Sent messages may be quietly dropped, arrive out of order, or be duplicated
-  bool piggyback_messages_supported;   // True if comm allows sending a 32bit message piggy backed on the primary message
+  bool piggyback_messages_supported;   // True if comm allows sending a 32bit message piggybacked on the primary message
   bool multi_sub_buffers_supported;    // True if more than one sub buffer can be in a single transfer
   bool zero_byte_messages_supported;   // True if can send zero byte messages
 } TakyonPathCapabilities;
@@ -209,7 +212,7 @@ extern char *takyonDestroy(TakyonPath *path, double timeout_seconds);
 
 // ONE-SIDED TRANSFERS
 // -------------------
-//   Write message: one way send (i.e. push data to the remote endpoint), no involvement from the remote endpoint
+//   Write message: one way send (i.e. push data to the remote endpoint), no involvement from the remote endpoint unless a piggyback message is sent
 //     A --> (B not involved)
 //     B --> (A not involved)
 //   Read message: one way recv (i.e. pulling the data from the remote endpoint), no involvement from the remote endpoint
@@ -219,7 +222,7 @@ extern char *takyonDestroy(TakyonPath *path, double timeout_seconds);
 //     See TAKYON_OP_ATOMIC_COMPARE_AND_SWAP_UINT64 above for details
 //   Atomic add uint64:
 //     See TAKYON_OP_ATOMIC_ADD_UINT64 above for details
-extern bool takyonOneSided(TakyonPath *path, TakyonOneSidedRequest *request, double timeout_seconds, bool *timed_out_ret);
+extern bool takyonOneSided(TakyonPath *path, TakyonOneSidedRequest *request, uint32_t piggyback_message, double timeout_seconds, bool *timed_out_ret);
 extern bool takyonIsOneSidedDone(TakyonPath *path, TakyonOneSidedRequest *request, double timeout_seconds, bool *timed_out_ret);
 
 // TWO-SIDED TRANSFERS

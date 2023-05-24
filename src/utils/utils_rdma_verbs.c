@@ -1246,8 +1246,8 @@ static bool waitForCompletion(bool is_send, RdmaEndpoint *endpoint, uint64_t exp
       return false;
     }
   } else {
-    if (wc.opcode != expected_opcode) {
-      snprintf(error_message, max_error_message_chars, "Work completion was for '%s' but expected '%s'", wcOpcodeToText(wc.opcode), wcOpcodeToText(expected_opcode));
+    if (wc.opcode != IBV_WC_RECV && wc.opcode != IBV_WC_RECV_RDMA_WITH_IMM) {
+      snprintf(error_message, max_error_message_chars, "Work completion was for '%s' but expected IBV_WC_RECV or IBV_WC_RECV_RDMA_WITH_IMM", wcOpcodeToText(wc.opcode));
       return false;
     }
     if (!(wc.wc_flags & IBV_WC_WITH_IMM)) {
@@ -1275,7 +1275,7 @@ bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr
   send_wr.num_sge = sub_buffer_count;
   send_wr.sg_list = sge_list;
   send_wr.opcode = transfer_mode;
-  if (transfer_mode == IBV_WR_SEND_WITH_IMM) {
+  if (transfer_mode == IBV_WR_SEND_WITH_IMM || transfer_mode == IBV_WR_RDMA_WRITE_WITH_IMM) {
     send_wr.imm_data = htonl(piggyback_message);
   }
 
@@ -1306,6 +1306,8 @@ bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr
     if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Posting send: IMM=%u, nSGEs=%d\n", piggyback_message, send_wr.num_sge);
   } else if (transfer_mode == IBV_WR_RDMA_WRITE || transfer_mode == IBV_WR_RDMA_READ) {
     if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Posting %s: nSGEs=%d\n", (transfer_mode == IBV_WR_RDMA_WRITE) ? "write" : "read", send_wr.num_sge);
+  } else if (transfer_mode == IBV_WR_RDMA_WRITE_WITH_IMM) {
+    if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Posting write_with_imm: IMM=%u, nSGEs=%d\n", piggyback_message, send_wr.num_sge);
   } else if (transfer_mode == IBV_WR_ATOMIC_CMP_AND_SWP) {
     uint64_t *value_ptr = (uint64_t *)send_wr.sg_list[0].addr;
     if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Posting atomic compare and swap: comapre=%ju, swap=%ju\n", value_ptr[1], value_ptr[2]);
@@ -1315,7 +1317,7 @@ bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr
   }
 #endif
 
-  // Protocal specific stuff
+  // Protocol specific stuff
   if (endpoint->protocol == RDMA_PROTOCOL_UD_MULTICAST) {
 #ifdef EXTRA_ERROR_CHECKING
     if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  Send to multicast addr: qpn=%u, qkey=%u\n", endpoint->multicast_qp_num, endpoint->multicast_qkey);
@@ -1331,10 +1333,16 @@ bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr
     send_wr.wr.ud.remote_qpn = endpoint->unicast_remote_qp_num;
     send_wr.wr.ud.remote_qkey = endpoint->unicast_remote_qkey;
   } else if (endpoint->protocol == RDMA_PROTOCOL_UC || endpoint->protocol == RDMA_PROTOCOL_RC) {
-    if (transfer_mode == IBV_WR_RDMA_WRITE || transfer_mode == IBV_WR_RDMA_READ) {
+    if (transfer_mode == IBV_WR_RDMA_WRITE || transfer_mode == IBV_WR_RDMA_WRITE_WITH_IMM || transfer_mode == IBV_WR_RDMA_READ) {
       // Read, write
 #ifdef EXTRA_ERROR_CHECKING
-      if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("  RDMA %s: rkey=%u, raddr=0x%jx\n", (transfer_mode == IBV_WR_RDMA_WRITE) ? "write" : "read", rkey, remote_addr);
+      if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) {
+        if (transfer_mode == IBV_WR_RDMA_WRITE_WITH_IMM) {
+          printf("  RDMA write_with_imm: rkey=%u, raddr=0x%jx\n", rkey, remote_addr);
+        } else {
+          printf("  RDMA %s: rkey=%u, raddr=0x%jx\n", (transfer_mode == IBV_WR_RDMA_WRITE) ? "write" : "read", rkey, remote_addr);
+        }
+      }
 #endif
       send_wr.wr.rdma.rkey = rkey;
       send_wr.wr.rdma.remote_addr = remote_addr;
