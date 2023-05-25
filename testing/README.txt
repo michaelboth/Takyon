@@ -39,4 +39,4 @@ Windows
       A> runInterProcessor.bat A 192.168.0.210 192.168.0.211 socket multicast ephemeral
       B> runInterProcessor.bat B 192.168.0.210 192.168.0.211 socket multicast ephemeral
   Clean
-    > ./buildExamples.bat clean
+    > buildExamples.bat clean
