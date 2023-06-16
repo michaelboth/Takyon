@@ -107,6 +107,8 @@ static void *disconnectDetectionThread(void *user_data) {
     endpoint->connection_broken = true;
     pipeWakeUpPollFunction(private_path->write_pipe_fd, error_message, MAX_ERROR_MESSAGE_CHARS); // Wake up poll() in RDMA's completion event handler: eventDrivenCompletionWait()
   }
+  // IMPORTANT: both endpoint need to be coordinated for this to work. If one endpoint does extra communications (UC recv), then this shut down process may block
+  /*+ see if can find a way to gracefully hand RDMA UC recvs never getting data due to dropped messages */
   return NULL;
 }
 

@@ -3,8 +3,14 @@ To DO
   - BUG: OSX ephemeral sockets (seems the multicast packets are being blocked. Could just be a firewall)
 
 Maybe
+  - README: Refactor begining to show importance
   - Figure out how to do atomics with InterThread and InterProcess
   - Add Provider for Microsoft's Network Direct 2
+  - Split throughput example into throughput-two_sided and throughput-one_sided
+  - Split examples into: two_sided_reliable, two_sided_unreliable, one_sided_read, one_sided_write, one_sided_atomic
+
+Known Issues:
+  - RDMA GPUDirect does not seem to work if transfer is not at least 33 bytes. No response from NVIDIA's Mellanox group yet
 
 Future Ideas
   - Collectives: base on Takyon 1.x graph extension

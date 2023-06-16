@@ -1,5 +1,6 @@
 This folder and makefiles are just a convenience for creating the Takyon library
 instead of directly compiling the Takyon source code into your application.
+Make sure to use a C99 or higher compiler.
 
 Linux and Mac
   Required:
