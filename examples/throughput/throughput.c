@@ -88,23 +88,30 @@ static uint32_t validateMessage(TakyonBuffer *buffer, uint64_t message_bytes, co
   return detected_drops;
 }
 
-static void sendMessage(TakyonPath *path, const uint64_t message_bytes, uint64_t message_offset, const bool use_polling_completion, const uint32_t message_index) {
-  // Setup the send request
-  bool use_sent_notification = ((message_index+1) % path->attrs.max_pending_send_requests) == 0; // Need to get sent notification to implicitly wait for all pending transfers to complete or else the provider may get a buffer overflow
-  TakyonSubBuffer sender_sub_buffer = { .buffer_index = 0, .bytes = message_bytes, .offset = message_offset };
-  TakyonSendRequest send_request = { .sub_buffer_count = (message_bytes==0) ? 0 : 1,
-                                     .sub_buffers = (message_bytes==0) ? NULL : &sender_sub_buffer,
-                                     .submit_fence = false,
-                                     .use_is_sent_notification = use_sent_notification,
-                                     .use_polling_completion = use_polling_completion,
-                                     .usec_sleep_between_poll_attempts = 0 };
+static void sendMessage(TakyonPath *path, TakyonSendRequest *send_request, const uint64_t message_bytes, uint64_t message_offset, const bool use_polling_completion, const uint32_t message_index) {
+  // If this send request was previously used and was asynchronous, then wait for it to complete
+  if (path->capabilities.IsSent_function_supported && send_request->use_is_sent_notification) {
+    takyonIsSent(path, send_request, TAKYON_WAIT_FOREVER, NULL);
+    send_request->use_is_sent_notification = false;
+  }
 
-  // Start the send
+  // Prepare the new send request
+  if (message_bytes > 0) {
+    send_request->sub_buffers[0].buffer_index = 0;
+    send_request->sub_buffers[0].bytes = message_bytes;
+    send_request->sub_buffers[0].offset = message_offset;
+  }
+  send_request->sub_buffer_count = (message_bytes==0) ? 0 : 1;
+  send_request->submit_fence = false;
+  send_request->use_is_sent_notification = true; // Get notification when the send is done; by later using takyonIsSent() if supported
+  send_request->use_polling_completion = use_polling_completion;
+  send_request->usec_sleep_between_poll_attempts = 0;
+
+  // Start the send:
+  //   For asynchronous providers, this will only add the request to the provider's native request queue, the transfer will start at some time after this functions returns
+  //   For synchronous providers, this will block until the data is sent out. This does not mean the receiver has received it yet.
   uint32_t piggyback_message = message_index+1;
-  takyonSend(path, &send_request, piggyback_message, TAKYON_WAIT_FOREVER, NULL);
-
-  // If the provider supports non blocking sends, then need to know when it's complete
-  if (path->capabilities.IsSent_function_supported && send_request.use_is_sent_notification) takyonIsSent(path, &send_request, TAKYON_WAIT_FOREVER, NULL);
+  takyonSend(path, send_request, piggyback_message, TAKYON_WAIT_FOREVER, NULL);
 }
 
 static bool recvMessage(TakyonPath *path, TakyonRecvRequest *recv_request, const uint32_t message_index, uint32_t iterations, uint32_t messages_received, uint64_t *bytes_received_out, uint32_t *piggyback_message_out) {
@@ -185,30 +192,35 @@ static void readMessage(TakyonPath *path, const uint64_t message_bytes, const ui
   if (path->capabilities.IsOneSidedDone_function_supported && request.use_is_done_notification) takyonIsOneSidedDone(path, &request, TAKYON_WAIT_FOREVER, NULL);
 }
 
-static void sendSignal(TakyonPath *path, const bool use_polling_completion) {
-  // Setup the send request
-  TakyonSendRequest send_request = { .sub_buffer_count = 0,
-                                     .sub_buffers = NULL,
-                                     .submit_fence = false,
-                                     .use_is_sent_notification = true,
-                                     .use_polling_completion = use_polling_completion,
-                                     .usec_sleep_between_poll_attempts = 0 };
+static void sendEmptyMessage(TakyonPath *path, TakyonSendRequest *send_request, const bool use_polling_completion) {
+  // If this send request was previously used and was asynchronous, then wait for it to complete
+  if (path->capabilities.IsSent_function_supported && send_request->use_is_sent_notification) {
+    takyonIsSent(path, send_request, TAKYON_WAIT_FOREVER, NULL);
+    send_request->use_is_sent_notification = false;
+  }
 
-  // Start the send
+  // Prepare the new zero-byte send request
+  send_request->sub_buffer_count = 0;
+  send_request->sub_buffers = NULL;
+  send_request->submit_fence = false;
+  send_request->use_is_sent_notification = true; // Get notification when the send is done; by later using takyonIsSent() if supported
+  send_request->use_polling_completion = use_polling_completion;
+  send_request->usec_sleep_between_poll_attempts = 0;
+
+  // Start the send:
+  //   For asynchronous providers, this will only add the request to the provider's native request queue, the transfer will start at some time after this functions returns
+  //   For synchronous providers, this will block until the data is sent out. This does not mean the receiver has received it yet.
   uint32_t piggyback_message = 0;
-  takyonSend(path, &send_request, piggyback_message, TAKYON_WAIT_FOREVER, NULL);
-
-  // If the provider supports non blocking sends, then need to know when it's complete
-  if (path->capabilities.IsSent_function_supported && send_request.use_is_sent_notification) takyonIsSent(path, &send_request, TAKYON_WAIT_FOREVER, NULL);
+  takyonSend(path, send_request, piggyback_message, TAKYON_WAIT_FOREVER, NULL);
 }
 
-static bool recvSignal(TakyonPath *path, TakyonRecvRequest *recv_request) {
+static bool recvEmptyMessage(TakyonPath *path, TakyonRecvRequest *recv_request) {
   // Wait for data to arrive
   uint64_t bytes_received;
   bool timed_out;
   takyonIsRecved(path, recv_request, ACTIVE_RECV_TIMEOUT_SECONDS, &timed_out, &bytes_received, NULL);
   if (timed_out) {
-    printf("\nTimed out waiting for signal. Make sure both endpoints define the same number of recv buffers\n");
+    printf("\nTimed out waiting for empty message notification. Make sure both endpoints define the same number of recv buffers\n");
     return false;
   }
   if (bytes_received != 0) { printf("\nExpected a zero-byte message, but got " UINT64_FORMAT " bytes.\n", bytes_received); exit(EXIT_FAILURE); }
@@ -231,7 +243,7 @@ static void twoSidedThroughput(const bool is_endpointA, const char *provider, co
   attrs.verbosity                         = TAKYON_VERBOSITY_ERRORS; //  | TAKYON_VERBOSITY_CREATE_DESTROY | TAKYON_VERBOSITY_CREATE_DESTROY_MORE | TAKYON_VERBOSITY_TRANSFERS | TAKYON_VERBOSITY_TRANSFERS_MORE;
   attrs.buffer_count                      = (message_bytes==0) ? 0 : 1;
   attrs.buffers                           = (message_bytes==0) ? NULL : buffer;
-  attrs.max_pending_send_requests         = is_endpointA ? src_buffer_count : 1;
+  attrs.max_pending_send_requests         = src_buffer_count;
   attrs.max_pending_recv_requests         = is_endpointA ? 1 : dest_buffer_count;
   attrs.max_pending_write_requests        = 0;
   attrs.max_pending_read_requests         = 0;
@@ -241,14 +253,14 @@ static void twoSidedThroughput(const bool is_endpointA, const char *provider, co
   attrs.max_sub_buffers_per_write_request = 0;
   attrs.max_sub_buffers_per_read_request  = 0;
 
-  // Setup the receive request and it's sub buffer
+  // Setup the receive requests
   //   - This is done before the path is setup in the case the receiver needs the recvs posted before sending can start
   uint32_t recv_request_count = is_endpointA ? 0 : dest_buffer_count;
   TakyonSubBuffer *recv_sub_buffers = NULL;
   TakyonRecvRequest *recv_requests = NULL;
   TakyonRecvRequest repost_recv_request;
   if (is_endpointA) {
-    // Only need a single zero-byte recv request to handle the re-post signaling
+    // Only need a single zero-byte recv request to handle the empty message notification (informs sender that the receiver reposted)
     recv_request_count = 1;
     recv_requests = &repost_recv_request;
     repost_recv_request.sub_buffer_count = 0;
@@ -270,12 +282,27 @@ static void twoSidedThroughput(const bool is_endpointA, const char *provider, co
     }
   }
 
+  // Setup the send requests (used by both end-points)
+  //   - This is done to have persistant requests to track is-sent notifications for asynchronous sends
+  TakyonSubBuffer *send_sub_buffers = calloc(src_buffer_count, sizeof(TakyonSubBuffer));
+  TakyonSendRequest *send_requests = calloc(src_buffer_count, sizeof(TakyonSendRequest));
+  for (uint32_t i=0; i<src_buffer_count; i++) {
+    send_sub_buffers[i].buffer_index = 0;
+    send_sub_buffers[i].bytes = 0;
+    send_sub_buffers[i].offset = 0;
+    send_requests[i].sub_buffer_count = (message_bytes==0) ? 0 : 1;
+    send_requests[i].sub_buffers = (message_bytes==0) ? NULL : &send_sub_buffers[i];
+    send_requests[i].use_polling_completion = use_polling_completion;
+    send_requests[i].usec_sleep_between_poll_attempts = 0;
+  }
+
   // Create one side of the path
   //   - The other side will be created in a different thread/process
   TakyonPath *path;
   (void)takyonCreate(&attrs, recv_request_count, recv_requests, TAKYON_WAIT_FOREVER, &path);
 
   // Do the transfers, and calculate the throughput
+  uint32_t send_request_index = 0;
   uint32_t recv_request_index = 0;
   double start_time = clockTimeSeconds();
   int64_t bytes_transferred = 0;
@@ -297,7 +324,8 @@ static void twoSidedThroughput(const bool is_endpointA, const char *provider, co
 	fillInMessage(buffer, message_bytes, message_offset, i);
       }
       // Send message
-      sendMessage(path, message_bytes, message_offset, use_polling_completion, i);
+      sendMessage(path, &send_requests[send_request_index], message_bytes, message_offset, use_polling_completion, i);
+      send_request_index = (send_request_index + 1) % src_buffer_count;
 
     } else {
       // Wait for the message to arrive (will reuse the recv_request that was already prepared)
@@ -341,7 +369,7 @@ static void twoSidedThroughput(const bool is_endpointA, const char *provider, co
       if (path->attrs.is_endpointA) {
         // Wait for the recvs to be posted, but if the provider is unreliable then no needed since dropped messages are allowed
         if (!path->capabilities.is_unreliable) {
-          bool ok = recvSignal(path, &repost_recv_request);
+          bool ok = recvEmptyMessage(path, &repost_recv_request);
           if (!ok) break; // Probably dropped packets and sender is done
         }
       } else {
@@ -350,8 +378,12 @@ static void twoSidedThroughput(const bool is_endpointA, const char *provider, co
 	TakyonRecvRequest *half_recv_requests = post_first_half ? recv_requests : &recv_requests[half_dest_buffer_count];
 	post_first_half = !post_first_half;
         if (path->capabilities.PostRecvs_function_supported) takyonPostRecvs(path, half_dest_buffer_count, half_recv_requests);
-        // Let the send know the recvs are posted, but if the provider is unreliable then no needed since dropped messages are allowed
-        if (!path->capabilities.is_unreliable) sendSignal(path, use_polling_completion);
+
+        // Let the sender know this receiver is ready for more data, but if the provider is unreliable then no needed since dropped messages are allowed
+        if (!path->capabilities.is_unreliable) {
+          sendEmptyMessage(path, &send_requests[send_request_index], use_polling_completion);
+          send_request_index = (send_request_index + 1) % src_buffer_count;
+        }
       }
       messages_to_be_reposted = 0;
     }
@@ -395,6 +427,8 @@ static void twoSidedThroughput(const bool is_endpointA, const char *provider, co
     free(recv_sub_buffers);
     free(recv_requests);
   }
+  free(send_sub_buffers);
+  free(send_requests);
 }
 
 static void oneSidedThroughput(const bool is_endpointA, const char *provider, const uint32_t iterations, const uint64_t message_bytes, const uint32_t src_buffer_count, const uint32_t dest_buffer_count, const bool use_polling_completion, const bool validate, const bool is_multi_threaded, TakyonBuffer *buffer, const char *transfer_mode) {
@@ -421,13 +455,22 @@ static void oneSidedThroughput(const bool is_endpointA, const char *provider, co
   attrs.max_sub_buffers_per_write_request = 1;
   attrs.max_sub_buffers_per_read_request  = 1;
 
-  // Recv request used for signaling
+  // Recv requests used for empty-message synchronization
   TakyonRecvRequest recv_requests[2];
   for (uint32_t i=0; i<2; i++) {
     recv_requests[i].sub_buffer_count = 0;
     recv_requests[i].sub_buffers = NULL;
     recv_requests[i].use_polling_completion = use_polling_completion;
     recv_requests[i].usec_sleep_between_poll_attempts = 0;
+  }
+
+  // Send requests used for empty-message synchronization
+  TakyonSendRequest send_requests[2];
+  for (uint32_t i=0; i<2; i++) {
+    send_requests[i].sub_buffer_count = 0;
+    send_requests[i].sub_buffers = NULL;
+    send_requests[i].use_polling_completion = use_polling_completion;
+    send_requests[i].usec_sleep_between_poll_attempts = 0;
   }
 
   // Create one side of the path
@@ -446,7 +489,7 @@ static void oneSidedThroughput(const bool is_endpointA, const char *provider, co
         if (path->attrs.is_endpointA) {
           // Wait for permission to start filling in the next batch of data (no need to wait if this is the first round of transfers)
           if (completed_iterations > 0) {
-            recvSignal(path, &recv_requests[half_index]);
+            recvEmptyMessage(path, &recv_requests[half_index]);
           }
           // Fill in the message
           if (validate) {
@@ -460,10 +503,10 @@ static void oneSidedThroughput(const bool is_endpointA, const char *provider, co
             }
           }
           // Let the remote endpoint know the set of messages are ready to be read
-          sendSignal(path, use_polling_completion);
+          sendEmptyMessage(path, &send_requests[half_index], use_polling_completion);
         } else {
-          // Wait for signal to inform that messages can be read
-          recvSignal(path, &recv_requests[half_index]);
+          // Wait for the empty message to arrive to inform that messages can be read
+          recvEmptyMessage(path, &recv_requests[half_index]);
           // Read messages
           for (uint32_t i=0; i<src_buffer_count/2; i++) {
             uint32_t i2 = (half_index==0) ? i : src_buffer_count/2+i;
@@ -483,19 +526,19 @@ static void oneSidedThroughput(const bool is_endpointA, const char *provider, co
               validateMessage(buffer, message_bytes, message_offset, message_index, &previous_start_value);
             }
           }
-          // Send signal to inform the remote endpoint that more message can be written
-          sendSignal(path, use_polling_completion);
+          // Send empty message to inform the remote endpoint that more message can be written
+          sendEmptyMessage(path, &send_requests[half_index], use_polling_completion);
         }
       }
 
     } else {
       // 'write' throughput
-      // Transfer in one half at a time to allow for overlapping of 'writes' and receiving signals
+      // Transfer in one half at a time to allow for overlapping of 'writes'
       for (uint32_t half_index=0; half_index<2; half_index++) {
         if (path->attrs.is_endpointA) {
           // Wait for permission to write (no need to wait if this is the first round of transfers)
           if (completed_iterations > 0) {
-            recvSignal(path, &recv_requests[half_index]);
+            recvEmptyMessage(path, &recv_requests[half_index]);
           }
           for (uint32_t i=0; i<src_buffer_count/2; i++) {
             uint32_t i2 = (half_index==0) ? i : src_buffer_count/2+i;
@@ -511,11 +554,11 @@ static void oneSidedThroughput(const bool is_endpointA, const char *provider, co
             writeMessage(path, message_bytes, message_offset, use_polling_completion);
           }
           // Let the remote endpoint know the set of messages arrived
-          sendSignal(path, use_polling_completion);
+          sendEmptyMessage(path, &send_requests[half_index], use_polling_completion);
 
         } else {
-          // Wait for signal to inform that messages were written
-          recvSignal(path, &recv_requests[half_index]);
+          // Wait for the empty message to arrive to inform that messages were written
+          recvEmptyMessage(path, &recv_requests[half_index]);
           // Validate messages
           if (validate) {
             static uint32_t previous_start_value = 0;
@@ -527,8 +570,8 @@ static void oneSidedThroughput(const bool is_endpointA, const char *provider, co
               validateMessage(buffer, message_bytes, message_offset, message_index, &previous_start_value);
             }
           }
-          // Send signal to inform the remote endpoint that more message can be written
-          sendSignal(path, use_polling_completion);
+          // Send empty message to inform the remote endpoint that more message can be written
+          sendEmptyMessage(path, &send_requests[half_index], use_polling_completion);
         }
       }
     }

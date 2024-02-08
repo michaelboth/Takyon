@@ -1,6 +1,10 @@
 Show the max sustained throughput of a Takyon provider; supports both one-sided and two-sided.
   To see the usage and options, run with -h
 
+NOTE: This example is designed to handle all providers and most of the provider's options.
+      If the goal is to test a single provider to use as a baseline for a new app (e.g. RDMA
+      RoCEv2 packet processing) then copy this example and strip out the features not needed
+      to significantly reduce the code size.
 
 Files
   - main_inter_processor.c  Start the throughput() function as a single process
