@@ -12,6 +12,7 @@
 /*+ valgrind */
 
 #include "LatencyTest.hpp"
+#include "ThroughputTest.hpp"
 #include <cstring>
 
 // For Unikorn instrumentation
@@ -88,7 +89,7 @@ int main(int argc, char **argv) {
       int tokens = sscanf(argv[i], "-nbufs=%u", &app_params.nbufs);
       if (tokens != 1) { EXIT_WITH_MESSAGE(std::string("Arg '" + std::string(argv[i]) + "' is invalid.")); }
       if (app_params.nbufs == 0) { EXIT_WITH_MESSAGE(std::string("Arg '" + std::string(argv[i]) + "' must be greater than zero.")); }
-      if ((app_params.nbytes % 2) != 0) { EXIT_WITH_MESSAGE(std::string("Arg '" + std::string(argv[i]) + "' must be an even number.")); }
+      if ((app_params.nbufs % 2) != 0) { EXIT_WITH_MESSAGE(std::string("Arg '" + std::string(argv[i]) + "' must be an even number.")); }
     } else if (strncmp(argv[i], "-nbytes=", 8) == 0) {
       int tokens = sscanf(argv[i], "-nbytes=%lu", &app_params.nbytes);
       if (tokens != 1) { EXIT_WITH_MESSAGE(std::string("Arg '" + std::string(argv[i]) + "' is invalid.")); }
@@ -126,7 +127,7 @@ int main(int argc, char **argv) {
   if (test_mode == "lat") {
     LatencyTest::runLatencyTest(is_sender, app_params);
   } else if (test_mode == "tp") {
-    /*+ throughput */
+    ThroughputTest::runThroughputTest(is_sender, app_params);
   }
 
   // Finalize

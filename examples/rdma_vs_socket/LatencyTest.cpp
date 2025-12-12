@@ -25,11 +25,11 @@
 //     if (is_sender) {
 //       start send
 //       recv & repost
-//       wait for send completion
+//       waitForSendCompletion
 //     } else {  // is_receiver
 //       recv & repost
 //       send
-//       wait for send completion
+//       waitForSendCompletion
 //     }
 //   }
 //
@@ -37,10 +37,10 @@
 //  For best results use polling with no sleep delay, since event-driven completion requires a thread based context switch
 
 static void waitForMessage(TakyonPath *_path, TakyonRecvRequest *_recv_request, uint64_t _expected_bytes) {
-  // Wait for ACK
+  // Wait for message
   uint64_t bytes_received = 0;
   (void)takyonIsRecved(_path, _recv_request, TAKYON_WAIT_FOREVER, NULL, &bytes_received, NULL);
-  if (bytes_received != _expected_bytes) { EXIT_WITH_MESSAGE(std::string("ACK bytes should be " + std::to_string(_expected_bytes) + " but got " + std::to_string(bytes_received))); }
+  if (bytes_received != _expected_bytes) { EXIT_WITH_MESSAGE(std::string("Received message bytes should be " + std::to_string(_expected_bytes) + " but got " + std::to_string(bytes_received))); }
 
   // Re-post the recv
   if (_path->capabilities.PostRecvs_function_supported) {
@@ -149,7 +149,7 @@ void LatencyTest::runLatencyTest(bool _is_sender, const Common::AppParams &_app_
 
       if (_is_sender) {
         // Send
-        uint32_t piggyback_message = 0; // Ignoring since sockets can't use it
+        uint32_t piggyback_message = 0; // Ignoring since UDP sockets can't use it
         (void)takyonSend(path, &send_request, piggyback_message, TAKYON_WAIT_FOREVER, NULL);
         // Recv
         waitForMessage(path, &recv_request, message_bytes);
@@ -164,7 +164,7 @@ void LatencyTest::runLatencyTest(bool _is_sender, const Common::AppParams &_app_
         waitForMessage(path, &recv_request, message_bytes);
         /*+ validate */
         // Send
-        uint32_t piggyback_message = 0; // Ignoring since sockets can't use it
+        uint32_t piggyback_message = 0; // Ignoring since UDP sockets can't use it
         (void)takyonSend(path, &send_request, piggyback_message, TAKYON_WAIT_FOREVER, NULL);
         // Make sure send completion has occurred
         if (path->capabilities.IsSent_function_supported) {
