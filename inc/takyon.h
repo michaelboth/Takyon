@@ -87,9 +87,8 @@ typedef struct {
   void *addr;                              // Application must allocate the memory; CPU, CUDA, IO device, etc. The provider must support the type of memory allocated.
   uint64_t bytes;                          // Number of contiguous bytes in the buffer starting at 'addr'
   char name[TAKYON_MAX_BUFFER_NAME_CHARS]; // Only needed for special memory like inter-process mmaps. Ignore if not needed.
-  void *app_data;                          // Application uses this as needed. Takyon does not look at this.
-                                           // Helpful for application dependent data; e.g. store an mmap handle or CUDA device ID
-  void *private_data;                      // Do not modify this, used internally; e.g. registered memory info
+  void *app_data;                          // Application uses this as needed. Takyon does not look at this. Helpful for application dependent data; e.g. store an mmap handle or CUDA device ID.
+  void *private_data;                      // Used internally by Takyon and should not be modified by application; e.g. registered memory info
 } TakyonBuffer;
 
 // These are used in transfer requests and represent a contiguous sub region of a TakyonBuffer.
@@ -100,7 +99,7 @@ typedef struct {
                           // IMPORTANT: Receiver can make this more than what is actually sent, takyonIsRecved() will report that actual bytes received.
                           //            This has the benefit of allowing the number of bytes sent to be dynamic, and the receiver does not need to know ahead of time.
   uint64_t offset;        // Offset into the Takyon buffer
-  void *private_data;     // Do not modify this, used internally; e.g. optimize posting receives
+  void *private_data;     // Used internally by Takyon and should not be modified by application; e.g. optimize posting receives
 } TakyonSubBuffer;
 
 // Only used for one-sided transfers: read/write/atomics
@@ -125,9 +124,9 @@ typedef struct {
   uint32_t usec_sleep_between_poll_attempts; // If use_polling_completion == true, then this defines the number of microseconds to sleep between poll attempts.
                                              // This helps to avoid burning up CPU when polling, but if full polling is needed, then set this to 0.
   // Helpful for application dependent data
-  void *app_data;                            // Application uses this as needed. Takyon does not look at this
+  void *app_data;                            // Application uses this as needed. Takyon does not look at this.
   // Do not modify the following fields
-  void *private_data;                        // Used internally; e.g. track the completion between takyonOneSided() and takyonIsOneSidedDone()
+  void *private_data;                        // Used internally by Takyon and should not be modified by application; e.g. track the completion between takyonOneSided() and takyonIsOneSidedDone()
 } TakyonOneSidedRequest;
 
 // Used only for sending in two-sided transfers (send ---> recv)
@@ -148,7 +147,7 @@ typedef struct {
   // Helpful for application dependent data
   void *app_data;                            // Application uses this as needed. Takyon does not look at this
   // Do not modify the following fields
-  void *private_data;                        // Used internally; e.g. track the completion between takyonSend() and takyonIsSent()
+  void *private_data;                        // Used internally by Takyon and should not be modified by application; e.g. track the completion between takyonSend() and takyonIsSent()
 } TakyonSendRequest;
 
 // Used only for receiving in two-sided transfers (send ---> recv)
@@ -163,9 +162,9 @@ typedef struct {
                                                // Use 'false' to use event driven (allows CPU to sleep) to passively detect completion.
   uint32_t usec_sleep_between_poll_attempts;   // If use_polling_completion == true, then this defines the number of microseconds to sleep between poll attempts.
   // Helpful for application dependent data
-  void *app_data;                              // Application uses this as needed. Takyon does not look at this
+  void *app_data;                              // Application uses this as needed. Takyon does not look at this.
   // Do not modify the following fields
-  void *private_data;                          // Used internally; e.g. track the completion between takyonPostRecvs() and takyonIsRecved()
+  void *private_data;                          // Used internally by Takyon and should not be modified by application; e.g. track the completion between takyonPostRecvs() and takyonIsRecved()
 } TakyonRecvRequest;
 
 // Define the behaviour of a path's endpoint.
@@ -221,7 +220,7 @@ typedef struct {
   TakyonPathAttributes attrs;           // Contains a copy of the attributes passed in from takyonCreate(), but does not copy contents of pointers
   TakyonPathCapabilities capabilities;  // This will be filled in by takyonCreate()
   char *error_message;                  // For returning error messages if a failure occurs with sending, or receiving. This should not be freed by the application.
-  void *private_data;                   // Used internally; e.g. endpoint book keeping
+  void *private_data;                   // Used internally by Takyon and should not be modified by application; e.g. endpoint book keeping
 } TakyonPath;
 
 
@@ -233,7 +232,7 @@ extern "C"
 // Create/Destroy a communication endpoint
 // ---------------------------------------
 //   If takyonCreate() returns non NULL, it contains the error message, and it needs to be freed by the application.
-//   If takyonPostRecv() is not supported, then takyonCreate() will ignore post_recv_count and recv_requests.
+//   If takyonPostRecv() is not supported by the provider, then takyonCreate() will ignore post_recv_count and recv_requests.
 extern char *takyonCreate(TakyonPathAttributes *attrs, uint32_t post_recv_count, TakyonRecvRequest *recv_requests, double timeout_seconds, TakyonPath **path_out);
 extern char *takyonDestroy(TakyonPath *path, double timeout_seconds);
 
@@ -242,8 +241,9 @@ extern char *takyonDestroy(TakyonPath *path, double timeout_seconds);
 //   Both endpoints are involved in the transfer:
 //     A:send --> B:recv
 //     A:recv --> B:send
-//   NOTE: If multicast is supported, then can have multiple recv endpoints for a single send endpoint.
+//   NOTE: If multicast is supported by the provider, then can have multiple recv endpoints for a single send endpoint.
 //   NOTE: Two-sided transfers are designed to be one-way; i.e. no round trip needed to complete the transfer.
+//   This group of functions returns true if there was an unrecoverable error.
 extern bool takyonSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggyback_message, double timeout_seconds, bool *timed_out_ret);
 extern bool takyonIsSent(TakyonPath *path, TakyonSendRequest *request, double timeout_seconds, bool *timed_out_ret);
 extern bool takyonPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvRequest *requests);
@@ -252,7 +252,7 @@ extern bool takyonIsRecved(TakyonPath *path, TakyonRecvRequest *request, double 
 // ONE-SIDED TRANSFERS
 // -------------------
 //   Only one endpoint is involved in the transfer; i.e. the other endpoint will not know the transfer is even occuring and not use any OS resources during the transfer.
-//   Write message: one way send (i.e. push data to the remote endpoint), no involvement from the remote endpoint unless a piggyback message is sent
+//   Write message: one-way send (i.e. push data to the remote endpoint). If piggyback message is sent, remote endpoint must call takyonIsRecved() to get the piggy back message.
 //     A:write --> (B not involved)
 //     B:write --> (A not involved)
 //   Read message: one way recv (i.e. pulling the data from the remote endpoint), no involvement from the remote endpoint
@@ -262,6 +262,7 @@ extern bool takyonIsRecved(TakyonPath *path, TakyonRecvRequest *request, double 
 //     See TAKYON_OP_ATOMIC_COMPARE_AND_SWAP_UINT64 above for details
 //   Atomic add uint64:
 //     See TAKYON_OP_ATOMIC_ADD_UINT64 above for details
+//   This group of functions returns true if there was an unrecoverable error.
 extern bool takyonOneSided(TakyonPath *path, TakyonOneSidedRequest *request, uint32_t piggyback_message, double timeout_seconds, bool *timed_out_ret);
 extern bool takyonIsOneSidedDone(TakyonPath *path, TakyonOneSidedRequest *request, double timeout_seconds, bool *timed_out_ret);
 

@@ -1231,11 +1231,20 @@ static bool waitForCompletion(bool is_send, RdmaEndpoint *endpoint, uint64_t exp
     snprintf(error_message, max_error_message_chars, "ibv_poll_cq() has work complete error: '%s'", wcErrorToText(wc.status));
     return false;
   }
+
+  /* helpful for debuging
+  if (is_send) {
+    printf("GOT SEND COMPLETION: wc.wr_id=%llu, expected_wr_id=%llu\n", (unsigned long long)wc.wr_id, (unsigned long long)expected_wr_id);
+  } else {
+    printf("GOT RECV COMPLETION: wc.wr_id=%llu, expected_wr_id=%llu: bytes=%d\n", (unsigned long long)wc.wr_id, (unsigned long long)expected_wr_id, wc.byte_len);
+  }
+  */
+
   if (wc.wr_id != expected_wr_id) {
     if (is_send) {
-      snprintf(error_message, max_error_message_chars, "Work completion does not match expected send_request. Was takyonIsSent() called in a different order from takyonSend()?");
+      snprintf(error_message, max_error_message_chars, "Work completion does not match expected send_request. Make sure attrs.max_pending_send_requests is correctly set. Was takyonIsSent() called in a different order from takyonSend()?");
     } else {
-      snprintf(error_message, max_error_message_chars, "Work completion does not match expected recv_request. Was takyonIsRecved() called in a different order from takyonPostRecvs()?");
+      snprintf(error_message, max_error_message_chars, "Work completion does not match expected recv_request. Make sure attrs.max_pending_recv_requests is correctly set. Was takyonIsRecved() called in a different order from takyonPostRecvs()?");
     }
     return false;
   }
@@ -1294,12 +1303,18 @@ bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr
     if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS_MORE) printf("    SGE[%d]: addr=0x%jx, bytes=%u, lkey=%u\n", j, (uint64_t)sge->addr, sge->length, sge->lkey);
 #endif
   }
+
+  // Error checking
   if (endpoint->protocol == RDMA_PROTOCOL_UD_MULTICAST || endpoint->protocol == RDMA_PROTOCOL_UD_UNICAST) {
     if (total_bytes > endpoint->mtu_bytes) {
       snprintf(error_message, max_error_message_chars, "Message bytes=%u is larger than MTU bytes=%u", total_bytes, endpoint->mtu_bytes);
       return false;
     }
   }
+
+  /* helpful for debuging
+  printf("POST SEND: send_wr.wr_id=%llu, total_bytes=%u\n", (unsigned long long)send_wr.wr_id, total_bytes);
+  */
 
 #ifdef EXTRA_ERROR_CHECKING
   if (transfer_mode == IBV_WR_SEND_WITH_IMM) {
