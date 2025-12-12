@@ -140,17 +140,30 @@ void LatencyTest::runLatencyTest(bool _is_sender, const Common::AppParams &_app_
   double print_start_time = -Common::ELAPSED_SECONDS_TO_PRINT; // Make sure first pass prints
   double accumulated_latency_usecs = -1.0;
   double accumulated_jitter_usecs = -1.0;
+  uint32_t *int_send_buffer = (uint32_t *)send_memory;
+  uint32_t *int_recv_buffer = (uint32_t *)((uint64_t)recv_memory + extra_recv_bytes);
+  uint32_t counter = 0;
+  uint64_t validation_count = message_bytes/sizeof(uint32_t);
   do {
     for (uint32_t iter=0; iter<_app_params.iters; iter++) {
       UK_RECORD_EVENT(_app_params.unikorn_session, LATENCY_ITERATION_START_ID, 0);
 
       if (_is_sender) {
         // Send
+        if (_app_params.validate) {
+          for (uint64_t i=0; i<validation_count; i++) { int_send_buffer[i] = counter+i; }
+        }
         uint32_t piggyback_message = 0; // Ignoring since UDP sockets can't use it
         (void)takyonSend(path, &send_request, piggyback_message, TAKYON_WAIT_FOREVER, NULL);
         // Recv
         waitForMessage(path, &recv_request, message_bytes);
-        /*+ validate */
+        if (_app_params.validate) {
+          for (uint64_t i=0; i<validation_count; i++) {
+            if (int_recv_buffer[i] != (uint32_t)(counter+i)) {
+              EXIT_WITH_MESSAGE(std::string("Received invalid data, counter=" + std::to_string(counter) + ", expected  " + std::to_string((uint32_t)(counter+i)) + " but got " + std::to_string(int_recv_buffer[i])));
+            }
+          }
+        }
         // Make sure send completion has occurred
         if (path->capabilities.IsSent_function_supported) {
           (void)takyonIsSent(path, &send_request, TAKYON_WAIT_FOREVER, NULL);
@@ -159,8 +172,17 @@ void LatencyTest::runLatencyTest(bool _is_sender, const Common::AppParams &_app_
       } else {
         // Recv
         waitForMessage(path, &recv_request, message_bytes);
-        /*+ validate */
+        if (_app_params.validate) {
+          for (uint64_t i=0; i<validation_count; i++) {
+            if (int_recv_buffer[i] != (uint32_t)(counter+i)) {
+              EXIT_WITH_MESSAGE(std::string("Received invalid data, counter=" + std::to_string(counter) + ", expected  " + std::to_string((uint32_t)(counter+i)) + " but got " + std::to_string(int_recv_buffer[i])));
+            }
+          }
+        }
         // Send
+        if (_app_params.validate) {
+          for (uint64_t i=0; i<validation_count; i++) { int_send_buffer[i] = int_recv_buffer[i]; }
+        }
         uint32_t piggyback_message = 0; // Ignoring since UDP sockets can't use it
         (void)takyonSend(path, &send_request, piggyback_message, TAKYON_WAIT_FOREVER, NULL);
         // Make sure send completion has occurred
@@ -174,6 +196,8 @@ void LatencyTest::runLatencyTest(bool _is_sender, const Common::AppParams &_app_
       double end_time = Common::clockTimeSeconds();
       round_trip_results_usecs[iter] = (end_time - start_time) * 1000000.0; // Conter to usecs
       start_time = end_time;
+
+      counter++;
     }
 
     // Calculate best latency and worse jitter (start half way through the list to avoid warm up delays)
