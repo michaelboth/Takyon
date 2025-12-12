@@ -73,16 +73,6 @@ void ThroughputTest::runThroughputTest(bool _is_sender, const Common::AppParams 
   void *send_memory = Common::allocateTransportMemory(total_send_bytes, is_for_rdma);
   void *recv_memory = Common::allocateTransportMemory(total_recv_bytes, is_for_rdma);
 
-  // Fill in some helpful send side data
-  if (_is_sender) {
-    /*+ do this in main loop and vary */
-    uint64_t integer_count = total_send_bytes / sizeof(int);
-    uint32_t *send_memory_integer = (uint32_t *)send_memory;
-    for (uint64_t i=0; i<integer_count; i++) {
-      send_memory_integer[i] = (uint32_t)i;
-    }
-  }
-
   // Create the Takyon transport buffers
   TakyonBuffer transport_buffers[2];
   // Send buffer
@@ -193,6 +183,15 @@ void ThroughputTest::runThroughputTest(bool _is_sender, const Common::AppParams 
               send_request_in_use[send_index] = false;
             }
             send_request_in_use[send_index] = true;
+            // Fill in some helpful data to be validated
+            if (_app_params.validate) {
+              uint64_t integer_count = send_request->sub_buffers[0].bytes / sizeof(int);
+              uint32_t *send_memory_integer = (uint32_t *)((uint64_t)send_memory + send_request->sub_buffers[0].offset);
+              uint64_t base_value = send_index * integer_count;
+              for (uint64_t i=0; i<integer_count; i++) {
+                send_memory_integer[i] = (uint32_t)(base_value + i);
+              }
+            }
             // Send the data
             uint32_t piggyback_message = 0; // Ignoring since UDP sockets can't use it
             (void)takyonSend(path, send_request, piggyback_message, TAKYON_WAIT_FOREVER, NULL);
