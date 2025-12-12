@@ -27,21 +27,21 @@ ifeq ($(CUDA),Yes)
 endif
 
 # Unikorn additions
-UNIKORN_HOME := ../../../EventAnalyzer
-COMMON_FLAGS += -I$(UNIKORN_HOME)/inc
 ifeq ($(UNIKORN),Yes)
+    UNIKORN_HOME := ../../../EventAnalyzer
     COMMON_FLAGS += -DENABLE_UNIKORN_RECORDING
     COMMON_FLAGS += -DUNIKORN_RELEASE_BUILD
+    COMMON_FLAGS += -I$(UNIKORN_HOME)/inc
     C_OBJS       += unikorn.o unikorn_file_flush.o unikorn_clock_gettime.o
     HEADER_FILES += unikorn.h unikorn_clock.h unikorn_file_flush.h
+    vpath %.h $(UNIKORN_HOME)/inc
+    vpath %.c $(UNIKORN_HOME)/src
 endif
 
 C_FLAGS   := -std=gnu99 $(COMMON_FLAGS)
 CPP_FLAGS := -std=c++20 $(COMMON_FLAGS)
 
 vpath %.h ../../inc
-vpath %.h $(UNIKORN_HOME)/inc
-vpath %.c $(UNIKORN_HOME)/src
 
 all: $(TARGET)
 

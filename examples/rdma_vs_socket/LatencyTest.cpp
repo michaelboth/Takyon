@@ -11,11 +11,8 @@
 
 #include "LatencyTest.hpp"
 #include "takyon.h"
-#include <cstring>
-
-// For Unikorn instrumentation
 #include "unikorn_instrumentation.h"
-#include "unikorn_macros.h" /*+ merge into unikorn_instrumentation.h to avoid requireing Unikorn for customer */
+#include <cstring>
 
 // Algorithm:
 //   - Use a single buffer sender and receiver

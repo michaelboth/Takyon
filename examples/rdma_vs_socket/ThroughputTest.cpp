@@ -11,11 +11,8 @@
 
 #include "ThroughputTest.hpp"
 #include "takyon.h"
-#include <cstring>
-
-// For Unikorn instrumentation
 #include "unikorn_instrumentation.h"
-#include "unikorn_macros.h" /*+ merge into unikorn_instrumentation.h to avoid requireing Unikorn for customer */
+#include <cstring>
 
 static const uint64_t ACK_BYTES = sizeof(int);
 

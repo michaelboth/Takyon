@@ -18,7 +18,6 @@
 // For Unikorn instrumentation
 #define ENABLE_UNIKORN_SESSION_CREATION
 #include "unikorn_instrumentation.h"
-#include "unikorn_macros.h" /*+ merge into unikorn_instrumentation.h to avoid requireing Unikorn for customer */
 
 static void printUsageAndExit(const char *_program) {
   printf("usage: %s <lat|tp> <params_file> <provider> <A|B> [-once] [-iters=<uint32>] [-bytes=<uint64>] [-nbufs=<uint32>] [-poll] [-validate] [-verbose]\n", _program);
@@ -117,11 +116,30 @@ int main(int argc, char **argv) {
 
   // Setup the Unikorn instrumentation
 #ifdef ENABLE_UNIKORN_RECORDING
-  char filename[100];
+  char filename[100]; // Needs to be persistent for life of session
   snprintf(filename, 100, "timing_%s_%s_%lu_bytes_%u_bufs.events", app_params.provider.c_str(), side.c_str(), app_params.nbytes, app_params.nbufs);
+
   UkFileFlushInfo flush_info; // Needs to be persistent for life of session
+  flush_info.filename = filename;
+  flush_info.file = NULL;
+  flush_info.events_saved = false;
+  flush_info.append_subsequent_saves = true;
+
+  // Prepare Unikorn attributes
+  UkAttrs unikorn_attrs = {
+    .max_event_count = 1000000,
+    .flush_when_full = true,
+    .is_multi_threaded = false,
+    .record_instance = true,
+    .record_value = true,
+    .record_file_location = true,
+    .folder_registration_count = NUM_UNIKORN_FOLDER_REGISTRATIONS,
+    .folder_registration_list = L_unikorn_folders,
+    .event_registration_count = NUM_UNIKORN_EVENT_REGISTRATIONS,
+    .event_registration_list = L_unikorn_events
+  };
+  app_params.unikorn_session = ukCreate(&unikorn_attrs, ukGetTime, &flush_info, ukPrepareFileFlush, ukFileFlush, ukFinishFileFlush);
 #endif
-  UK_CREATE(filename, 1000000, true, false, true, true, true, NUM_UNIKORN_FOLDER_REGISTRATIONS, L_unikorn_folders, NUM_UNIKORN_EVENT_REGISTRATIONS, L_unikorn_events, &flush_info, &app_params.unikorn_session);
 
   // Run test
   if (test_mode == "lat") {

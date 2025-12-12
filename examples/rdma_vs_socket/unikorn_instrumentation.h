@@ -15,6 +15,8 @@
 // NOTE: Include this header file in any source file that will use unikorn event intrumenting
 #ifdef ENABLE_UNIKORN_RECORDING
 #include "unikorn.h"
+#include "unikorn_clock.h"       // Provide your own clock functionality if you don't want to use one of the clocks provided with the Unikorn distribution
+#include "unikorn_file_flush.h"  // Provide your own flush functionality (e.g. socket) here if you don't want to flush to a file
 
 // ------------------------------------------------
 // Define the unique IDs for the folders and events
@@ -83,5 +85,23 @@ static UkEventRegistration L_unikorn_events[] = {
 #define NUM_UNIKORN_EVENT_REGISTRATIONS (sizeof(L_unikorn_events) / sizeof(UkEventRegistration))
 
 #endif // ENABLE_UNIKORN_SESSION_CREATION
+
+// Helpful macros
+#define UK_DESTROY(_session, _flush_info) ukDestroy(_session)
+#define UK_FLUSH(_session) ukFlush(_session)
+#define UK_OPEN_FOLDER(_session, _folder_id) ukOpenFolder(_session, _folder_id)
+#define UK_CLOSE_FOLDER(_session) ukCloseFolder(_session)
+#define UK_RECORD_EVENT(_session, _event_id, _value) ukRecordEvent(_session, _event_id, _value, __FILE__, __FUNCTION__, __LINE__)
+
+#else
+
+// Helpful macros to strip out Unikorn instrumentation
+#define UK_DESTROY(_session, _flush_info)
+#define UK_FLUSH(_session)
+#define UK_OPEN_FOLDER(_session, _folder_id)
+#define UK_CLOSE_FOLDER(_session)
+#define UK_RECORD_EVENT(_session, _event_id, _value)
+
 #endif // ENABLE_UNIKORN_RECORDING
+
 #endif // _UNIKORN_INSTRUMENTATION_H_
