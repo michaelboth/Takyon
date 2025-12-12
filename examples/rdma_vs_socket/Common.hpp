@@ -1,0 +1,45 @@
+//     Copyright 2025 Michael Both
+//     Licensed under the Apache License, Version 2.0 (the "License");
+//     you may not use this file except in compliance with the License.
+//     You may obtain a copy of the License at
+//         http://www.apache.org/licenses/LICENSE-2.0
+//     Unless required by applicable law or agreed to in writing, software
+//     distributed under the License is distributed on an "AS IS" BASIS,
+//     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//     See the License for the specific language governing permissions and
+//     limitations under the License.
+
+#pragma once
+
+#include <string>
+#include <map>
+#include <cstdint>
+
+#define EXIT_WITH_MESSAGE(_m) do { printf("ERROR in '%s:%s()' line %d: %s\n", __FILE__, __FUNCTION__, __LINE__, _m.c_str()); exit(EXIT_FAILURE); } while (false)
+
+namespace Common {
+  constexpr uint64_t MIN_BYTES = 4;
+  constexpr uint64_t MAX_BYTES = (4*1024*1024);
+  constexpr uint32_t DEFAULT_NITERS = 100;
+  constexpr uint32_t DEFAULT_NBUFS = 10;    // Ignored for latency test
+  constexpr double ELAPSED_SECONDS_TO_PRINT = 0.2;
+
+  struct AppParams {
+    std::string provider;
+    std::string provider_params;
+    uint32_t nbufs = DEFAULT_NBUFS;
+    bool run_forever = true;
+    uint32_t iters = DEFAULT_NITERS;
+    uint64_t nbytes = MAX_BYTES;
+    bool use_polling = false;
+    bool validate = false;
+    bool verbose = false;
+    void *unikorn_session = NULL;
+  };
+
+  double clockTimeSeconds();
+  double smoothValue(double _old_value, double _new_value, double _new_factor);
+  std::map<std::string, std::string> loadProviderParamsFile(std::string _filename);
+  void* allocateTransportMemory(uint64_t _bytes, bool _is_for_rdma);
+  void freeTransportMemory(void *_addr);
+};

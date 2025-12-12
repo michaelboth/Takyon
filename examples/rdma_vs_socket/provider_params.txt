@@ -1,0 +1,30 @@
+# To get RDMA info, use: > ibdev2netdev
+#   This returns:
+#      - rdmaDevice names (e.g. rocep1s0f0)
+#      - rdmaPort numbers (usually starts with 1)
+#      - if the port is up or down. If down, RDMA communication will not work.
+#      - The assigned network name (e.g. rocep1s0f0), as seen in: > ip a
+
+# To get the RDMA IP address, use: > ip a
+#   Then look for the appropriate network name, as seen in: > ibdev2netdev
+
+# remoteIP and localIP should be the same
+
+# For IP port numbers, choose a number that is unused, which is usualy in the registered range (1024-49151) or the ephemeral range (49152-65535)
+
+TCP_A: SocketTcp -client -remoteIP=127.0.0.1 -port=23356
+TCP_B: SocketTcp -server -localIP=127.0.0.1 -port=23356 -reuse
+#TCP_A: SocketTcp -client -remoteIP=127.0.0.1 -ephemeralID=1
+#TCP_B: SocketTcp -server -localIP=127.0.0.1 -ephemeralID=1
+
+UDP_A: SocketUdpSend -unicast -remoteIP=127.0.0.1 -port=23356
+UDP_B: SocketUdpRecv -unicast -localIP=127.0.0.1 -port=23356 -reuse
+
+RC_A: RdmaRC -client -remoteIP=127.0.0.1 -port=23356 -rdmaDevice=rocep1s0f0 -rdmaPort=1
+RC_B: RdmaRC -server -localIP=127.0.0.1 -port=23356 -reuse -rdmaDevice=roceP2p1s0f0 -rdmaPort=1
+
+UC_A: RdmaUC -client -remoteIP=127.0.0.1 -port=23356 -rdmaDevice=rocep1s0f0 -rdmaPort=1
+UC_B: RdmaUC -server -localIP=127.0.0.1 -port=23356 -reuse -rdmaDevice=roceP2p1s0f0 -rdmaPort=1
+
+UD_A: RdmaUDUnicastSend -client -remoteIP=127.0.0.1 -port=23356 -rdmaDevice=rocep1s0f0 -rdmaPort=1
+UD_B: RdmaUDUnicastRecv -server -localIP=127.0.0.1 -port=23356 -reuse -rdmaDevice=roceP2p1s0f0 -rdmaPort=1
