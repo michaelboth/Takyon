@@ -24,19 +24,19 @@ CUDA_C_LIBS = "$(CUDA_HOME)\lib\x64\cudart.lib"
 !ENDIF
 
 # Unikorn
-UNIKORN_CFLAGS =
+UNIKORN_C_FLAGS =
 UNIKORN_C_OBJS =
 !IF "$(UNIKORN)" == "Yes"
 UNIKORN_HOME   = ../../../EventAnalyzer
-UNIKORN_CFLAGS = -DENABLE_UNIKORN_RECORDING -DUNIKORN_RELEASE_BUILD -I$(UNIKORN_HOME)/inc
+UNIKORN_C_FLAGS = -DENABLE_UNIKORN_RECORDING -DUNIKORN_RELEASE_BUILD -I$(UNIKORN_HOME)/inc
 UNIKORN_C_OBJS = unikorn.obj unikorn_file_flush.obj unikorn_clock_queryperformancecounter.obj
 !ENDIF
 
-C_FLAGS    = $(OPTIMIZATION_C_FLAGS) -nologo -WX -W3 -D_CRT_SECURE_NO_WARNINGS -I. -I../../inc $(CUDA_C_FLAGS) $(THREAD_C_FLAGS) $(UNIKORN_CFLAGS)
-CPP_FLAGS  = $(OPTIMIZATION_C_FLAGS) -nologo -WX -W3 -std:c++latest -EHsc -I. -I../../inc $(CUDA_C_FLAGS) $(THREAD_C_FLAGS) $(UNIKORN_CFLAGS)
+C_FLAGS    = $(OPTIMIZATION_C_FLAGS) -nologo -WX -W3 -D_CRT_SECURE_NO_WARNINGS -I. -I../../inc $(CUDA_C_FLAGS) $(THREAD_C_FLAGS) $(UNIKORN_C_FLAGS)
+CPP_FLAGS  = $(OPTIMIZATION_C_FLAGS) -nologo -WX -W3 -D_CRT_SECURE_NO_WARNINGS -std:c++latest -EHsc -I. -I../../inc $(CUDA_C_FLAGS) $(THREAD_C_FLAGS) $(UNIKORN_C_FLAGS)
 LINK_FLAGS = -nologo -incremental:no -manifest:embed -subsystem:console
 C_LIBS     = ../../lib/takyon.lib $(CUDA_C_LIBS) $(THREAD_C_LIBS) Ws2_32.lib
-CPP_OBJS   = Common.obj LatencyTest.obj Main.obj ThroughputTest.obj
+CPP_OBJS   = .\Common.obj .\LatencyTest.obj .\Main.obj .\ThroughputTest.obj
 
 TARGET = rdma_vs_socket.exe
 

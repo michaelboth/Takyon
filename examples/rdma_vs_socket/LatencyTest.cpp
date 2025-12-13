@@ -151,7 +151,7 @@ void LatencyTest::runLatencyTest(bool _is_sender, const Common::AppParams &_app_
       if (_is_sender) {
         // Send
         if (_app_params.validate) {
-          for (uint64_t i=0; i<validation_count; i++) { int_send_buffer[i] = counter+i; }
+          for (uint64_t i=0; i<validation_count; i++) { int_send_buffer[i] = (uint32_t)(counter+i); }
         }
         uint32_t piggyback_message = 0; // Ignoring since UDP sockets can't use it
         (void)takyonSend(path, &send_request, piggyback_message, TAKYON_WAIT_FOREVER, NULL);
