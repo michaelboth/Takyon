@@ -15,15 +15,22 @@ COMMON_FLAGS += -I../../inc
 
 LIBS  := -L../../lib -ltakyon -pthread
 
+# Determine to OS to know if RDMA or CUDA can be supported
+OS_TYPE := $(shell uname -s)
+
 # RDMA additions
 ifeq ($(RDMA),Yes)
-    LIBS  += -lrdmacm -libverbs
+    ifeq ($(OS_TYPE),Linux)
+        LIBS  += -lrdmacm -libverbs
+    endif
 endif
 
 # CUDA additions
 ifeq ($(CUDA),Yes)
-    COMMON_FLAGS += -DENABLE_CUDA -I/usr/local/cuda/include
-    LIBS  += -L/usr/local/cuda/lib64 -lcuda -lcudart
+    ifeq ($(OS_TYPE),Linux)
+        COMMON_FLAGS += -DENABLE_CUDA -I/usr/local/cuda/include
+        LIBS  += -L/usr/local/cuda/lib64 -lcuda -lcudart
+    endif
 endif
 
 # Unikorn additions

@@ -1,4 +1,5 @@
 This is a performance test that is designed to test two-sided (send->recv) socket and RDMA communications.
+NOTE: This app can be built for sockets only
 
 Files
   - Common.cpp                 A simple set of common functionality used by all test modes.
@@ -6,12 +7,13 @@ Files
   - LatencyTest.cpp            Self contained latency test. Makes it easy to see how Takyon communication is setup and used.
   - LatencyTest.hpp
   - Main.cpp                   Collects the command line arguments into a single data structure and then runs the appropriate test
-  - Makefile                   Build, but only for Linux
+  - Makefile                   Build for Linux and Mac. Mac only supports sockets.
+  - window.Makefile            Windows build, but only supports sockets
   - provider_params.txt        Defines the Takyton provider parameters for each of Socket-TCP, Socket-UDP, RDMA-RC, RDMA-UC, and RDMA-UD
   - unikorn_instrumentation.h  Provides nanosecond timing analysis of the algorithm, which makes it much easier to know how to tune the algorithm
 
 
-Steps to Run
+Steps to Run (Linux and Mac):
   First build the Takyon library (see lib/README.txt for more details):
     For a debug build:
       > cd <takyon-folder>/lib
@@ -38,3 +40,13 @@ Steps to Run
 
   Clean:
     > make clean
+
+
+Steps to Run (Windows):
+  First build the Takyon library for sockets (see lib/README.txt for more details):
+  Build app:
+    > nmake -f windows.Makefile [DEBUG=Yes] [CUDA=Yes]
+  Testing
+    Same as linux but remove the './' before 'throughput'
+  Clean:
+    > nmake clean
