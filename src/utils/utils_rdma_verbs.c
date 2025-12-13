@@ -630,6 +630,9 @@ bool rdmaEndpointPostRecvs(TakyonPath *path, RdmaEndpoint *endpoint, uint32_t re
     // Fill in WR info
     curr_wr->next = NULL;
     curr_wr->wr_id = (uint64_t)takyon_request;
+    /* helpful for debuging
+    printf("POST RECV: curr_wc.wr_id=%llu\n", (unsigned long long)curr_wr->wr_id);
+    */
     curr_wr->num_sge = takyon_request->sub_buffer_count;
     curr_wr->sg_list = rdma_request->sges;
     for (uint32_t j=0; j<takyon_request->sub_buffer_count; j++) {
@@ -1236,7 +1239,7 @@ static bool waitForCompletion(bool is_send, RdmaEndpoint *endpoint, uint64_t exp
   if (is_send) {
     printf("GOT SEND COMPLETION: wc.wr_id=%llu, expected_wr_id=%llu\n", (unsigned long long)wc.wr_id, (unsigned long long)expected_wr_id);
   } else {
-    printf("GOT RECV COMPLETION: wc.wr_id=%llu, expected_wr_id=%llu: bytes=%d\n", (unsigned long long)wc.wr_id, (unsigned long long)expected_wr_id, wc.byte_len);
+    printf("GOT RECV COMPLETION: wc.wr_id=%llu, expected_wr_id=%llu: bytes=%d, piggyback_message=%u\n", (unsigned long long)wc.wr_id, (unsigned long long)expected_wr_id, wc.byte_len, ntohl(wc.imm_data));
   }
   */
 
@@ -1313,7 +1316,7 @@ bool rdmaEndpointStartSend(TakyonPath *path, RdmaEndpoint *endpoint, enum ibv_wr
   }
 
   /* helpful for debuging
-  printf("POST SEND: send_wr.wr_id=%llu, total_bytes=%u\n", (unsigned long long)send_wr.wr_id, total_bytes);
+  printf("POST SEND: send_wr.wr_id=%llu, total_bytes=%u, piggyback_message=%u\n", (unsigned long long)send_wr.wr_id, total_bytes, piggyback_message);
   */
 
 #ifdef EXTRA_ERROR_CHECKING
