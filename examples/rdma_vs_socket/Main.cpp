@@ -27,7 +27,7 @@ static void printUsageAndExit(const char *_program) {
   printf("   A or B           : A is the sender, B is the receiver. Only provide one of them.\n");
   printf("   -once            : Run the number of iteration once. Default is to run forever repeating the number of iterations.\n");
   printf("   -iters=<uint32>  : Number of times to transfer using all message buffers. Default is %d.\n", Common::DEFAULT_NITERS);
-  printf("   -nbytes=<uint64> : Bytes per message. Default is to run a set of sizes from %lu bytes to %lu MB.\n", Common::MIN_BYTES, Common::MAX_BYTES/(1024*1024));
+  printf("   -nbytes=<uint64> : Bytes per message. Latency default is %lu. Throughput default is to run a set of sizes from %lu bytes to %lu MB.\n", Common::MIN_NBYTES, Common::MIN_NBYTES, Common::MAX_NBYTES/(1024*1024));
   printf("   -nbufs=<uint32>  : Number of transport buffers (must be an even number), where each buffer can hold a single message. Default is %u.\n", Common::DEFAULT_NBUFS);
   printf("   -poll            : Use polling (low latency, high cpu usage) instead of the default event driven (high latency, low cpu usage).\n");
   printf("   -validate        : Validate the messages. Default is no validation\n");
@@ -48,9 +48,9 @@ int main(int argc, char **argv) {
     EXIT_WITH_MESSAGE(std::string("test mode (arg2) must be one of lat (latency) or tp (throughput)"));
   }
   if (test_mode == "lat") {
-    app_params.nbytes = Common::MIN_BYTES;
+    app_params.nbytes = Common::MIN_NBYTES;
   } else if (test_mode == "tp") {
-    app_params.nbytes = Common::MAX_BYTES;
+    app_params.nbytes = 0;
   }
   std::map<std::string, std::string> connection_params = Common::loadProviderParamsFile(argv[2]);
   app_params.provider = argv[3];
@@ -92,7 +92,7 @@ int main(int argc, char **argv) {
     } else if (strncmp(argv[i], "-nbytes=", 8) == 0) {
       int tokens = sscanf(argv[i], "-nbytes=%lu", &app_params.nbytes);
       if (tokens != 1) { EXIT_WITH_MESSAGE(std::string("Arg '" + std::string(argv[i]) + "' is invalid.")); }
-      if (app_params.nbytes < Common::MIN_BYTES) { EXIT_WITH_MESSAGE(std::string("Arg '" + std::string(argv[i]) + "' must be at least " + std::to_string(Common::MIN_BYTES) + ".")); }
+      if (app_params.nbytes < Common::MIN_NBYTES) { EXIT_WITH_MESSAGE(std::string("Arg '" + std::string(argv[i]) + "' must be at least " + std::to_string(Common::MIN_NBYTES) + ".")); }
       if ((app_params.nbytes % 4) != 0) { EXIT_WITH_MESSAGE(std::string("Arg '" + std::string(argv[i]) + "' must be aligned to 4 bytes to keep the algorithm simple.")); }
     } else {
       EXIT_WITH_MESSAGE(std::string("Arg '" + std::string(argv[i]) + "' is not supported."));
@@ -106,7 +106,11 @@ int main(int argc, char **argv) {
     printf("  Provider: %s\n", app_params.provider.c_str());
     printf("  Provider args: %s\n", app_params.provider_params.c_str());
     printf("  NBufs: %u\n", app_params.nbufs);
-    printf("  NBytes: %lu\n", app_params.nbytes);
+    if (app_params.nbytes == 0) {
+      printf("  NBytes: will cycle from %lu to %lu\n", Common::MIN_NBYTES, Common::MAX_NBYTES);
+    } else {
+      printf("  NBytes: %lu\n", app_params.nbytes);
+    }
     printf("  Iterations: %u\n", app_params.iters);
     printf("  Number of time to repeat iterations: %s\n", app_params.run_forever ? "infinite" : "once");
     printf("  Completion Check: %s\n", app_params.use_polling ? "polling" : "event driven");

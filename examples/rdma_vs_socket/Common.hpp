@@ -18,8 +18,8 @@
 #define EXIT_WITH_MESSAGE(_m) do { printf("ERROR in '%s:%s()' line %d: %s\n", __FILE__, __FUNCTION__, __LINE__, _m.c_str()); exit(EXIT_FAILURE); } while (false)
 
 namespace Common {
-  constexpr uint64_t MIN_BYTES = 4;
-  constexpr uint64_t MAX_BYTES = (4*1024*1024);
+  constexpr uint64_t MIN_NBYTES = 4;
+  constexpr uint64_t MAX_NBYTES = (4*1024*1024);
   constexpr uint32_t DEFAULT_NITERS = 100;
   constexpr uint32_t DEFAULT_NBUFS = 10;    // Ignored for latency test
   constexpr double ELAPSED_SECONDS_TO_PRINT = 0.2;
@@ -30,7 +30,7 @@ namespace Common {
     uint32_t nbufs = DEFAULT_NBUFS;
     bool run_forever = true;
     uint32_t iters = DEFAULT_NITERS;
-    uint64_t nbytes = MAX_BYTES;
+    uint64_t nbytes = 0; // If 0, will loop from MIN_NBYTES to MAX_NBYTES
     bool use_polling = false;
     bool validate = false;
     bool verbose = false;
