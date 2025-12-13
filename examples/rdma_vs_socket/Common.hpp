@@ -17,6 +17,14 @@
 
 #define EXIT_WITH_MESSAGE(_m) do { printf("ERROR in '%s:%s()' line %d: %s\n", __FILE__, __FUNCTION__, __LINE__, _m.c_str()); exit(EXIT_FAILURE); } while (false)
 
+#if defined(__APPLE__)
+  #define UINT64_FORMAT "%llu"
+  #define UINT64_FORMAT_7CHARS "%7llu"
+#else
+  #define UINT64_FORMAT "%ju"
+  #define UINT64_FORMAT_7CHARS "%7ju"
+#endif
+
 namespace Common {
   constexpr uint64_t MIN_NBYTES = 4;
   constexpr uint64_t MAX_NBYTES = (4*1024*1024);

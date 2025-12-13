@@ -218,7 +218,7 @@ void LatencyTest::runLatencyTest(bool _is_sender, const Common::AppParams &_app_
     if (elapsed_seconds >= Common::ELAPSED_SECONDS_TO_PRINT) {
       print_start_time = end_time;
       char message[300];
-      snprintf(message, 300, "Provider: '%s',  Method: %s,  Message size: %lu bytes,  Iterations: %u,  Latency: %6.2f usecs,  Jitter: %6.2f usecs",
+      snprintf(message, 300, "Provider: '%s',  Method: %s,  Message size: " UINT64_FORMAT " bytes,  Iterations: %u,  Latency: %6.2f usecs,  Jitter: %6.2f usecs",
                _app_params.provider.c_str(), _app_params.use_polling ? " polling" : "event-driven", message_bytes, _app_params.iters, accumulated_latency_usecs, accumulated_jitter_usecs);
       if (_app_params.run_forever) {
         printf("\r%s     ", message);

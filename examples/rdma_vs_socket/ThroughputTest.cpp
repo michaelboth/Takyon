@@ -15,7 +15,6 @@
 #include <cstring>
 
 static const uint64_t ACK_BYTES = sizeof(int);
-static const double SECONDS_PER_MESSAGE_SIZE = 0.5;
 
 // Algorithm:
 //   - Send multiple messages (one per transport buffer) at once and use a round trip acknowledgement to synchronize the re-used of tranport buffers
@@ -286,7 +285,7 @@ void ThroughputTest::runThroughputTest(bool _is_sender, const Common::AppParams 
       if (elapsed_print_seconds >= Common::ELAPSED_SECONDS_TO_PRINT) {
         print_start_time = end_time;
         char message[300];
-        snprintf(message, 300, "Provider: '%s',  Method: %s,  Message size: %7lu bytes,  Iterations: %u,  Throughput: %7.3f Gbps (%7.1f MBps)",
+        snprintf(message, 300, "Provider: '%s',  Method: %s,  Message size: " UINT64_FORMAT_7CHARS " bytes,  Iterations: %u,  Throughput: %7.3f Gbps (%7.1f MBps)",
                  _app_params.provider.c_str(), _app_params.use_polling ? " polling" : "event-driven", curr_message_bytes, _app_params.iters, Gbps, MBps);
         if (cycle_message_sizes || _app_params.run_forever) {
           printf("\r%s     ", message);
