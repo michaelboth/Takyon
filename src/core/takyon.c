@@ -434,7 +434,11 @@ bool takyonSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggyback
 
   // Verbosity
   if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS && comm->isSent == NULL && !timed_out) {
-    printf("%-15s (%s:%s) Message sent\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider);
+    uint64_t total_bytes = 0;
+    for (uint32_t i=0; i<request->sub_buffer_count; i++) {
+      total_bytes += request->sub_buffers[i].bytes;
+    }
+    printf("%-15s (%s:%s) Message sending: " UINT64_FORMAT " bytes\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider, total_bytes);
   }
 
   return true;
@@ -478,7 +482,11 @@ bool takyonIsSent(TakyonPath *path, TakyonSendRequest *request, double timeout_s
 
   // Verbosity
   if (path->attrs.verbosity & TAKYON_VERBOSITY_TRANSFERS && !timed_out) {
-    printf("%-15s (%s:%s) Message sent\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider);
+    uint64_t total_bytes = 0;
+    for (uint32_t i=0; i<request->sub_buffer_count; i++) {
+      total_bytes += request->sub_buffers[i].bytes;
+    }
+    printf("%-15s (%s:%s) Message is sent: " UINT64_FORMAT " bytes\n", __FUNCTION__, path->attrs.is_endpointA ? "A" : "B", path->attrs.provider, total_bytes);
   }
 
   return true;
