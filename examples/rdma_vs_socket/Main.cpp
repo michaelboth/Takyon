@@ -10,7 +10,6 @@
 //     limitations under the License.
 
 /*+ valgrind */
-/*+ allow for Mac and windows, but socket only */
 
 #include "LatencyTest.hpp"
 #include "ThroughputTest.hpp"
