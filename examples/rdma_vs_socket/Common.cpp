@@ -11,13 +11,23 @@
 
 #include "Common.hpp"
 #include <fstream>
-#if defined(_WIN32)
+#ifdef _WIN32
   #define WIN32_LEAN_AND_MEAN
   #include <Windows.h>
   #include <sys/timeb.h>
 #endif
+#ifdef ENABLE_CUDA
+  #ifndef _WIN32
+    #include "cuda.h"
+  #endif
+  #include "cuda_runtime.h"
+#endif
 
 //#define PRINT_PROVIDERS
+
+#ifdef ENABLE_CUDA
+  #define CUDA_DEVICE_ID 0
+#endif
 
 #if defined(_WIN32)
 double Common::clockTimeSeconds() {
@@ -132,28 +142,114 @@ std::map<std::string, std::string> Common::loadProviderParamsFile(std::string _f
   return params;
 }
 
-void* Common::allocateTransportMemory(uint64_t _bytes, bool _is_for_rdma) { /*+ is_for_gpu */
-  (void)_is_for_rdma; // Quiets compiler if ENABLE_CUDA is not defined
-  void *addr = NULL;
+Common::MemoryType Common::memoryTypeToUseForTransport(bool _is_for_rdma, bool _is_for_gpu) {
+  if (_is_for_gpu) {
 #ifdef ENABLE_CUDA
-  cudaError_t cuda_status = cudaMalloc(&addr, _bytes);
-  if (cuda_status != cudaSuccess) { printf("cudaMalloc() failed: %s\n", cudaGetErrorString(cuda_status)); exit(EXIT_FAILURE); }
-  if (_is_for_rdma) {
-    // Since this memory will transfer asynchronously via GPUDirect, need to mark the memory to be synchronous when accessing it after being received
-    unsigned int flag = 1;
-    CUresult cuda_result = cuPointerSetAttribute(&flag, CU_POINTER_ATTRIBUTE_SYNC_MEMOPS, (CUdeviceptr)addr);
-    if (cuda_result != CUDA_SUCCESS) { printf("cuPointerSetAttribute() failed: return_code=%d\n", cuda_result); exit(EXIT_FAILURE); }
-  }
+    // Set the CUDA device id
+    int device_id = CUDA_DEVICE_ID;
+    cudaSetDevice(device_id);
+
+    // See if it's an integrated GPU
+    cudaDeviceProp properties;
+    cudaError_t cuda_status = cudaGetDeviceProperties(&properties, device_id);
+    if (cuda_status != cudaSuccess) {
+      EXIT_WITH_MESSAGE(std::string("cudaGetDeviceProperties() failed: return_code=" + std::to_string(cuda_status)));
+    }
+    if (properties.integrated) {
+      printf("Integrated GPU: '%s', Compute Capability: %d.%d:  Transfers and processing will be in memory shared by the CPU and GPU (no copying between CPU and GPU).\n", properties.name, properties.major, properties.minor);
+      return Common::MemoryType::SocIntegratedGPU;
+    }
+
+    // If not RDMA then avoid GPUDirect
+    if (!_is_for_rdma) {
+      printf("Discrete GPU: '%s', Compute Capability: %d.%d:  Not using GPUDirect, so transfers will be copied from CPU to GPU.\n", properties.name, properties.major, properties.minor);
+      return Common::MemoryType::DiscreteGPU_withoutGPUDirect;
+    }
+
+    // See if device supports GPUDirect
+    // Get a handle to the device
+    CUdevice cuda_dev_handle;
+    CUresult cuda_result;
+    cuda_result = cuDeviceGet(&cuda_dev_handle, device_id);
+    if (cuda_result != CUDA_SUCCESS) {
+      EXIT_WITH_MESSAGE(std::string("cuDeviceGet() failed: return_code=" + std::to_string(cuda_result)));
+    }
+
+    // See if GPUDirect is supported
+    int supports_gpudirect_result = 0;
+    cuda_result = cuDeviceGetAttribute(&supports_gpudirect_result, CU_DEVICE_ATTRIBUTE_GPU_DIRECT_RDMA_SUPPORTED, cuda_dev_handle);
+    if (cuda_result != CUDA_SUCCESS) {
+      EXIT_WITH_MESSAGE(std::string("cuDeviceGetAttribute() failed: return_code=" + std::to_string(cuda_result)));
+    }
+    if (supports_gpudirect_result == 1) {
+      printf("Discrete GPU: '%s', Compute Capability: %d.%d:  Will use GPUDirect, so transfers will be direct to GPU.\n", properties.name, properties.major, properties.minor);
+      return Common::MemoryType::DiscreteGPU_withGPUDirect;
+    }
+
+    // Falling back to discrete GPU with no GPUDirect
+    printf("Discrete GPU: '%s', Compute Capability: %d.%d:  GPUDirect not available, so transfers will be copied from CPU to GPU.\n", properties.name, properties.major, properties.minor);
+    return Common::MemoryType::DiscreteGPU_withGPUDirect;
 #else
-  addr = malloc(_bytes);
+    (void)_is_for_rdma; // Quiets compiler if ENABLE_CUDA is not defined
+    EXIT_WITH_MESSAGE(std::string("To use GPU memory, the app needs to be built with CUDA"));
 #endif
-  return addr;
+  }
+
+  printf("Transfers and processing will be in CPU memory\n");
+  return Common::MemoryType::CPU;
 }
 
-void Common::freeTransportMemory(void *_addr) {
+void* Common::allocateTransportMemory(uint64_t _bytes, Common::MemoryType _memory_type) {
+  if (_memory_type == Common::MemoryType::CPU) {
+    return malloc(_bytes);
+  }
+
 #ifdef ENABLE_CUDA
-  cudaFree(_addr);
+  if (_memory_type == Common::MemoryType::SocIntegratedGPU || _memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect || _memory_type == Common::MemoryType::DiscreteGPU_withoutGPUDirect) {
+    void *addr = NULL;
+    cudaError_t cuda_status = cudaMalloc(&addr, _bytes);
+    if (cuda_status != cudaSuccess) {
+      EXIT_WITH_MESSAGE(std::string("cudaMalloc() failed: return_code=" + std::to_string(cuda_status)));
+    }
+    if (_memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect) {
+      // Since this memory will transfer asynchronously via GPUDirect, need to mark the memory to be synchronous when accessing it after being received
+      unsigned int flag = 1;
+      CUresult cuda_result = cuPointerSetAttribute(&flag, CU_POINTER_ATTRIBUTE_SYNC_MEMOPS, (CUdeviceptr)addr);
+      if (cuda_result != CUDA_SUCCESS) {
+        EXIT_WITH_MESSAGE(std::string("cuPointerSetAttribute() failed: return_code=" + std::to_string(cuda_result)));
+      }
+    }
+    return addr;
+  } else {
+    EXIT_WITH_MESSAGE(std::string("Memory type unknown"));
+  }
 #else
-  free(_addr);
+  EXIT_WITH_MESSAGE(std::string("To use GPU memory, the app needs to be built with CUDA"));
 #endif
+  return NULL;
+}
+
+void Common::freeTransportMemory(void *_addr, MemoryType _memory_type) {
+  if (_memory_type == Common::MemoryType::CPU) {
+    free(_addr);
+    return;
+  }
+#ifdef ENABLE_CUDA
+  if (_memory_type == Common::MemoryType::SocIntegratedGPU || _memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect || _memory_type == Common::MemoryType::DiscreteGPU_withoutGPUDirect) {
+    cudaFree(_addr);
+    return;
+  } else {
+    EXIT_WITH_MESSAGE(std::string("Memory type unknown"));
+  }
+#else
+  EXIT_WITH_MESSAGE(std::string("To use GPU memory, the app needs to be built with CUDA"));
+#endif
+}
+
+std::string Common::memoryTypeToText(MemoryType _memory_type) {
+  if (_memory_type == Common::MemoryType::CPU) return "CPU";
+  if (_memory_type == Common::MemoryType::SocIntegratedGPU) return "IntegratedGPU";
+  if (_memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect) return "DiscreteGPU_withGPUDirect";
+  if (_memory_type == Common::MemoryType::DiscreteGPU_withoutGPUDirect) return "DiscreteGPU_withoutGPUDirect";
+  return "unknown";
 }

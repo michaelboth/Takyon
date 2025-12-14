@@ -32,6 +32,14 @@ namespace Common {
   constexpr uint32_t DEFAULT_NBUFS = 10;    // Ignored for latency test
   constexpr double ELAPSED_SECONDS_TO_PRINT = 0.2;
 
+  enum class MemoryType {
+    Unset,
+    CPU,                           // Transfers and validation are done on CPU
+    SocIntegratedGPU,              // Should be able to run CUDA kernels on host allocated memory; use cudaHostAlloc() as suggested by NVIDIA engineers
+    DiscreteGPU_withoutGPUDirect,  // Will need to copy transfers from CPU to GPU
+    DiscreteGPU_withGPUDirect,     // Zero-copy transfers
+  };
+
   struct AppParams {
     std::string provider;
     std::string provider_params;
@@ -40,6 +48,7 @@ namespace Common {
     uint32_t iters = DEFAULT_NITERS;
     uint64_t nbytes = 0; // If 0, will loop from MIN_NBYTES to MAX_NBYTES
     bool use_polling = false;
+    bool is_for_gpu = false;
     bool validate = false;
     bool verbose = false;
     void *unikorn_session = NULL;
@@ -48,6 +57,8 @@ namespace Common {
   double clockTimeSeconds();
   double smoothValue(double _old_value, double _new_value, double _new_factor);
   std::map<std::string, std::string> loadProviderParamsFile(std::string _filename);
-  void* allocateTransportMemory(uint64_t _bytes, bool _is_for_rdma);
-  void freeTransportMemory(void *_addr);
+  MemoryType memoryTypeToUseForTransport(bool _is_for_rdma, bool _is_for_gpu);
+  void* allocateTransportMemory(uint64_t _bytes, MemoryType _memory_type);
+  void freeTransportMemory(void *_addr, MemoryType _memory_type);
+  std::string memoryTypeToText(MemoryType _memory_type);
 };

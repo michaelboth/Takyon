@@ -67,15 +67,26 @@ static void waitForAck(TakyonPath *_path, TakyonRecvRequest *_recv_request, uint
 void ThroughputTest::runThroughputTest(bool _is_sender, const Common::AppParams &_app_params) {
   UK_RECORD_EVENT(_app_params.unikorn_session, THROUGHPUT_TEST_START_ID, 0);
 
+  // Determine the type of memory to use for processing and transport
+  bool is_for_rdma = (_app_params.provider == "RC" || _app_params.provider == "UC" || _app_params.provider == "UD");
+  Common::MemoryType memory_type_send;
+  Common::MemoryType memory_type_recv;
+  if (_is_sender) {
+    memory_type_send = Common::memoryTypeToUseForTransport(is_for_rdma, _app_params.is_for_gpu);
+    memory_type_recv = Common::memoryTypeToUseForTransport(is_for_rdma, false);  // Always use CPU memory for ACKs to keep it simple
+  } else {
+    memory_type_send = Common::memoryTypeToUseForTransport(is_for_rdma, false);  // Always use CPU memory for ACKs to keep it simple
+    memory_type_recv = Common::memoryTypeToUseForTransport(is_for_rdma, _app_params.is_for_gpu);
+  }
+
   // Allocate transport memory
   bool cycle_message_sizes = (_app_params.nbytes == 0);
   uint64_t message_bytes = cycle_message_sizes ? Common::MAX_NBYTES : _app_params.nbytes;
   uint64_t total_send_bytes = _is_sender ? _app_params.nbufs * message_bytes : ACK_BYTES * 2;
   uint64_t extra_recv_bytes = (_app_params.provider == "UD") ? 40 : 0; // RDMA UD receiver needs to allocate 40 extra bytes for RDMA's global routing header
   uint64_t total_recv_bytes = _is_sender ? 2*(ACK_BYTES+extra_recv_bytes) : _app_params.nbufs * (message_bytes+extra_recv_bytes);
-  bool is_for_rdma = (_app_params.provider == "RC" || _app_params.provider == "UC" || _app_params.provider == "UD");
-  void *send_memory = Common::allocateTransportMemory(total_send_bytes, is_for_rdma);
-  void *recv_memory = Common::allocateTransportMemory(total_recv_bytes, is_for_rdma);
+  void *send_memory = Common::allocateTransportMemory(total_send_bytes, memory_type_send);
+  void *recv_memory = Common::allocateTransportMemory(total_recv_bytes, memory_type_recv);
 
   // Create the Takyon transport buffers
   TakyonBuffer transport_buffers[2];
@@ -285,8 +296,8 @@ void ThroughputTest::runThroughputTest(bool _is_sender, const Common::AppParams 
       if (elapsed_print_seconds >= Common::ELAPSED_SECONDS_TO_PRINT) {
         print_start_time = end_time;
         char message[300];
-        snprintf(message, 300, "Provider: '%s',  Method: %s,  Message size: " UINT64_FORMAT_7CHARS " bytes,  Iterations: %u,  Throughput: %7.3f Gbps (%7.1f MBps)",
-                 _app_params.provider.c_str(), _app_params.use_polling ? " polling" : "event-driven", curr_message_bytes, _app_params.iters, Gbps, MBps);
+        snprintf(message, 300, "Provider: '%s',  Method: %s,  Message size: " UINT64_FORMAT_7CHARS " bytes,  Memory: %s,  Iterations: %u,  Throughput: %7.3f Gbps (%7.1f MBps)",
+                 _app_params.provider.c_str(), _app_params.use_polling ? " polling" : "event-driven", curr_message_bytes, memoryTypeToText(memory_type_send).c_str(), _app_params.iters, Gbps, MBps);
         if (cycle_message_sizes || _app_params.run_forever) {
           printf("\r%s     ", message);
           fflush(stdout);
@@ -314,8 +325,8 @@ void ThroughputTest::runThroughputTest(bool _is_sender, const Common::AppParams 
   delete[] send_request_in_use;
   delete[] send_sub_buffers;
   delete[] send_requests;
-  Common::freeTransportMemory(send_memory);
-  Common::freeTransportMemory(recv_memory);
+  Common::freeTransportMemory(send_memory, memory_type_send);
+  Common::freeTransportMemory(recv_memory, memory_type_recv);
   UK_RECORD_EVENT(_app_params.unikorn_session, FINALIZE_END_ID, 0);
 
   UK_RECORD_EVENT(_app_params.unikorn_session, THROUGHPUT_TEST_END_ID, 0);

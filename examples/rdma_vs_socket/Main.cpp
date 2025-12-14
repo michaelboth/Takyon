@@ -10,6 +10,8 @@
 //     limitations under the License.
 
 /*+ valgrind */
+/*+ update GitHub README.md */
+/*+ improve documentation in takyon.h */
 
 #include "LatencyTest.hpp"
 #include "ThroughputTest.hpp"
@@ -20,7 +22,7 @@
 #include "unikorn_instrumentation.h"
 
 static void printUsageAndExit(const char *_program) {
-  printf("usage: %s <lat|tp> <params_file> <provider> <A|B> [-once] [-iters=<uint32>] [-bytes=<uint64>] [-nbufs=<uint32>] [-poll] [-validate] [-verbose]\n", _program);
+  printf("usage: %s <lat|tp> <params_file> <provider> <A|B> [-once] [-iters=<uint32>] [-bytes=<uint64>] [-nbufs=<uint32>] [-poll] [-gpu] [-validate] [-verbose]\n", _program);
   printf("   lat or tp        : If 'lat', then run latency test. If 'tp' then run throughput test.\n");
   printf("   params_file      : Text file containing the Takyon parameters for each provider\n");
   printf("   provider         : One of TCP, UDP, RC, US, UD\n");
@@ -30,6 +32,7 @@ static void printUsageAndExit(const char *_program) {
   printf("   -nbytes=<uint64> : Bytes per message. Latency default is " UINT64_FORMAT ". Throughput default is to run a set of sizes from " UINT64_FORMAT " bytes to " UINT64_FORMAT " MB.\n", Common::MIN_NBYTES, Common::MIN_NBYTES, Common::MAX_NBYTES/(1024*1024));
   printf("   -nbufs=<uint32>  : Number of transport buffers (must be an even number), where each buffer can hold a single message. Default is %u.\n", Common::DEFAULT_NBUFS);
   printf("   -poll            : Use polling (low latency, high cpu usage) instead of the default event driven (high latency, low cpu usage).\n");
+  printf("   -gpu             : Use GPU for processing. Will also allocate transport memory from GPU memory if supported.\n");
   printf("   -validate        : Validate the messages. Default is no validation\n");
   printf("   -verbose         : Print extra helpful messages. Default is off\n");
   printf("   -h               : Print this help message.\n");
@@ -74,6 +77,8 @@ int main(int argc, char **argv) {
       printUsageAndExit(argv[0]);
     } else if (strcmp(argv[i], "-poll") == 0) {
       app_params.use_polling = true;
+    } else if (strcmp(argv[i], "-gpu") == 0) {
+      app_params.is_for_gpu = true;
     } else if (strcmp(argv[i], "-validate") == 0) {
       app_params.validate = true;
     } else if (strcmp(argv[i], "-verbose") == 0) {

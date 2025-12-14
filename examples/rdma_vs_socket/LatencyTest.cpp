@@ -49,14 +49,17 @@ static void waitForMessage(TakyonPath *_path, TakyonRecvRequest *_recv_request, 
 void LatencyTest::runLatencyTest(bool _is_sender, const Common::AppParams &_app_params) {
   UK_RECORD_EVENT(_app_params.unikorn_session, LATENCY_TEST_START_ID, 0);
 
+  // Determine the type of memory to use for processing and transport
+  bool is_for_rdma = (_app_params.provider == "RC" || _app_params.provider == "UC" || _app_params.provider == "UD");
+  Common::MemoryType memory_type = Common::memoryTypeToUseForTransport(is_for_rdma, _app_params.is_for_gpu);
+
   // Allocate transport memory
   uint64_t message_bytes = _app_params.nbytes;
   uint64_t total_send_bytes = message_bytes;
   uint64_t extra_recv_bytes = (_app_params.provider == "UD") ? 40 : 0; // RDMA UD receiver needs to allocate 40 extra bytes for RDMA's global routing header
   uint64_t total_recv_bytes = message_bytes + extra_recv_bytes;
-  bool is_for_rdma = (_app_params.provider == "RC" || _app_params.provider == "UC" || _app_params.provider == "UD");
-  void *send_memory = Common::allocateTransportMemory(total_send_bytes, is_for_rdma);
-  void *recv_memory = Common::allocateTransportMemory(total_recv_bytes, is_for_rdma);
+  void *send_memory = Common::allocateTransportMemory(total_send_bytes, memory_type);
+  void *recv_memory = Common::allocateTransportMemory(total_recv_bytes, memory_type);
 
   // Create the Takyon transport buffers
   TakyonBuffer transport_buffers[2];
@@ -218,8 +221,8 @@ void LatencyTest::runLatencyTest(bool _is_sender, const Common::AppParams &_app_
     if (elapsed_seconds >= Common::ELAPSED_SECONDS_TO_PRINT) {
       print_start_time = end_time;
       char message[300];
-      snprintf(message, 300, "Provider: '%s',  Method: %s,  Message size: " UINT64_FORMAT " bytes,  Iterations: %u,  Latency: %6.2f usecs,  Jitter: %6.2f usecs",
-               _app_params.provider.c_str(), _app_params.use_polling ? " polling" : "event-driven", message_bytes, _app_params.iters, accumulated_latency_usecs, accumulated_jitter_usecs);
+      snprintf(message, 300, "Provider: '%s',  Method: %s,  Message size: " UINT64_FORMAT " bytes,  Memory: %s,  Iterations: %u,  Latency: %6.2f usecs,  Jitter: %6.2f usecs",
+               _app_params.provider.c_str(), _app_params.use_polling ? " polling" : "event-driven", message_bytes, memoryTypeToText(memory_type).c_str(), _app_params.iters, accumulated_latency_usecs, accumulated_jitter_usecs);
       if (_app_params.run_forever) {
         printf("\r%s     ", message);
         fflush(stdout);
@@ -234,8 +237,8 @@ void LatencyTest::runLatencyTest(bool _is_sender, const Common::AppParams &_app_
   if (_app_params.verbose) printf("Finalizing latency test connection...\n");
   (void)takyonDestroy(path, TAKYON_WAIT_FOREVER);
   delete[] round_trip_results_usecs;
-  Common::freeTransportMemory(send_memory);
-  Common::freeTransportMemory(recv_memory);
+  Common::freeTransportMemory(send_memory, memory_type);
+  Common::freeTransportMemory(recv_memory, memory_type);
   if (_app_params.verbose) printf("Latency test Done.\n\n");
 
   UK_RECORD_EVENT(_app_params.unikorn_session, LATENCY_TEST_END_ID, 0);

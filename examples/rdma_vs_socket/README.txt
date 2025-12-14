@@ -1,5 +1,8 @@
 This is a performance test that is designed to test two-sided (send->recv) socket and RDMA communications.
-NOTE: This app can be built for sockets only
+
+NOTES:
+  - This app can be built for sockets only if only testing socket performance.
+  - This app supports CUDA for GPU processing. It also supports integrated GPUs and discrete GPUs. Zero copy tranfers to GPU memory are supported if GPUDirect is supported or on an integrated GPU.
 
 Files
   - Common.cpp                 A simple set of common functionality used by all test modes.
