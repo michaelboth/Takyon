@@ -2,7 +2,8 @@ TARGET  := rdma_vs_socket
 
 CPP_OBJS     := Main.o Common.o LatencyTest.o ThroughputTest.o
 C_OBJS       :=
-HEADER_FILES := Common.hpp LatencyTest.hpp ThroughputTest.hpp unikorn_instrumentation.h
+CU_OBJS      :=
+HEADER_FILES := Common.hpp LatencyTest.hpp ThroughputTest.hpp unikorn_instrumentation.h LatencyTestKernels.hpp
 
 COMMON_FLAGS :=
 ifeq ($(DEBUG),Yes)
@@ -10,10 +11,10 @@ ifeq ($(DEBUG),Yes)
 else
     COMMON_FLAGS += -O2
 endif
-COMMON_FLAGS += -Wall -Werror -Wextra -pthread
 COMMON_FLAGS += -I../../inc
 
-LIBS  := -L../../lib -ltakyon -pthread
+LIBS  := -L../../lib -ltakyon
+LINKER := g++
 
 # Determine to OS to know if RDMA or CUDA can be supported
 OS_TYPE := $(shell uname -s)
@@ -26,10 +27,13 @@ ifeq ($(RDMA),Yes)
 endif
 
 # CUDA additions
+CUDA_HOME := /usr/local/cuda
 ifeq ($(CUDA),Yes)
     ifeq ($(OS_TYPE),Linux)
-        COMMON_FLAGS += -DENABLE_CUDA -I/usr/local/cuda/include
-        LIBS  += -L/usr/local/cuda/lib64 -lcuda -lcudart
+        CU_OBJS += LatencyTestKernels.o
+        COMMON_FLAGS += -DENABLE_CUDA -I$(CUDA_HOME)/include
+        LIBS  += -LL$(CUDA_HOME)/lib64 -lcudart -lcuda
+        LINKER := $(CUDA_HOME)/bin/nvcc
     endif
 endif
 
@@ -45,8 +49,9 @@ ifeq ($(UNIKORN),Yes)
     vpath %.c $(UNIKORN_HOME)/src
 endif
 
-C_FLAGS   := -std=gnu99 $(COMMON_FLAGS)
-CPP_FLAGS := -std=c++20 $(COMMON_FLAGS)
+C_FLAGS   := -std=gnu99 -Wall -Werror -Wextra -pthread $(COMMON_FLAGS)
+CPP_FLAGS := -std=c++20 -Wall -Werror -Wextra -pthread $(COMMON_FLAGS)
+CU_FLAGS  := -std=c++20 $(COMMON_FLAGS) -arch=sm_121
 
 vpath %.h ../../inc
 
@@ -64,5 +69,8 @@ $(CPP_OBJS): %.o: %.cpp $(HEADER_FILES)
 $(C_OBJS): %.o: %.c $(HEADER_FILES)
 	gcc $(C_FLAGS) -c $< -o $@
 
-$(TARGET): $(C_OBJS) $(CPP_OBJS)
-	g++ $(C_OBJS) $(CPP_OBJS) $(LIBS) -o $@
+$(CU_OBJS): %.o: %.cu $(HEADER_FILES)
+	$(CUDA_HOME)/bin/nvcc $(CU_FLAGS) -c $< -o $@
+
+$(TARGET): $(C_OBJS) $(CPP_OBJS) $(CU_OBJS)
+	$(LINKER) $(C_OBJS) $(CPP_OBJS) $(CU_OBJS) $(LIBS) -o $@

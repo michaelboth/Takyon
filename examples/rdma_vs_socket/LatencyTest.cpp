@@ -10,6 +10,9 @@
 //     limitations under the License.
 
 #include "LatencyTest.hpp"
+#ifdef ENABLE_CUDA
+  #include "LatencyTestKernels.hpp"
+#endif
 #include "takyon.h"
 #include "unikorn_instrumentation.h"
 #include <cstring>
@@ -51,26 +54,32 @@ static void waitForMessage(TakyonPath *_path, TakyonRecvRequest *_recv_request, 
 static void fillInValidationData(uint32_t *_buffer, uint64_t _count, uint32_t _starting_value, Common::MemoryType _memory_type) {
   if (_memory_type == Common::MemoryType::CPU) {
     for (uint64_t i=0; i<_count; i++) { _buffer[i] = (uint32_t)(_starting_value+i); }
+#ifdef ENABLE_CUDA
   } else if (_memory_type == Common::MemoryType::SocIntegratedGPU) {
-    /*+ kernel */
-    for (uint64_t i=0; i<_count; i++) { _buffer[i] = (uint32_t)(_starting_value+i); }
+    LatencyTestKernels::runFillInValidationDataKernelBlocking(_buffer, _count, _starting_value);
   } else if (_memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect) {
-    /*+*/EXIT_WITH_MESSAGE(std::string("Not yet implemented"));
+    LatencyTestKernels::runFillInValidationDataKernelBlocking(_buffer, _count, _starting_value);
   } else if (_memory_type == Common::MemoryType::DiscreteGPU_withoutGPUDirect) {
     /*+*/EXIT_WITH_MESSAGE(std::string("Not yet implemented"));
+#endif
+  } else {
+    EXIT_WITH_MESSAGE(std::string("To use GPU memory, the app needs to be built with CUDA"));
   }
 }
 
 static void copyValidationData(uint32_t *_input_buffer, uint32_t *_output_buffer, uint64_t _count, Common::MemoryType _memory_type) {
   if (_memory_type == Common::MemoryType::CPU) {
     for (uint64_t i=0; i<_count; i++) { _output_buffer[i] = _input_buffer[i]; }
+#ifdef ENABLE_CUDA
   } else if (_memory_type == Common::MemoryType::SocIntegratedGPU) {
-    /*+ kernel */
-    for (uint64_t i=0; i<_count; i++) { _output_buffer[i] = _input_buffer[i]; }
+    LatencyTestKernels::runCopyKernelBlocking(_input_buffer, _output_buffer, _count);
   } else if (_memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect) {
-    /*+*/EXIT_WITH_MESSAGE(std::string("Not yet implemented"));
+    LatencyTestKernels::runCopyKernelBlocking(_input_buffer, _output_buffer, _count);
   } else if (_memory_type == Common::MemoryType::DiscreteGPU_withoutGPUDirect) {
     /*+*/EXIT_WITH_MESSAGE(std::string("Not yet implemented"));
+#endif
+  } else {
+    EXIT_WITH_MESSAGE(std::string("To use GPU memory, the app needs to be built with CUDA"));
   }
 }
 
@@ -79,21 +88,25 @@ static void validateData(uint32_t *_buffer, uint64_t _count, uint32_t _starting_
     for (uint64_t i=0; i<_count; i++) {
       uint32_t expected_value = (uint32_t)(_starting_value+i);
       if (_buffer[i] != expected_value) {
-        EXIT_WITH_MESSAGE(std::string("Received invalid data, _starting_value=" + std::to_string(_starting_value) + ", expected  " + std::to_string(expected_value) + " but got " + std::to_string(_buffer[i])));
+        EXIT_WITH_MESSAGE(std::string("Received invalid data, _starting_value=" + std::to_string(_starting_value) + ", at index " + std::to_string(i) + " expected  " + std::to_string(expected_value) + " but got " + std::to_string(_buffer[i])));
       }
     }
+#ifdef ENABLE_CUDA
   } else if (_memory_type == Common::MemoryType::SocIntegratedGPU) {
-    /*+ kernel */
+    /*+ reduction kernel */
     for (uint64_t i=0; i<_count; i++) {
       uint32_t expected_value = (uint32_t)(_starting_value+i);
       if (_buffer[i] != expected_value) {
-        EXIT_WITH_MESSAGE(std::string("Received invalid data, _starting_value=" + std::to_string(_starting_value) + ", expected  " + std::to_string(expected_value) + " but got " + std::to_string(_buffer[i])));
+        EXIT_WITH_MESSAGE(std::string("Received invalid data, _starting_value=" + std::to_string(_starting_value) + ", at index " + std::to_string(i) + " expected  " + std::to_string(expected_value) + " but got " + std::to_string(_buffer[i])));
       }
     }
   } else if (_memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect) {
     /*+*/EXIT_WITH_MESSAGE(std::string("Not yet implemented"));
   } else if (_memory_type == Common::MemoryType::DiscreteGPU_withoutGPUDirect) {
     /*+*/EXIT_WITH_MESSAGE(std::string("Not yet implemented"));
+#endif
+  } else {
+    EXIT_WITH_MESSAGE(std::string("To use GPU memory, the app needs to be built with CUDA"));
   }
 }
 
