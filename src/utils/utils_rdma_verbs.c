@@ -172,6 +172,7 @@ static const char *linkLayerToText(uint8_t link_layer) {
 static bool getLocalPortInfo(TakyonPath *path, struct ibv_context *context, struct ibv_qp *qp, uint32_t rdma_port_id, uint32_t max_pending_read_and_atomic_requests, uint32_t unicast_local_qkey, int gid_index, PortInfo *port_info_ret, char *error_message, int max_error_message_chars) {
   PortInfo port_info = {}; // Zero the structure
 
+  // Get a handle to the RDMA port endpoint
   struct ibv_port_attr port_attrs;
   int rc = ibv_query_port(context, rdma_port_id, &port_attrs);
   if (rc != 0) {
@@ -179,7 +180,13 @@ static bool getLocalPortInfo(TakyonPath *path, struct ibv_context *context, stru
     return false;
   }
 
-  // Provide some info
+  // Verify the port is up
+  if (port_attrs.state != IBV_PORT_ACTIVE) {
+    snprintf(error_message, max_error_message_chars, "The RDMA port id=%d is not active. The currect state is '%s'", rdma_port_id, portStateToText(port_attrs.state));
+    return false;
+  }
+
+  // Print some info
   if (path->attrs.verbosity & TAKYON_VERBOSITY_CREATE_DESTROY_MORE) {
     printf("  RDMA Port %u Info:\n", rdma_port_id);
     printf("    State:            %s\n", portStateToText(port_attrs.state));
@@ -189,6 +196,7 @@ static bool getLocalPortInfo(TakyonPath *path, struct ibv_context *context, stru
     printf("    Link Layer:       %s\n", linkLayerToText(port_attrs.link_layer));
   }
 
+  // Store the port info
   port_info.max_pending_read_and_atomic_requests = max_pending_read_and_atomic_requests;
   port_info.unicast_qkey = unicast_local_qkey;
   port_info.mtu_mode = port_attrs.active_mtu;
@@ -196,6 +204,7 @@ static bool getLocalPortInfo(TakyonPath *path, struct ibv_context *context, stru
   srand48((long int)clockTimeNanoseconds());
   port_info.psn = lrand48() & 0xffffff;
   port_info.lid = port_attrs.lid;
+
   if (port_attrs.link_layer != IBV_LINK_LAYER_ETHERNET && port_attrs.lid == 0) {
     snprintf(error_message, max_error_message_chars, "Could not determine the RDMA port's LID value");
     return false;
