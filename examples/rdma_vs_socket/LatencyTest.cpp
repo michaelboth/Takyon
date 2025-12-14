@@ -33,16 +33,67 @@
 //  For most accurate results use 4 bytes messages.
 //  For best results use polling with no sleep delay, since event-driven completion requires a thread based context switch
 
-static void waitForMessage(TakyonPath *_path, TakyonRecvRequest *_recv_request, uint64_t _expected_bytes) {
+static void waitForMessage(TakyonPath *_path, TakyonRecvRequest *_recv_request, uint64_t _expected_bytes, uint32_t _expected_piggyback_message) {
   // Wait for message
   uint64_t bytes_received = 0;
-  (void)takyonIsRecved(_path, _recv_request, TAKYON_WAIT_FOREVER, NULL, &bytes_received, NULL);
+  uint32_t piggyback_message = 0;
+  (void)takyonIsRecved(_path, _recv_request, TAKYON_WAIT_FOREVER, NULL, &bytes_received, &piggyback_message);
+  if (piggyback_message != _expected_piggyback_message) { EXIT_WITH_MESSAGE(std::string("Received message piggyback should be " + std::to_string(_expected_piggyback_message) + " but got " + std::to_string(piggyback_message))); }
   if (bytes_received != _expected_bytes) { EXIT_WITH_MESSAGE(std::string("Received message bytes should be " + std::to_string(_expected_bytes) + " but got " + std::to_string(bytes_received))); }
 
   // Re-post the recv
   if (_path->capabilities.PostRecvs_function_supported) {
     uint32_t request_count = 1;
     (void)takyonPostRecvs(_path, request_count, _recv_request);
+  }
+}
+
+static void fillInValidationData(uint32_t *_buffer, uint64_t _count, uint32_t _starting_value, Common::MemoryType _memory_type) {
+  if (_memory_type == Common::MemoryType::CPU) {
+    for (uint64_t i=0; i<_count; i++) { _buffer[i] = (uint32_t)(_starting_value+i); }
+  } else if (_memory_type == Common::MemoryType::SocIntegratedGPU) {
+    /*+ kernel */
+    for (uint64_t i=0; i<_count; i++) { _buffer[i] = (uint32_t)(_starting_value+i); }
+  } else if (_memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect) {
+    /*+*/EXIT_WITH_MESSAGE(std::string("Not yet implemented"));
+  } else if (_memory_type == Common::MemoryType::DiscreteGPU_withoutGPUDirect) {
+    /*+*/EXIT_WITH_MESSAGE(std::string("Not yet implemented"));
+  }
+}
+
+static void copyValidationData(uint32_t *_input_buffer, uint32_t *_output_buffer, uint64_t _count, Common::MemoryType _memory_type) {
+  if (_memory_type == Common::MemoryType::CPU) {
+    for (uint64_t i=0; i<_count; i++) { _output_buffer[i] = _input_buffer[i]; }
+  } else if (_memory_type == Common::MemoryType::SocIntegratedGPU) {
+    /*+ kernel */
+    for (uint64_t i=0; i<_count; i++) { _output_buffer[i] = _input_buffer[i]; }
+  } else if (_memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect) {
+    /*+*/EXIT_WITH_MESSAGE(std::string("Not yet implemented"));
+  } else if (_memory_type == Common::MemoryType::DiscreteGPU_withoutGPUDirect) {
+    /*+*/EXIT_WITH_MESSAGE(std::string("Not yet implemented"));
+  }
+}
+
+static void validateData(uint32_t *_buffer, uint64_t _count, uint32_t _starting_value, Common::MemoryType _memory_type) {
+  if (_memory_type == Common::MemoryType::CPU) {
+    for (uint64_t i=0; i<_count; i++) {
+      uint32_t expected_value = (uint32_t)(_starting_value+i);
+      if (_buffer[i] != expected_value) {
+        EXIT_WITH_MESSAGE(std::string("Received invalid data, _starting_value=" + std::to_string(_starting_value) + ", expected  " + std::to_string(expected_value) + " but got " + std::to_string(_buffer[i])));
+      }
+    }
+  } else if (_memory_type == Common::MemoryType::SocIntegratedGPU) {
+    /*+ kernel */
+    for (uint64_t i=0; i<_count; i++) {
+      uint32_t expected_value = (uint32_t)(_starting_value+i);
+      if (_buffer[i] != expected_value) {
+        EXIT_WITH_MESSAGE(std::string("Received invalid data, _starting_value=" + std::to_string(_starting_value) + ", expected  " + std::to_string(expected_value) + " but got " + std::to_string(_buffer[i])));
+      }
+    }
+  } else if (_memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect) {
+    /*+*/EXIT_WITH_MESSAGE(std::string("Not yet implemented"));
+  } else if (_memory_type == Common::MemoryType::DiscreteGPU_withoutGPUDirect) {
+    /*+*/EXIT_WITH_MESSAGE(std::string("Not yet implemented"));
   }
 }
 
@@ -147,6 +198,8 @@ void LatencyTest::runLatencyTest(bool _is_sender, const Common::AppParams &_app_
   uint32_t *int_recv_buffer = (uint32_t *)((uint64_t)recv_memory + extra_recv_bytes);
   uint32_t counter = 0;
   uint64_t validation_count = message_bytes/sizeof(uint32_t);
+  uint32_t send_piggyback_message = 0; // Used for validation
+  uint32_t recv_piggyback_message = 1000000000; // Used for validation
   do {
     for (uint32_t iter=0; iter<_app_params.iters; iter++) {
       UK_RECORD_EVENT(_app_params.unikorn_session, LATENCY_ITERATION_START_ID, 0);
@@ -154,18 +207,15 @@ void LatencyTest::runLatencyTest(bool _is_sender, const Common::AppParams &_app_
       if (_is_sender) {
         // Send
         if (_app_params.validate) {
-          for (uint64_t i=0; i<validation_count; i++) { int_send_buffer[i] = (uint32_t)(counter+i); }
+          fillInValidationData(int_send_buffer, validation_count, counter, memory_type);
         }
-        uint32_t piggyback_message = 0; // Ignoring since UDP sockets can't use it
-        (void)takyonSend(path, &send_request, piggyback_message, TAKYON_WAIT_FOREVER, NULL);
+        send_piggyback_message++;
+        (void)takyonSend(path, &send_request, send_piggyback_message, TAKYON_WAIT_FOREVER, NULL);
         // Recv
-        waitForMessage(path, &recv_request, message_bytes);
+        recv_piggyback_message++;
+        waitForMessage(path, &recv_request, message_bytes, recv_piggyback_message);
         if (_app_params.validate) {
-          for (uint64_t i=0; i<validation_count; i++) {
-            if (int_recv_buffer[i] != (uint32_t)(counter+i)) {
-              EXIT_WITH_MESSAGE(std::string("Received invalid data, counter=" + std::to_string(counter) + ", expected  " + std::to_string((uint32_t)(counter+i)) + " but got " + std::to_string(int_recv_buffer[i])));
-            }
-          }
+          validateData(int_recv_buffer, validation_count, counter, memory_type);
         }
         // Make sure send completion has occurred
         if (path->capabilities.IsSent_function_supported) {
@@ -174,20 +224,17 @@ void LatencyTest::runLatencyTest(bool _is_sender, const Common::AppParams &_app_
 
       } else {
         // Recv
-        waitForMessage(path, &recv_request, message_bytes);
+        send_piggyback_message++;
+        waitForMessage(path, &recv_request, message_bytes, send_piggyback_message);
         if (_app_params.validate) {
-          for (uint64_t i=0; i<validation_count; i++) {
-            if (int_recv_buffer[i] != (uint32_t)(counter+i)) {
-              EXIT_WITH_MESSAGE(std::string("Received invalid data, counter=" + std::to_string(counter) + ", expected  " + std::to_string((uint32_t)(counter+i)) + " but got " + std::to_string(int_recv_buffer[i])));
-            }
-          }
+          validateData(int_recv_buffer, validation_count, counter, memory_type);
         }
         // Send
         if (_app_params.validate) {
-          for (uint64_t i=0; i<validation_count; i++) { int_send_buffer[i] = int_recv_buffer[i]; }
+          copyValidationData(int_recv_buffer, int_send_buffer, validation_count, memory_type);
         }
-        uint32_t piggyback_message = 0; // Ignoring since UDP sockets can't use it
-        (void)takyonSend(path, &send_request, piggyback_message, TAKYON_WAIT_FOREVER, NULL);
+        recv_piggyback_message++;
+        (void)takyonSend(path, &send_request, recv_piggyback_message, TAKYON_WAIT_FOREVER, NULL);
         // Make sure send completion has occurred
         if (path->capabilities.IsSent_function_supported) {
           (void)takyonIsSent(path, &send_request, TAKYON_WAIT_FOREVER, NULL);

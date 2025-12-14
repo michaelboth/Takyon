@@ -205,7 +205,16 @@ void* Common::allocateTransportMemory(uint64_t _bytes, Common::MemoryType _memor
   }
 
 #ifdef ENABLE_CUDA
-  if (_memory_type == Common::MemoryType::SocIntegratedGPU || _memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect || _memory_type == Common::MemoryType::DiscreteGPU_withoutGPUDirect) {
+  if (_memory_type == Common::MemoryType::SocIntegratedGPU) {
+    void *addr = NULL;
+    unsigned int flags = 0; /*+ cudaHostAllocMapped */
+    cudaError_t cuda_status = cudaHostAlloc(&addr, _bytes, flags); // Allocates host memory and pins it so can be accessed by the GPU directly (SoC integrated GPU allow this)
+    if (cuda_status != cudaSuccess) {
+      EXIT_WITH_MESSAGE(std::string("cudaHostAlloc() failed: return_code=" + std::to_string(cuda_status)));
+    }
+    return addr;
+
+  } else if (_memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect || _memory_type == Common::MemoryType::DiscreteGPU_withoutGPUDirect) {
     void *addr = NULL;
     cudaError_t cuda_status = cudaMalloc(&addr, _bytes);
     if (cuda_status != cudaSuccess) {
@@ -220,9 +229,11 @@ void* Common::allocateTransportMemory(uint64_t _bytes, Common::MemoryType _memor
       }
     }
     return addr;
+
   } else {
     EXIT_WITH_MESSAGE(std::string("Memory type unknown"));
   }
+
 #else
   EXIT_WITH_MESSAGE(std::string("To use GPU memory, the app needs to be built with CUDA"));
 #endif
@@ -235,8 +246,17 @@ void Common::freeTransportMemory(void *_addr, MemoryType _memory_type) {
     return;
   }
 #ifdef ENABLE_CUDA
-  if (_memory_type == Common::MemoryType::SocIntegratedGPU || _memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect || _memory_type == Common::MemoryType::DiscreteGPU_withoutGPUDirect) {
-    cudaFree(_addr);
+  if (_memory_type == Common::MemoryType::SocIntegratedGPU) {
+    cudaError_t cuda_status = cudaFreeHost(_addr);
+    if (cuda_status != cudaSuccess) {
+      EXIT_WITH_MESSAGE(std::string("cudaFreeHost() failed: return_code=" + std::to_string(cuda_status)));
+    }
+    return;
+  } else if (_memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect || _memory_type == Common::MemoryType::DiscreteGPU_withoutGPUDirect) {
+    cudaError_t cuda_status = cudaFree(_addr);
+    if (cuda_status != cudaSuccess) {
+      EXIT_WITH_MESSAGE(std::string("cudaFree() failed: return_code=" + std::to_string(cuda_status)));
+    }
     return;
   } else {
     EXIT_WITH_MESSAGE(std::string("Memory type unknown"));
