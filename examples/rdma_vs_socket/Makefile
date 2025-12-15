@@ -3,7 +3,7 @@ TARGET  := rdma_vs_socket
 CPP_OBJS     := Main.o Common.o LatencyTest.o ThroughputTest.o
 C_OBJS       :=
 CU_OBJS      :=
-HEADER_FILES := Common.hpp LatencyTest.hpp ThroughputTest.hpp unikorn_instrumentation.h LatencyTestKernels.hpp
+HEADER_FILES := Common.hpp LatencyTest.hpp ThroughputTest.hpp unikorn_instrumentation.h ValidationKernels.hpp
 
 COMMON_FLAGS :=
 ifeq ($(DEBUG),Yes)
@@ -30,7 +30,7 @@ endif
 CUDA_HOME := /usr/local/cuda
 ifeq ($(CUDA),Yes)
     ifeq ($(OS_TYPE),Linux)
-        CU_OBJS += LatencyTestKernels.o
+        CU_OBJS += ValidationKernels.o
         COMMON_FLAGS += -DENABLE_CUDA -I$(CUDA_HOME)/include
         LIBS  += -LL$(CUDA_HOME)/lib64 -lcudart -lcuda
         LINKER := $(CUDA_HOME)/bin/nvcc

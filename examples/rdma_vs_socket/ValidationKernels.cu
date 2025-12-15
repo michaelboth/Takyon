@@ -9,7 +9,7 @@
 //     See the License for the specific language governing permissions and
 //     limitations under the License.
 
-#include "LatencyTestKernels.hpp"
+#include "ValidationKernels.hpp"
 #include "Common.hpp"
 #include "cuda_runtime.h"
 #include "math.h"
@@ -18,7 +18,7 @@
 
 static uint32_t *L_result_buffer = NULL;
 
-void LatencyTestKernels::init() {
+void ValidationKernels::init() {
   // Create temp cuda memory to hold sumation result
   cudaError_t cuda_status = cudaMalloc(&L_result_buffer, sizeof(uint32_t));
   if (cuda_status != cudaSuccess) {
@@ -26,7 +26,7 @@ void LatencyTestKernels::init() {
   }
 }
 
-void LatencyTestKernels::finalize() {
+void ValidationKernels::finalize() {
   // Free the result memory
   cudaError_t cuda_status = cudaFree(L_result_buffer);
   if (cuda_status != cudaSuccess) {
@@ -35,11 +35,11 @@ void LatencyTestKernels::finalize() {
   L_result_buffer = NULL;
 }
 
-static __global__ void fillInValidationDataKernel(uint32_t *_buffer, uint32_t _count, uint32_t _starting_value) {
+static __global__ void fillInValidationDataKernel(uint32_t *_buffer, uint32_t _count, uint64_t _starting_value) {
   // compute the x index and validate
   int index = threadIdx.x + (blockDim.x * blockIdx.x);
   if (index >= _count) return;
-  _buffer[index] = _starting_value + index;
+  _buffer[index] = (uint32_t)(_starting_value + index);
 }
 
 static __global__ void copyKernel(uint32_t *_input_buffer, uint32_t *_output_buffer, uint32_t _count) {
@@ -57,7 +57,7 @@ static __inline__ __device__ uint32_t warpReduceSum(uint32_t _value) {
   return _value;
 }
 
-static __global__ void validateDataKernel(uint32_t* __restrict__ _input_buffer, uint32_t _count, uint32_t _starting_value, uint32_t* __restrict__ _result_buffer) {
+static __global__ void validateDataKernel(uint32_t* __restrict__ _input_buffer, uint32_t _count, uint64_t _starting_value, uint32_t* __restrict__ _result_buffer) {
   // Setup the shared memory
   extern __shared__ uint32_t shared_mem_buffer[]; // This memory is only visible to the current block. Each block has it's own memory
 
@@ -68,7 +68,7 @@ static __global__ void validateDataKernel(uint32_t* __restrict__ _input_buffer, 
   // Determine is the value is invalid or not
   uint32_t thread_sum = 0;
   if (index < _count) {
-    uint32_t expected_value = _starting_value + index;
+    uint32_t expected_value = (uint32_t)(_starting_value + index);
     if (_input_buffer[index] != expected_value) {
       // Value is invalid
       thread_sum++;
@@ -98,7 +98,7 @@ static __global__ void validateDataKernel(uint32_t* __restrict__ _input_buffer, 
   }
 }
 
-void LatencyTestKernels::runFillInValidationDataKernelBlocking(uint32_t *_buffer, uint64_t _count, uint32_t _starting_value) {
+void ValidationKernels::runFillInValidationDataKernelBlocking(uint32_t *_buffer, uint64_t _count, uint64_t _starting_value) {
   // Prepare values for kernel
   int block_count = (int)ceil(_count / (double)IDEAL_1D_BLOCK_SIZE);
   dim3 block_sizes(IDEAL_1D_BLOCK_SIZE,1,1);
@@ -116,7 +116,7 @@ void LatencyTestKernels::runFillInValidationDataKernelBlocking(uint32_t *_buffer
   }
 }
 
-void LatencyTestKernels::runCopyKernelBlocking(uint32_t *_input_buffer, uint32_t *_output_buffer, uint64_t _count) {
+void ValidationKernels::runCopyKernelBlocking(uint32_t *_input_buffer, uint32_t *_output_buffer, uint64_t _count) {
   // Prepare values for kernel
   int block_count = (int)ceil(_count / (double)IDEAL_1D_BLOCK_SIZE);
   dim3 block_sizes(IDEAL_1D_BLOCK_SIZE,1,1);
@@ -125,6 +125,7 @@ void LatencyTestKernels::runCopyKernelBlocking(uint32_t *_input_buffer, uint32_t
   cudaStream_t stream = 0; // The default global stream
 
   // Submit the kernel
+  // NOTE: Could use cudaMemcpy(), but what's the fun in that?
   copyKernel<<<block_counts, block_sizes, shared_bytes_per_block, stream>>>(_input_buffer, _output_buffer, (uint32_t)_count);
 
   // Wait for the kernel to complete
@@ -134,7 +135,7 @@ void LatencyTestKernels::runCopyKernelBlocking(uint32_t *_input_buffer, uint32_t
   }
 }
 
-uint32_t LatencyTestKernels::runValidateDataKernelBlocking(uint32_t *_buffer, uint64_t _count, uint32_t _starting_value) {
+uint32_t ValidationKernels::runValidateDataKernelBlocking(uint32_t *_buffer, uint64_t _count, uint64_t _starting_value) {
   // Prepare values for kernel
   int block_count = (int)ceil(_count / (double)IDEAL_1D_BLOCK_SIZE);
   dim3 block_sizes(IDEAL_1D_BLOCK_SIZE,1,1);

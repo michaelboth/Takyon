@@ -10,6 +10,7 @@
 //     limitations under the License.
 
 #include "ThroughputTest.hpp"
+#include "ValidationKernels.hpp"
 #include "takyon.h"
 #include "unikorn_instrumentation.h"
 #include <cstring>
@@ -64,18 +65,70 @@ static void waitForAck(TakyonPath *_path, TakyonRecvRequest *_recv_request, uint
   }
 }
 
+static void fillInValidationData(uint32_t *_buffer, uint32_t *_buffer_gpu, uint64_t _count, uint64_t _starting_value, Common::MemoryType _memory_type) {
+  (void)_buffer_gpu; // Used to quiet the compile if ENABLE_CUDA is not defined
+  if (_memory_type == Common::MemoryType::CPU) {
+    for (uint64_t i=0; i<_count; i++) { _buffer[i] = (uint32_t)(_starting_value+i); }
+#ifdef ENABLE_CUDA
+  } else if (_memory_type == Common::MemoryType::SocIntegratedGPU || _memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect) {
+    ValidationKernels::runFillInValidationDataKernelBlocking(_buffer, _count, _starting_value);
+  } else if (_memory_type == Common::MemoryType::DiscreteGPU_withoutGPUDirect) {
+    ValidationKernels::runFillInValidationDataKernelBlocking(_buffer_gpu, _count, _starting_value);
+    Common::gpuToHostCopy(_buffer, _buffer_gpu, _count*sizeof(uint32_t));
+#endif
+  } else {
+    EXIT_WITH_MESSAGE(std::string("To use GPU memory, the app needs to be built with CUDA"));
+  }
+}
+
+static void validateData(uint32_t *_buffer, uint32_t *_buffer_gpu, uint64_t _count, uint64_t _starting_value, Common::MemoryType _memory_type) {
+  (void)_buffer_gpu; // Used to quiet the compile if ENABLE_CUDA is not defined
+  if (_memory_type == Common::MemoryType::CPU) {
+    for (uint64_t i=0; i<_count; i++) {
+      uint32_t expected_value = (uint32_t)(_starting_value+i);
+      if (_buffer[i] != expected_value) {
+        EXIT_WITH_MESSAGE(std::string("Received invalid data, _starting_value=" + std::to_string(_starting_value) + ", at index " + std::to_string(i) + " expected  " + std::to_string(expected_value) + " but got " + std::to_string(_buffer[i])));
+      }
+    }
+#ifdef ENABLE_CUDA
+  } else if (_memory_type == Common::MemoryType::SocIntegratedGPU || _memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect) {
+    uint32_t invalid_value_count = ValidationKernels::runValidateDataKernelBlocking(_buffer, _count, _starting_value);
+    if (invalid_value_count > 0) {
+      EXIT_WITH_MESSAGE(std::string("Received " + std::to_string(invalid_value_count) + " invalid values"));
+    }
+  } else if (_memory_type == Common::MemoryType::DiscreteGPU_withoutGPUDirect) {
+    Common::hostToGpuCopy(_buffer_gpu, _buffer, _count*sizeof(uint32_t));
+    uint32_t invalid_value_count = ValidationKernels::runValidateDataKernelBlocking(_buffer_gpu, _count, _starting_value);
+    if (invalid_value_count > 0) {
+      EXIT_WITH_MESSAGE(std::string("Received " + std::to_string(invalid_value_count) + " invalid values"));
+    }
+#endif
+  } else {
+    EXIT_WITH_MESSAGE(std::string("To use GPU memory, the app needs to be built with CUDA"));
+  }
+}
+
 void ThroughputTest::runThroughputTest(bool _is_sender, const Common::AppParams &_app_params) {
   UK_RECORD_EVENT(_app_params.unikorn_session, THROUGHPUT_TEST_START_ID, 0);
+
+  // Prepare the kernels for running
+#ifdef ENABLE_CUDA
+  ValidationKernels::init();
+#endif
 
   // Determine the type of memory to use for processing and transport
   bool is_for_rdma = (_app_params.provider == "RC" || _app_params.provider == "UC" || _app_params.provider == "UD");
   Common::MemoryType memory_type_send;
   Common::MemoryType memory_type_recv;
   if (_is_sender) {
+    printf("Sender memory:\n");
     memory_type_send = Common::memoryTypeToUseForTransport(is_for_rdma, _app_params.is_for_gpu);
+    printf("Receiver memory:\n");
     memory_type_recv = Common::memoryTypeToUseForTransport(is_for_rdma, false);  // Always use CPU memory for ACKs to keep it simple
   } else {
+    printf("Sender memory:\n");
     memory_type_send = Common::memoryTypeToUseForTransport(is_for_rdma, false);  // Always use CPU memory for ACKs to keep it simple
+    printf("Receiver memory:\n");
     memory_type_recv = Common::memoryTypeToUseForTransport(is_for_rdma, _app_params.is_for_gpu);
   }
 
@@ -87,6 +140,18 @@ void ThroughputTest::runThroughputTest(bool _is_sender, const Common::AppParams 
   uint64_t total_recv_bytes = _is_sender ? 2*(ACK_BYTES+extra_recv_bytes) : _app_params.nbufs * (message_bytes+extra_recv_bytes);
   void *send_memory = Common::allocateTransportMemory(total_send_bytes, memory_type_send);
   void *recv_memory = Common::allocateTransportMemory(total_recv_bytes, memory_type_recv);
+
+  // Allocate GPU buffers to do intermediate processing that can't be done in the transport buffers
+  void *send_memory_gpu = NULL;
+  void *recv_memory_gpu = NULL;
+#ifdef ENABLE_CUDA
+  if (memory_type_send == Common::MemoryType::DiscreteGPU_withoutGPUDirect) {
+    send_memory_gpu = Common::allocGpuMem(total_send_bytes);
+  }
+  if (memory_type_recv == Common::MemoryType::DiscreteGPU_withoutGPUDirect) {
+    recv_memory_gpu = Common::allocGpuMem(total_recv_bytes);
+  }
+#endif
 
   // Create the Takyon transport buffers
   TakyonBuffer transport_buffers[2];
@@ -209,10 +274,9 @@ void ThroughputTest::runThroughputTest(bool _is_sender, const Common::AppParams 
               if (_app_params.validate) {
                 uint64_t integer_count = send_request->sub_buffers[0].bytes / sizeof(int);
                 uint32_t *send_memory_integer = (uint32_t *)((uint64_t)send_memory + send_request->sub_buffers[0].offset);
+                uint32_t *send_memory_integer_gpu = (uint32_t *)((uint64_t)send_memory_gpu + send_request->sub_buffers[0].offset);
                 uint64_t base_value = send_index * integer_count;
-                for (uint64_t i=0; i<integer_count; i++) {
-                  send_memory_integer[i] = (uint32_t)(base_value + i);
-                }
+                fillInValidationData(send_memory_integer, send_memory_integer_gpu, integer_count, base_value, memory_type_send);
               }
               // Send the data
               send_piggyback_message++;
@@ -236,14 +300,10 @@ void ThroughputTest::runThroughputTest(bool _is_sender, const Common::AppParams 
               if (bytes_received != curr_message_bytes) { EXIT_WITH_MESSAGE(std::string("Received bytes should be " + std::to_string(curr_message_bytes) + " but got " + std::to_string(bytes_received) + ", iter=" + std::to_string(iter))); }
               if (_app_params.validate) {
                 uint32_t *addr = (uint32_t *)((uint64_t)recv_memory + recv_sub_buffer->offset + extra_recv_bytes);
+                uint32_t *addr_gpu = (uint32_t *)((uint64_t)recv_memory_gpu + recv_sub_buffer->offset + extra_recv_bytes);
                 uint64_t integer_count = bytes_received / sizeof(int);
                 uint64_t integer_offset = recv_index * integer_count;
-                for (uint64_t j=0; j<integer_count; j++) {
-                  uint32_t expected = (uint32_t)(integer_offset + j);
-                  if (addr[j] != expected) {
-                    EXIT_WITH_MESSAGE(std::string("Received invalid data, buf_index=" + std::to_string(recv_index) + ", j=" + std::to_string(j) + ", expected " + std::to_string(expected) + " but got " + std::to_string(addr[j])));
-                  }
-                }
+                validateData(addr, addr_gpu, integer_count, integer_offset, memory_type_recv);
               }
             }
             UK_RECORD_EVENT(_app_params.unikorn_session, RECV_BUFFERS_END_ID, 0);
@@ -327,7 +387,13 @@ void ThroughputTest::runThroughputTest(bool _is_sender, const Common::AppParams 
   delete[] send_requests;
   Common::freeTransportMemory(send_memory, memory_type_send);
   Common::freeTransportMemory(recv_memory, memory_type_recv);
+#ifdef ENABLE_CUDA
+  ValidationKernels::finalize();
+  if (send_memory_gpu != NULL) Common::freeGpuMem(send_memory_gpu);
+  if (recv_memory_gpu != NULL) Common::freeGpuMem(recv_memory_gpu);
+#endif
   UK_RECORD_EVENT(_app_params.unikorn_session, FINALIZE_END_ID, 0);
+  if (_app_params.verbose) printf("Throughput test Done.\n\n");
 
   UK_RECORD_EVENT(_app_params.unikorn_session, THROUGHPUT_TEST_END_ID, 0);
 }

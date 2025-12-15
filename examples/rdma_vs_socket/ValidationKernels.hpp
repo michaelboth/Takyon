@@ -13,10 +13,10 @@
 
 #include <cstdint>
 
-namespace LatencyTestKernels {
+namespace ValidationKernels {
   void init();
   void finalize();
-  void runFillInValidationDataKernelBlocking(uint32_t *_buffer, uint64_t _count, uint32_t _starting_value);
+  void runFillInValidationDataKernelBlocking(uint32_t *_buffer, uint64_t _count, uint64_t _starting_value);
   void runCopyKernelBlocking(uint32_t *_input_buffer, uint32_t *_output_buffer, uint64_t _count);
-  uint32_t runValidateDataKernelBlocking(uint32_t *_buffer, uint64_t _count, uint32_t _starting_value); // Return number of invalid values
+  uint32_t runValidateDataKernelBlocking(uint32_t *_buffer, uint64_t _count, uint64_t _starting_value); // Return number of invalid values
 };

@@ -11,7 +11,7 @@
 
 #include "LatencyTest.hpp"
 #ifdef ENABLE_CUDA
-  #include "LatencyTestKernels.hpp"
+  #include "ValidationKernels.hpp"
 #endif
 #include "takyon.h"
 #include "unikorn_instrumentation.h"
@@ -51,15 +51,15 @@ static void waitForMessage(TakyonPath *_path, TakyonRecvRequest *_recv_request, 
   }
 }
 
-static void fillInValidationData(uint32_t *_buffer, uint32_t *_buffer_gpu, uint64_t _count, uint32_t _starting_value, Common::MemoryType _memory_type) {
+static void fillInValidationData(uint32_t *_buffer, uint32_t *_buffer_gpu, uint64_t _count, uint64_t _starting_value, Common::MemoryType _memory_type) {
   (void)_buffer_gpu; // Used to quiet the compile if ENABLE_CUDA is not defined
   if (_memory_type == Common::MemoryType::CPU) {
     for (uint64_t i=0; i<_count; i++) { _buffer[i] = (uint32_t)(_starting_value+i); }
 #ifdef ENABLE_CUDA
   } else if (_memory_type == Common::MemoryType::SocIntegratedGPU || _memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect) {
-    LatencyTestKernels::runFillInValidationDataKernelBlocking(_buffer, _count, _starting_value);
+    ValidationKernels::runFillInValidationDataKernelBlocking(_buffer, _count, _starting_value);
   } else if (_memory_type == Common::MemoryType::DiscreteGPU_withoutGPUDirect) {
-    LatencyTestKernels::runFillInValidationDataKernelBlocking(_buffer_gpu, _count, _starting_value);
+    ValidationKernels::runFillInValidationDataKernelBlocking(_buffer_gpu, _count, _starting_value);
     Common::gpuToHostCopy(_buffer, _buffer_gpu, _count*sizeof(uint32_t));
 #endif
   } else {
@@ -72,14 +72,14 @@ static void copyValidationData(uint32_t *_input_buffer, uint32_t *_output_buffer
     for (uint64_t i=0; i<_count; i++) { _output_buffer[i] = _input_buffer[i]; }
 #ifdef ENABLE_CUDA
   } else if (_memory_type == Common::MemoryType::SocIntegratedGPU || _memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect || _memory_type == Common::MemoryType::DiscreteGPU_withoutGPUDirect) {
-    LatencyTestKernels::runCopyKernelBlocking(_input_buffer, _output_buffer, _count);
+    ValidationKernels::runCopyKernelBlocking(_input_buffer, _output_buffer, _count);
 #endif
   } else {
     EXIT_WITH_MESSAGE(std::string("To use GPU memory, the app needs to be built with CUDA"));
   }
 }
 
-static void validateData(uint32_t *_buffer, uint32_t *_buffer_gpu, uint64_t _count, uint32_t _starting_value, Common::MemoryType _memory_type) {
+static void validateData(uint32_t *_buffer, uint32_t *_buffer_gpu, uint64_t _count, uint64_t _starting_value, Common::MemoryType _memory_type) {
   (void)_buffer_gpu; // Used to quiet the compile if ENABLE_CUDA is not defined
   if (_memory_type == Common::MemoryType::CPU) {
     for (uint64_t i=0; i<_count; i++) {
@@ -90,13 +90,13 @@ static void validateData(uint32_t *_buffer, uint32_t *_buffer_gpu, uint64_t _cou
     }
 #ifdef ENABLE_CUDA
   } else if (_memory_type == Common::MemoryType::SocIntegratedGPU || _memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect) {
-    uint32_t invalid_value_count = LatencyTestKernels::runValidateDataKernelBlocking(_buffer, _count, _starting_value);
+    uint32_t invalid_value_count = ValidationKernels::runValidateDataKernelBlocking(_buffer, _count, _starting_value);
     if (invalid_value_count > 0) {
       EXIT_WITH_MESSAGE(std::string("Received " + std::to_string(invalid_value_count) + " invalid values"));
     }
   } else if (_memory_type == Common::MemoryType::DiscreteGPU_withoutGPUDirect) {
     Common::hostToGpuCopy(_buffer_gpu, _buffer, _count*sizeof(uint32_t));
-    uint32_t invalid_value_count = LatencyTestKernels::runValidateDataKernelBlocking(_buffer_gpu, _count, _starting_value);
+    uint32_t invalid_value_count = ValidationKernels::runValidateDataKernelBlocking(_buffer_gpu, _count, _starting_value);
     if (invalid_value_count > 0) {
       EXIT_WITH_MESSAGE(std::string("Received " + std::to_string(invalid_value_count) + " invalid values"));
     }
@@ -109,14 +109,14 @@ static void validateData(uint32_t *_buffer, uint32_t *_buffer_gpu, uint64_t _cou
 void LatencyTest::runLatencyTest(bool _is_sender, const Common::AppParams &_app_params) {
   UK_RECORD_EVENT(_app_params.unikorn_session, LATENCY_TEST_START_ID, 0);
 
+  // Prepare the kernels for running
+#ifdef ENABLE_CUDA
+  ValidationKernels::init();
+#endif
+
   // Determine the type of memory to use for processing and transport
   bool is_for_rdma = (_app_params.provider == "RC" || _app_params.provider == "UC" || _app_params.provider == "UD");
   Common::MemoryType memory_type = Common::memoryTypeToUseForTransport(is_for_rdma, _app_params.is_for_gpu);
-
-  // Prepare the kernels for running
-#ifdef ENABLE_CUDA
-  LatencyTestKernels::init();
-#endif
 
   // Allocate transport memory
   uint64_t message_bytes = _app_params.nbytes;
@@ -126,6 +126,7 @@ void LatencyTest::runLatencyTest(bool _is_sender, const Common::AppParams &_app_
   void *send_memory = Common::allocateTransportMemory(total_send_bytes, memory_type);
   void *recv_memory = Common::allocateTransportMemory(total_recv_bytes, memory_type);
 
+  // Allocate GPU buffers to do intermediate processing that can't be done in the transport buffers
   void *send_memory_gpu = NULL;
   void *recv_memory_gpu = NULL;
 #ifdef ENABLE_CUDA
@@ -221,7 +222,7 @@ void LatencyTest::runLatencyTest(bool _is_sender, const Common::AppParams &_app_
   uint32_t *int_send_buffer_gpu = (uint32_t *)send_memory_gpu;
   uint32_t *int_recv_buffer = (uint32_t *)((uint64_t)recv_memory + extra_recv_bytes);
   uint32_t *int_recv_buffer_gpu = (uint32_t *)((uint64_t)recv_memory_gpu + extra_recv_bytes);
-  uint32_t counter = 0;
+  uint64_t counter = 0;
   uint64_t validation_count = message_bytes/sizeof(uint32_t);
   uint32_t send_piggyback_message = 0; // Used for validation
   uint32_t recv_piggyback_message = 1000000000; // Used for validation
@@ -312,7 +313,7 @@ void LatencyTest::runLatencyTest(bool _is_sender, const Common::AppParams &_app_
   Common::freeTransportMemory(send_memory, memory_type);
   Common::freeTransportMemory(recv_memory, memory_type);
 #ifdef ENABLE_CUDA
-  LatencyTestKernels::finalize();
+  ValidationKernels::finalize();
   if (send_memory_gpu != NULL) Common::freeGpuMem(send_memory_gpu);
   if (recv_memory_gpu != NULL) Common::freeGpuMem(recv_memory_gpu);
 #endif
