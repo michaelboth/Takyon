@@ -105,7 +105,7 @@ typedef struct {
 // Only used for one-sided transfers: read/write/atomics
 // IMPORTANT: App must maintain this structure for the life of the transfer, unless use_is_done_notification == false
 typedef struct {
-  TakyonOneSidedOp operation;
+  TakyonOneSidedOp operation;                // One of TAKYON_OP_READ, TAKYON_OP_WRITE, TAKYON_OP_WRITE_WITH_PIGGYBACK, TAKYON_OP_ATOMIC_COMPARE_AND_SWAP_UINT64, or TAKYON_OP_ATOMIC_ADD_UINT64.
   // Local memory info
   uint32_t sub_buffer_count;                 // Some providers support > 1 (e.g. RDMA supports a mix of CUDA and CPU memory blocks)
   TakyonSubBuffer *sub_buffers;              // List of memory blocks in the local takyon buffer(s) defined with this path
@@ -231,19 +231,26 @@ extern "C"
 
 // Create/Destroy a communication endpoint
 // ---------------------------------------
-//   If takyonCreate() returns non NULL, it contains the error message, and it needs to be freed by the application.
+//   If takyonCreate() or takyonDestroy() returns non NULL, it contains the error message to print, and it needs to be freed by the application.
 //   If takyonPostRecv() is not supported by the provider, then takyonCreate() will ignore post_recv_count and recv_requests.
+//   If post_recv_count is 0, then recv_requests needs to be NULL.
+//   timeout_seconds can use TAKYON_WAIT_FOREVER, TAKYON_NO_WAIT, or an actual number of seconds.
 extern char *takyonCreate(TakyonPathAttributes *attrs, uint32_t post_recv_count, TakyonRecvRequest *recv_requests, double timeout_seconds, TakyonPath **path_out);
 extern char *takyonDestroy(TakyonPath *path, double timeout_seconds);
 
 // TWO-SIDED TRANSFERS
 // -------------------
-//   Both endpoints are involved in the transfer:
+//   Both endpoints are involved in the transfer; i.e. the application must call takyonSend() on one endpoint and call takyonIsRecved() on the other endpoint:
 //     A:send --> B:recv
 //     A:recv --> B:send
-//   NOTE: If multicast is supported by the provider, then can have multiple recv endpoints for a single send endpoint.
-//   NOTE: Two-sided transfers are designed to be one-way; i.e. no round trip needed to complete the transfer.
-//   This group of functions returns true if there was an unrecoverable error.
+//
+//   NOTE: If multicast is supported by the provider, then there can be multiple recv endpoints for a single send endpoint.
+//   NOTE: Two-sided transfers are designed to be one-way; i.e. no round trip needed to complete the transfer (reliable communications like TCP and RDMA-RC still have an underlying round-trip, but not at the Takyon or application level).
+//   timeout_seconds can use TAKYON_WAIT_FOREVER, TAKYON_NO_WAIT, or an actual number of seconds.
+//   timed_out_ret can be NULL if timeout_seconds==TAKYON_WAIT_FOREVER.
+//   When using takyonIsRecved(), bytes_received_ret and/or piggyback_message_ret can be NULL if those returned values do not provide any benefit.
+//   If the underlying provider is non-blocking (e.g. RDMA) then after sending, takyonIsSent() will need to be called to know when the transfer is complete. Until then, the request and it's underlying data should not be modified.
+//   This group of functions returns true if the operation was successful, or false if there was an unrecoverable error.
 extern bool takyonSend(TakyonPath *path, TakyonSendRequest *request, uint32_t piggyback_message, double timeout_seconds, bool *timed_out_ret);
 extern bool takyonIsSent(TakyonPath *path, TakyonSendRequest *request, double timeout_seconds, bool *timed_out_ret);
 extern bool takyonPostRecvs(TakyonPath *path, uint32_t request_count, TakyonRecvRequest *requests);
@@ -251,18 +258,26 @@ extern bool takyonIsRecved(TakyonPath *path, TakyonRecvRequest *request, double 
 
 // ONE-SIDED TRANSFERS
 // -------------------
-//   Only one endpoint is involved in the transfer; i.e. the other endpoint will not know the transfer is even occuring and not use any OS resources during the transfer.
-//   Write message: one-way send (i.e. push data to the remote endpoint). If piggyback message is sent, remote endpoint must call takyonIsRecved() to get the piggy back message.
+//   Only one endpoint is involved in the transfer; i.e. the other endpoint (application and OS) will not know the transfer is even occuring and not use any OS resources during the transfer.
+//
+//   Write message: one-way send (i.e. push data to the remote endpoint). If the request.operation==TAKYON_OP_WRITE_WITH_PIGGYBACK, the remote endpoint must call takyonIsRecved() to get the piggyback message.
 //     A:write --> (B not involved)
 //     B:write --> (A not involved)
-//   Read message: one way recv (i.e. pulling the data from the remote endpoint), no involvement from the remote endpoint
+//
+//   Read message: one way recv (i.e. pull data from the remote endpoint).
 //     A:read <-- (B not involved)
 //     B:read <-- (A not involved)
+//
 //   Atomic compare and swap uint64:
-//     See TAKYON_OP_ATOMIC_COMPARE_AND_SWAP_UINT64 above for details
+//     See TAKYON_OP_ATOMIC_COMPARE_AND_SWAP_UINT64 above for details.
+//
 //   Atomic add uint64:
-//     See TAKYON_OP_ATOMIC_ADD_UINT64 above for details
-//   This group of functions returns true if there was an unrecoverable error.
+//     See TAKYON_OP_ATOMIC_ADD_UINT64 above for details.
+//
+//   If the request.operation is not TAKYON_OP_WRITE_WITH_PIGGYBACK, then piggyback_message is ignored.
+//   timeout_seconds can use TAKYON_WAIT_FOREVER, TAKYON_NO_WAIT, or an actual number of seconds.
+//   timed_out_ret can be NULL if timeout_seconds==TAKYON_WAIT_FOREVER.
+//   This group of functions returns true if the operation was successful, or false if there was an unrecoverable error.
 extern bool takyonOneSided(TakyonPath *path, TakyonOneSidedRequest *request, uint32_t piggyback_message, double timeout_seconds, bool *timed_out_ret);
 extern bool takyonIsOneSidedDone(TakyonPath *path, TakyonOneSidedRequest *request, double timeout_seconds, bool *timed_out_ret);
 
