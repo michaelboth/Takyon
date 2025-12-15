@@ -207,7 +207,7 @@ void* Common::allocateTransportMemory(uint64_t _bytes, Common::MemoryType _memor
 #ifdef ENABLE_CUDA
   if (_memory_type == Common::MemoryType::SocIntegratedGPU) {
     void *addr = NULL;
-    unsigned int flags = 0; /*+ cudaHostAllocMapped */
+    unsigned int flags = 0;
     cudaError_t cuda_status = cudaHostAlloc(&addr, _bytes, flags); // Allocates host memory and pins it so can be accessed by the GPU directly (SoC integrated GPU allow this)
     if (cuda_status != cudaSuccess) {
       EXIT_WITH_MESSAGE(std::string("cudaHostAlloc() failed: return_code=" + std::to_string(cuda_status)));

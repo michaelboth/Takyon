@@ -55,9 +55,7 @@ static void fillInValidationData(uint32_t *_buffer, uint64_t _count, uint32_t _s
   if (_memory_type == Common::MemoryType::CPU) {
     for (uint64_t i=0; i<_count; i++) { _buffer[i] = (uint32_t)(_starting_value+i); }
 #ifdef ENABLE_CUDA
-  } else if (_memory_type == Common::MemoryType::SocIntegratedGPU) {
-    LatencyTestKernels::runFillInValidationDataKernelBlocking(_buffer, _count, _starting_value);
-  } else if (_memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect) {
+  } else if (_memory_type == Common::MemoryType::SocIntegratedGPU || _memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect) {
     LatencyTestKernels::runFillInValidationDataKernelBlocking(_buffer, _count, _starting_value);
   } else if (_memory_type == Common::MemoryType::DiscreteGPU_withoutGPUDirect) {
     /*+*/EXIT_WITH_MESSAGE(std::string("Not yet implemented"));
@@ -71,9 +69,7 @@ static void copyValidationData(uint32_t *_input_buffer, uint32_t *_output_buffer
   if (_memory_type == Common::MemoryType::CPU) {
     for (uint64_t i=0; i<_count; i++) { _output_buffer[i] = _input_buffer[i]; }
 #ifdef ENABLE_CUDA
-  } else if (_memory_type == Common::MemoryType::SocIntegratedGPU) {
-    LatencyTestKernels::runCopyKernelBlocking(_input_buffer, _output_buffer, _count);
-  } else if (_memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect) {
+  } else if (_memory_type == Common::MemoryType::SocIntegratedGPU || _memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect) {
     LatencyTestKernels::runCopyKernelBlocking(_input_buffer, _output_buffer, _count);
   } else if (_memory_type == Common::MemoryType::DiscreteGPU_withoutGPUDirect) {
     /*+*/EXIT_WITH_MESSAGE(std::string("Not yet implemented"));
@@ -92,16 +88,11 @@ static void validateData(uint32_t *_buffer, uint64_t _count, uint32_t _starting_
       }
     }
 #ifdef ENABLE_CUDA
-  } else if (_memory_type == Common::MemoryType::SocIntegratedGPU) {
-    /*+ reduction kernel */
-    for (uint64_t i=0; i<_count; i++) {
-      uint32_t expected_value = (uint32_t)(_starting_value+i);
-      if (_buffer[i] != expected_value) {
-        EXIT_WITH_MESSAGE(std::string("Received invalid data, _starting_value=" + std::to_string(_starting_value) + ", at index " + std::to_string(i) + " expected  " + std::to_string(expected_value) + " but got " + std::to_string(_buffer[i])));
-      }
+  } else if (_memory_type == Common::MemoryType::SocIntegratedGPU || _memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect) {
+    uint32_t invalid_value_count = LatencyTestKernels::runValidateDataKernelBlocking(_buffer, _count, _starting_value);
+    if (invalid_value_count > 0) {
+      EXIT_WITH_MESSAGE(std::string("Received " + std::to_string(invalid_value_count) + " invalid values"));
     }
-  } else if (_memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect) {
-    /*+*/EXIT_WITH_MESSAGE(std::string("Not yet implemented"));
   } else if (_memory_type == Common::MemoryType::DiscreteGPU_withoutGPUDirect) {
     /*+*/EXIT_WITH_MESSAGE(std::string("Not yet implemented"));
 #endif
@@ -116,6 +107,11 @@ void LatencyTest::runLatencyTest(bool _is_sender, const Common::AppParams &_app_
   // Determine the type of memory to use for processing and transport
   bool is_for_rdma = (_app_params.provider == "RC" || _app_params.provider == "UC" || _app_params.provider == "UD");
   Common::MemoryType memory_type = Common::memoryTypeToUseForTransport(is_for_rdma, _app_params.is_for_gpu);
+
+  // Prepare the kernels for running
+#ifdef ENABLE_CUDA
+  LatencyTestKernels::init();
+#endif
 
   // Allocate transport memory
   uint64_t message_bytes = _app_params.nbytes;
@@ -299,6 +295,9 @@ void LatencyTest::runLatencyTest(bool _is_sender, const Common::AppParams &_app_
   delete[] round_trip_results_usecs;
   Common::freeTransportMemory(send_memory, memory_type);
   Common::freeTransportMemory(recv_memory, memory_type);
+#ifdef ENABLE_CUDA
+  LatencyTestKernels::finalize();
+#endif
   if (_app_params.verbose) printf("Latency test Done.\n\n");
 
   UK_RECORD_EVENT(_app_params.unikorn_session, LATENCY_TEST_END_ID, 0);
