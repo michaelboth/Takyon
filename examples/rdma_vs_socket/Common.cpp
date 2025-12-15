@@ -273,3 +273,42 @@ std::string Common::memoryTypeToText(MemoryType _memory_type) {
   if (_memory_type == Common::MemoryType::DiscreteGPU_withoutGPUDirect) return "DiscreteGPU_withoutGPUDirect";
   return "unknown";
 }
+
+#ifdef ENABLE_CUDA
+void* Common::allocGpuMem(size_t _bytes) {
+  // Create temp cuda memory to hold sumation result
+  void *addr = NULL;
+  cudaError_t cuda_status = cudaMalloc(&addr, _bytes);
+  if (cuda_status != cudaSuccess) {
+    EXIT_WITH_MESSAGE(std::string("cudaMalloc() failed: return_code=" + std::to_string(cuda_status)));
+  }
+  return addr;
+}
+#endif
+
+#ifdef ENABLE_CUDA
+void Common::freeGpuMem(void *_addr) {
+  cudaError_t cuda_status = cudaFree(_addr);
+  if (cuda_status != cudaSuccess) {
+    EXIT_WITH_MESSAGE(std::string("cudaFree() failed: return_code=" + std::to_string(cuda_status)));
+  }
+}
+#endif
+
+#ifdef ENABLE_CUDA
+void Common::gpuToHostCopy(void *_dest_addr, void *_src_addr, size_t _bytes) {
+  cudaError_t cuda_status = cudaMemcpy(_dest_addr, _src_addr, _bytes, cudaMemcpyDeviceToHost);
+  if (cuda_status != cudaSuccess) {
+    EXIT_WITH_MESSAGE(std::string("cudaMemcpy() failed: return_code=" + std::to_string(cuda_status)));
+  }
+}
+#endif
+
+#ifdef ENABLE_CUDA
+void Common::hostToGpuCopy(void *_dest_addr, void *_src_addr, size_t _bytes) {
+  cudaError_t cuda_status = cudaMemcpy(_dest_addr, _src_addr, _bytes, cudaMemcpyHostToDevice);
+  if (cuda_status != cudaSuccess) {
+    EXIT_WITH_MESSAGE(std::string("cudaMemcpy() failed: return_code=" + std::to_string(cuda_status)));
+  }
+}
+#endif

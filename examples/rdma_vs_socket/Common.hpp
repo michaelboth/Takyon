@@ -61,4 +61,11 @@ namespace Common {
   void* allocateTransportMemory(uint64_t _bytes, MemoryType _memory_type);
   void freeTransportMemory(void *_addr, MemoryType _memory_type);
   std::string memoryTypeToText(MemoryType _memory_type);
+
+#ifdef ENABLE_CUDA
+  void *allocGpuMem(size_t _bytes);
+  void freeGpuMem(void *_addr);
+  void gpuToHostCopy(void *_dest_addr, void *_src_addr, size_t _bytes);
+  void hostToGpuCopy(void *_dest_addr, void *_src_addr, size_t _bytes);
+#endif
 };
