@@ -9,11 +9,6 @@
 //     See the License for the specific language governing permissions and
 //     limitations under the License.
 
-/*+ valgrind */
-/*+ update GitHub README.md */
-/*+ improve documentation in takyon.h */
-/*+ Takyon reference sheet? */
-
 #include "LatencyTest.hpp"
 #include "ThroughputTest.hpp"
 #include <cstring>

@@ -11,6 +11,7 @@
 
 #include "Common.hpp"
 #include <fstream>
+#include <cstring>
 #ifdef _WIN32
   #define WIN32_LEAN_AND_MEAN
   #include <Windows.h>
@@ -201,7 +202,10 @@ Common::MemoryType Common::memoryTypeToUseForTransport(bool _is_for_rdma, bool _
 
 void* Common::allocateTransportMemory(uint64_t _bytes, Common::MemoryType _memory_type) {
   if (_memory_type == Common::MemoryType::CPU) {
-    return malloc(_bytes);
+    void *addr = malloc(_bytes);
+    // Zero the memory to keep valgrind quiet
+    memset(addr, 0, _bytes);
+    return addr;
   }
 
 #ifdef ENABLE_CUDA
