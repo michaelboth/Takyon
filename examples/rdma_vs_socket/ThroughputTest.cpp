@@ -10,7 +10,7 @@
 //     limitations under the License.
 
 #include "ThroughputTest.hpp"
-#include "ValidationKernels.hpp"
+#include "Validation.hpp"
 #include "takyon.h"
 #include "unikorn_instrumentation.h"
 #include <cstring>
@@ -26,12 +26,12 @@ static const uint64_t ACK_BYTES = sizeof(int);
 //       if (not_first_iteration) waitForAck and repost
 //       for (each buffer) {
 //         if (prev_send_request_in_use) waitForSendCompletion
-//         send
+//         sendMessage
 //       }
 //     } else {  // is_receiver
 //       // First half
 //       for (first half of buffers) {
-//         recv
+//         recvMessage
 //       }
 //       repostFirstHalfOfBuffers
 //       if (prev_first_half_ACK_in_progress) waitForSendCompletion
@@ -39,7 +39,7 @@ static const uint64_t ACK_BYTES = sizeof(int);
 //
 //       // Second half
 //       for (second half of buffers) {
-//         recv
+//         recvMessage
 //       }
 //       repostSecondHalfOfBuffers
 //       if (prev_second_half_ACK_in_progress) waitForSendCompletion
@@ -50,13 +50,17 @@ static const uint64_t ACK_BYTES = sizeof(int);
 //  For most accurate results use multiple buffers.
 //  For best results use polling with no sleep delay, since event-driven completion requires a thread based context switch
 
-static void waitForAck(TakyonPath *_path, TakyonRecvRequest *_recv_request, uint64_t _expected_bytes, uint32_t _expected_piggyback_message) {
+static void waitForAckThenRepost(TakyonPath *_path, TakyonRecvRequest *_recv_request, uint64_t _expected_bytes, uint32_t _expected_piggyback_message) {
   // Wait for ACK
   uint64_t bytes_received = 0;
   uint32_t piggyback_message = 0;
   (void)takyonIsRecved(_path, _recv_request, TAKYON_WAIT_FOREVER, NULL, &bytes_received, &piggyback_message);
-  if (piggyback_message != _expected_piggyback_message) { EXIT_WITH_MESSAGE(std::string("Received ACK piggyback should be " + std::to_string(_expected_piggyback_message) + " but got " + std::to_string(piggyback_message))); }
-  if (bytes_received != _expected_bytes) { EXIT_WITH_MESSAGE(std::string("Received ACK bytes should be " + std::to_string(_expected_bytes) + " but got " + std::to_string(bytes_received))); }
+  if (piggyback_message != _expected_piggyback_message) {
+    EXIT_WITH_MESSAGE(std::string("Received ACK piggyback should be " + std::to_string(_expected_piggyback_message) + " but got " + std::to_string(piggyback_message) + ". If provider is 'UC', then messages can be dropped."));
+  }
+  if (bytes_received != _expected_bytes) {
+    EXIT_WITH_MESSAGE(std::string("Received ACK bytes should be " + std::to_string(_expected_bytes) + " but got " + std::to_string(bytes_received)));
+  }
 
   // Re-post the recv
   if (_path->capabilities.PostRecvs_function_supported) {
@@ -65,56 +69,8 @@ static void waitForAck(TakyonPath *_path, TakyonRecvRequest *_recv_request, uint
   }
 }
 
-static void fillInValidationData(uint32_t *_buffer, uint32_t *_buffer_gpu, uint64_t _count, uint64_t _starting_value, Common::MemoryType _memory_type) {
-  (void)_buffer_gpu; // Used to quiet the compile if ENABLE_CUDA is not defined
-  if (_memory_type == Common::MemoryType::CPU) {
-    for (uint64_t i=0; i<_count; i++) { _buffer[i] = (uint32_t)(_starting_value+i); }
-#ifdef ENABLE_CUDA
-  } else if (_memory_type == Common::MemoryType::SocIntegratedGPU || _memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect) {
-    ValidationKernels::runFillInValidationDataKernelBlocking(_buffer, _count, _starting_value);
-  } else if (_memory_type == Common::MemoryType::DiscreteGPU_withoutGPUDirect) {
-    ValidationKernels::runFillInValidationDataKernelBlocking(_buffer_gpu, _count, _starting_value);
-    Common::gpuToHostCopy(_buffer, _buffer_gpu, _count*sizeof(uint32_t));
-#endif
-  } else {
-    EXIT_WITH_MESSAGE(std::string("To use GPU memory, the app needs to be built with CUDA"));
-  }
-}
-
-static void validateData(uint32_t *_buffer, uint32_t *_buffer_gpu, uint64_t _count, uint64_t _starting_value, Common::MemoryType _memory_type) {
-  (void)_buffer_gpu; // Used to quiet the compile if ENABLE_CUDA is not defined
-  if (_memory_type == Common::MemoryType::CPU) {
-    for (uint64_t i=0; i<_count; i++) {
-      uint32_t expected_value = (uint32_t)(_starting_value+i);
-      if (_buffer[i] != expected_value) {
-        EXIT_WITH_MESSAGE(std::string("Received invalid data, _starting_value=" + std::to_string(_starting_value) + ", at index " + std::to_string(i) + " expected  " + std::to_string(expected_value) + " but got " + std::to_string(_buffer[i])));
-      }
-    }
-#ifdef ENABLE_CUDA
-  } else if (_memory_type == Common::MemoryType::SocIntegratedGPU || _memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect) {
-    uint32_t invalid_value_count = ValidationKernels::runValidateDataKernelBlocking(_buffer, _count, _starting_value);
-    if (invalid_value_count > 0) {
-      EXIT_WITH_MESSAGE(std::string("Received " + std::to_string(invalid_value_count) + " invalid values"));
-    }
-  } else if (_memory_type == Common::MemoryType::DiscreteGPU_withoutGPUDirect) {
-    Common::hostToGpuCopy(_buffer_gpu, _buffer, _count*sizeof(uint32_t));
-    uint32_t invalid_value_count = ValidationKernels::runValidateDataKernelBlocking(_buffer_gpu, _count, _starting_value);
-    if (invalid_value_count > 0) {
-      EXIT_WITH_MESSAGE(std::string("Received " + std::to_string(invalid_value_count) + " invalid values"));
-    }
-#endif
-  } else {
-    EXIT_WITH_MESSAGE(std::string("To use GPU memory, the app needs to be built with CUDA"));
-  }
-}
-
 void ThroughputTest::runThroughputTest(bool _is_sender, const Common::AppParams &_app_params) {
   UK_RECORD_EVENT(_app_params.unikorn_session, THROUGHPUT_TEST_START_ID, 0);
-
-  // Prepare the kernels for running
-#ifdef ENABLE_CUDA
-  ValidationKernels::init();
-#endif
 
   // Determine the type of memory to use for processing and transport
   bool is_for_rdma = (_app_params.provider == "RC" || _app_params.provider == "UC" || _app_params.provider == "UD");
@@ -136,8 +92,7 @@ void ThroughputTest::runThroughputTest(bool _is_sender, const Common::AppParams 
   bool cycle_message_sizes = (_app_params.nbytes == 0);
   uint64_t message_bytes = cycle_message_sizes ? Common::MAX_NBYTES : _app_params.nbytes;
   uint64_t total_send_bytes = _is_sender ? _app_params.nbufs * message_bytes : ACK_BYTES * 2;
-  uint64_t extra_recv_bytes = (_app_params.provider == "UD") ? 40 : 0; // RDMA UD receiver needs to allocate 40 extra bytes for RDMA's global routing header
-  uint64_t total_recv_bytes = _is_sender ? 2*(ACK_BYTES+extra_recv_bytes) : _app_params.nbufs * (message_bytes+extra_recv_bytes);
+  uint64_t total_recv_bytes = _is_sender ? 2*ACK_BYTES : _app_params.nbufs*message_bytes;
   void *send_memory = Common::allocateTransportMemory(total_send_bytes, memory_type_send);
   void *recv_memory = Common::allocateTransportMemory(total_recv_bytes, memory_type_recv);
 
@@ -177,8 +132,8 @@ void ThroughputTest::runThroughputTest(bool _is_sender, const Common::AppParams 
   for (uint32_t i=0; i<recv_request_count; i++) {
     // Sub buffer
     recv_sub_buffers[i].buffer_index = 1; // Second transport buffer
-    recv_sub_buffers[i].bytes = _is_sender ? ACK_BYTES + extra_recv_bytes : message_bytes + extra_recv_bytes;
-    recv_sub_buffers[i].offset = _is_sender ? i * (ACK_BYTES + extra_recv_bytes) : i * (message_bytes + extra_recv_bytes);
+    recv_sub_buffers[i].bytes = _is_sender ? ACK_BYTES : message_bytes;
+    recv_sub_buffers[i].offset = _is_sender ? i * ACK_BYTES : i * message_bytes;
     // Request
     recv_requests[i].sub_buffer_count = 1;
     recv_requests[i].sub_buffers = &recv_sub_buffers[i];
@@ -254,7 +209,7 @@ void ThroughputTest::runThroughputTest(bool _is_sender, const Common::AppParams 
             if (iter > 0) {
               UK_RECORD_EVENT(_app_params.unikorn_session, WAIT_FOR_ACK_START_ID, 0);
               recv_piggyback_message++;
-              waitForAck(path, &recv_requests[half_index], ACK_BYTES, recv_piggyback_message);
+              waitForAckThenRepost(path, &recv_requests[half_index], ACK_BYTES, recv_piggyback_message);
               UK_RECORD_EVENT(_app_params.unikorn_session, WAIT_FOR_ACK_END_ID, 0);
             }
 
@@ -276,7 +231,7 @@ void ThroughputTest::runThroughputTest(bool _is_sender, const Common::AppParams 
                 uint32_t *send_memory_integer = (uint32_t *)((uint64_t)send_memory + send_request->sub_buffers[0].offset);
                 uint32_t *send_memory_integer_gpu = (uint32_t *)((uint64_t)send_memory_gpu + send_request->sub_buffers[0].offset);
                 uint64_t base_value = send_index * integer_count;
-                fillInValidationData(send_memory_integer, send_memory_integer_gpu, integer_count, base_value, memory_type_send);
+                Validation::fillInData(send_memory_integer, send_memory_integer_gpu, integer_count, base_value, memory_type_send);
               }
               // Send the data
               send_piggyback_message++;
@@ -299,11 +254,11 @@ void ThroughputTest::runThroughputTest(bool _is_sender, const Common::AppParams 
               if (piggyback_message != send_piggyback_message) { EXIT_WITH_MESSAGE(std::string("Recv: got piggyback=" + std::to_string(piggyback_message) + " but expected " + std::to_string(send_piggyback_message) + ", iter=" + std::to_string(iter))); }
               if (bytes_received != curr_message_bytes) { EXIT_WITH_MESSAGE(std::string("Received bytes should be " + std::to_string(curr_message_bytes) + " but got " + std::to_string(bytes_received) + ", iter=" + std::to_string(iter))); }
               if (_app_params.validate) {
-                uint32_t *addr = (uint32_t *)((uint64_t)recv_memory + recv_sub_buffer->offset + extra_recv_bytes);
-                uint32_t *addr_gpu = (uint32_t *)((uint64_t)recv_memory_gpu + recv_sub_buffer->offset + extra_recv_bytes);
+                uint32_t *addr = (uint32_t *)((uint64_t)recv_memory + recv_sub_buffer->offset);
+                uint32_t *addr_gpu = (uint32_t *)((uint64_t)recv_memory_gpu + recv_sub_buffer->offset);
                 uint64_t integer_count = bytes_received / sizeof(int);
                 uint64_t integer_offset = recv_index * integer_count;
-                validateData(addr, addr_gpu, integer_count, integer_offset, memory_type_recv);
+                Validation::validateData(addr, addr_gpu, integer_count, integer_offset, memory_type_recv);
               }
             }
             UK_RECORD_EVENT(_app_params.unikorn_session, RECV_BUFFERS_END_ID, 0);
@@ -336,9 +291,9 @@ void ThroughputTest::runThroughputTest(bool _is_sender, const Common::AppParams 
       if (_is_sender && _app_params.iters > 0) {
         UK_RECORD_EVENT(_app_params.unikorn_session, WAIT_FOR_ACK_START_ID, 0);
         recv_piggyback_message++;
-        waitForAck(path, &recv_requests[0], ACK_BYTES, recv_piggyback_message);
+        waitForAckThenRepost(path, &recv_requests[0], ACK_BYTES, recv_piggyback_message);
         recv_piggyback_message++;
-        waitForAck(path, &recv_requests[1], ACK_BYTES, recv_piggyback_message);
+        waitForAckThenRepost(path, &recv_requests[1], ACK_BYTES, recv_piggyback_message);
         UK_RECORD_EVENT(_app_params.unikorn_session, WAIT_FOR_ACK_END_ID, 0);
       }
 
@@ -388,7 +343,6 @@ void ThroughputTest::runThroughputTest(bool _is_sender, const Common::AppParams 
   Common::freeTransportMemory(send_memory, memory_type_send);
   Common::freeTransportMemory(recv_memory, memory_type_recv);
 #ifdef ENABLE_CUDA
-  ValidationKernels::finalize();
   if (send_memory_gpu != NULL) Common::freeGpuMem(send_memory_gpu);
   if (recv_memory_gpu != NULL) Common::freeGpuMem(recv_memory_gpu);
 #endif

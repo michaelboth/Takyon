@@ -112,14 +112,10 @@ std::map<std::string, std::string> Common::loadProviderParamsFile(std::string _f
     if (line.size() > 0) {
       if (line.starts_with("TCP_A: ")) { params["TCP_A"] = line.substr(7); }
       else if (line.starts_with("TCP_B: ")) { params["TCP_B"] = line.substr(7); }
-      else if (line.starts_with("UDP_A: ")) { params["UDP_A"] = line.substr(7); }
-      else if (line.starts_with("UDP_B: ")) { params["UDP_B"] = line.substr(7); }
       else if (line.starts_with("RC_A: ")) { params["RC_A"] = line.substr(6); }
       else if (line.starts_with("RC_B: ")) { params["RC_B"] = line.substr(6); }
       else if (line.starts_with("UC_A: ")) { params["UC_A"] = line.substr(6); }
       else if (line.starts_with("UC_B: ")) { params["UC_B"] = line.substr(6); }
-      else if (line.starts_with("UD_A: ")) { params["UD_A"] = line.substr(6); }
-      else if (line.starts_with("UD_B: ")) { params["UD_B"] = line.substr(6); }
       else {
         EXIT_WITH_MESSAGE(std::string("Unknown param at line " + std::to_string(line_number) + ": '" + line + "'"));
       }
@@ -128,8 +124,8 @@ std::map<std::string, std::string> Common::loadProviderParamsFile(std::string _f
 
   // Close file
   infile.close();
-  if (params.size() != 10) {
-    EXIT_WITH_MESSAGE(std::string("Params file: '" + _filename + "' does not have all connection variations: TCP, UDP, RC, UC, and UD"));
+  if (params.size() != 6) {
+    EXIT_WITH_MESSAGE(std::string("Params file: '" + _filename + "' does not have all connection variations: TCP, RC, and UC"));
   }
 
 #ifdef PRINT_PROVIDERS
@@ -203,8 +199,7 @@ Common::MemoryType Common::memoryTypeToUseForTransport(bool _is_for_rdma, bool _
 void* Common::allocateTransportMemory(uint64_t _bytes, Common::MemoryType _memory_type) {
   if (_memory_type == Common::MemoryType::CPU) {
     void *addr = malloc(_bytes);
-    // Zero the memory to keep valgrind quiet
-    memset(addr, 0, _bytes);
+    memset(addr, 0, _bytes);  // Zero the memory to keep valgrind quiet
     return addr;
   }
 
@@ -280,7 +275,6 @@ std::string Common::memoryTypeToText(MemoryType _memory_type) {
 
 #ifdef ENABLE_CUDA
 void* Common::allocGpuMem(size_t _bytes) {
-  // Create temp cuda memory to hold sumation result
   void *addr = NULL;
   cudaError_t cuda_status = cudaMalloc(&addr, _bytes);
   if (cuda_status != cudaSuccess) {

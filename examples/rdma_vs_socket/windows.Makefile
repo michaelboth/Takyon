@@ -36,7 +36,7 @@ C_FLAGS    = $(OPTIMIZATION_C_FLAGS) -nologo -WX -W3 -D_CRT_SECURE_NO_WARNINGS -
 CPP_FLAGS  = $(OPTIMIZATION_C_FLAGS) -nologo -WX -W3 -D_CRT_SECURE_NO_WARNINGS -std:c++latest -EHsc -I. -I../../inc $(CUDA_C_FLAGS) $(THREAD_C_FLAGS) $(UNIKORN_C_FLAGS)
 LINK_FLAGS = -nologo -incremental:no -manifest:embed -subsystem:console
 C_LIBS     = ../../lib/takyon.lib $(CUDA_C_LIBS) $(THREAD_C_LIBS) Ws2_32.lib
-CPP_OBJS   = .\Common.obj .\LatencyTest.obj .\Main.obj .\ThroughputTest.obj
+CPP_OBJS   = .\Common.obj .\LatencyTest.obj .\Main.obj .\ThroughputTest.obj .\Validation.obj
 
 TARGET = rdma_vs_socket.exe
 

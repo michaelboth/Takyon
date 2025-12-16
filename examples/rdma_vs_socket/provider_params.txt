@@ -17,14 +17,8 @@ TCP_B: SocketTcp -server -localIP=192.168.1.12 -port=23356 -reuse
 #TCP_A: SocketTcp -client -remoteIP=192.168.1.12 -ephemeralID=1
 #TCP_B: SocketTcp -server -localIP=192.168.1.12 -ephemeralID=1
 
-UDP_A: SocketUdpSend -unicast -remoteIP=192.168.1.12 -port=23356
-UDP_B: SocketUdpRecv -unicast -localIP=192.168.1.12 -port=23356 -reuse
-
 RC_A: RdmaRC -client -remoteIP=192.168.1.12 -port=23356 -rdmaDevice=rocep1s0f0 -rdmaPort=1
 RC_B: RdmaRC -server -localIP=192.168.1.12 -port=23356 -reuse -rdmaDevice=roceP2p1s0f0 -rdmaPort=1
 
 UC_A: RdmaUC -client -remoteIP=192.168.1.12 -port=23356 -rdmaDevice=rocep1s0f0 -rdmaPort=1
 UC_B: RdmaUC -server -localIP=192.168.1.12 -port=23356 -reuse -rdmaDevice=roceP2p1s0f0 -rdmaPort=1
-
-UD_A: RdmaUDUnicastSend -client -remoteIP=192.168.1.12 -port=23356 -rdmaDevice=rocep1s0f0 -rdmaPort=1
-UD_B: RdmaUDUnicastRecv -server -localIP=192.168.1.12 -port=23356 -reuse -rdmaDevice=roceP2p1s0f0 -rdmaPort=1

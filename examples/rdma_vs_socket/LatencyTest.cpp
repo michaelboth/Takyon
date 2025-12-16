@@ -10,9 +10,7 @@
 //     limitations under the License.
 
 #include "LatencyTest.hpp"
-#ifdef ENABLE_CUDA
-  #include "ValidationKernels.hpp"
-#endif
+#include "Validation.hpp"
 #include "takyon.h"
 #include "unikorn_instrumentation.h"
 #include <cstring>
@@ -23,26 +21,30 @@
 // Algorithm:
 //   loop {
 //     if (is_sender) {
-//       start send
-//       recv & repost
+//       sendMessage
+//       recvMessage & repost
 //       waitForSendCompletion
 //     } else {  // is_receiver
-//       recv & repost
-//       send
+//       recvMessage & repost
+//       sendMessage
 //       waitForSendCompletion
 //     }
 //   }
 //
-//  For most accurate results use 4 bytes messages.
+//  For most accurate results use 4 byte messages.
 //  For best results use polling with no sleep delay, since event-driven completion requires a thread based context switch
 
-static void waitForMessage(TakyonPath *_path, TakyonRecvRequest *_recv_request, uint64_t _expected_bytes, uint32_t _expected_piggyback_message) {
+static void waitForMessageThenRepost(TakyonPath *_path, TakyonRecvRequest *_recv_request, uint64_t _expected_bytes, uint32_t _expected_piggyback_message) {
   // Wait for message
   uint64_t bytes_received = 0;
   uint32_t piggyback_message = 0;
   (void)takyonIsRecved(_path, _recv_request, TAKYON_WAIT_FOREVER, NULL, &bytes_received, &piggyback_message);
-  if (piggyback_message != _expected_piggyback_message) { EXIT_WITH_MESSAGE(std::string("Received message piggyback should be " + std::to_string(_expected_piggyback_message) + " but got " + std::to_string(piggyback_message))); }
-  if (bytes_received != _expected_bytes) { EXIT_WITH_MESSAGE(std::string("Received message bytes should be " + std::to_string(_expected_bytes) + " but got " + std::to_string(bytes_received))); }
+  if (piggyback_message != _expected_piggyback_message) {
+    EXIT_WITH_MESSAGE(std::string("Received message piggyback should be " + std::to_string(_expected_piggyback_message) + " but got " + std::to_string(piggyback_message) + ". If provider is 'UC', then messages can be dropped."));
+  }
+  if (bytes_received != _expected_bytes) {
+    EXIT_WITH_MESSAGE(std::string("Received message bytes should be " + std::to_string(_expected_bytes) + " but got " + std::to_string(bytes_received)));
+  }
 
   // Re-post the recv
   if (_path->capabilities.PostRecvs_function_supported) {
@@ -51,78 +53,17 @@ static void waitForMessage(TakyonPath *_path, TakyonRecvRequest *_recv_request, 
   }
 }
 
-static void fillInValidationData(uint32_t *_buffer, uint32_t *_buffer_gpu, uint64_t _count, uint64_t _starting_value, Common::MemoryType _memory_type) {
-  (void)_buffer_gpu; // Used to quiet the compile if ENABLE_CUDA is not defined
-  if (_memory_type == Common::MemoryType::CPU) {
-    for (uint64_t i=0; i<_count; i++) { _buffer[i] = (uint32_t)(_starting_value+i); }
-#ifdef ENABLE_CUDA
-  } else if (_memory_type == Common::MemoryType::SocIntegratedGPU || _memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect) {
-    ValidationKernels::runFillInValidationDataKernelBlocking(_buffer, _count, _starting_value);
-  } else if (_memory_type == Common::MemoryType::DiscreteGPU_withoutGPUDirect) {
-    ValidationKernels::runFillInValidationDataKernelBlocking(_buffer_gpu, _count, _starting_value);
-    Common::gpuToHostCopy(_buffer, _buffer_gpu, _count*sizeof(uint32_t));
-#endif
-  } else {
-    EXIT_WITH_MESSAGE(std::string("To use GPU memory, the app needs to be built with CUDA"));
-  }
-}
-
-static void copyValidationData(uint32_t *_input_buffer, uint32_t *_output_buffer, uint64_t _count, Common::MemoryType _memory_type) {
-  if (_memory_type == Common::MemoryType::CPU) {
-    for (uint64_t i=0; i<_count; i++) { _output_buffer[i] = _input_buffer[i]; }
-#ifdef ENABLE_CUDA
-  } else if (_memory_type == Common::MemoryType::SocIntegratedGPU || _memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect || _memory_type == Common::MemoryType::DiscreteGPU_withoutGPUDirect) {
-    ValidationKernels::runCopyKernelBlocking(_input_buffer, _output_buffer, _count);
-#endif
-  } else {
-    EXIT_WITH_MESSAGE(std::string("To use GPU memory, the app needs to be built with CUDA"));
-  }
-}
-
-static void validateData(uint32_t *_buffer, uint32_t *_buffer_gpu, uint64_t _count, uint64_t _starting_value, Common::MemoryType _memory_type) {
-  (void)_buffer_gpu; // Used to quiet the compile if ENABLE_CUDA is not defined
-  if (_memory_type == Common::MemoryType::CPU) {
-    for (uint64_t i=0; i<_count; i++) {
-      uint32_t expected_value = (uint32_t)(_starting_value+i);
-      if (_buffer[i] != expected_value) {
-        EXIT_WITH_MESSAGE(std::string("Received invalid data, _starting_value=" + std::to_string(_starting_value) + ", at index " + std::to_string(i) + " expected  " + std::to_string(expected_value) + " but got " + std::to_string(_buffer[i])));
-      }
-    }
-#ifdef ENABLE_CUDA
-  } else if (_memory_type == Common::MemoryType::SocIntegratedGPU || _memory_type == Common::MemoryType::DiscreteGPU_withGPUDirect) {
-    uint32_t invalid_value_count = ValidationKernels::runValidateDataKernelBlocking(_buffer, _count, _starting_value);
-    if (invalid_value_count > 0) {
-      EXIT_WITH_MESSAGE(std::string("Received " + std::to_string(invalid_value_count) + " invalid values"));
-    }
-  } else if (_memory_type == Common::MemoryType::DiscreteGPU_withoutGPUDirect) {
-    Common::hostToGpuCopy(_buffer_gpu, _buffer, _count*sizeof(uint32_t));
-    uint32_t invalid_value_count = ValidationKernels::runValidateDataKernelBlocking(_buffer_gpu, _count, _starting_value);
-    if (invalid_value_count > 0) {
-      EXIT_WITH_MESSAGE(std::string("Received " + std::to_string(invalid_value_count) + " invalid values"));
-    }
-#endif
-  } else {
-    EXIT_WITH_MESSAGE(std::string("To use GPU memory, the app needs to be built with CUDA"));
-  }
-}
-
 void LatencyTest::runLatencyTest(bool _is_sender, const Common::AppParams &_app_params) {
   UK_RECORD_EVENT(_app_params.unikorn_session, LATENCY_TEST_START_ID, 0);
-
-  // Prepare the kernels for running
-#ifdef ENABLE_CUDA
-  ValidationKernels::init();
-#endif
 
   // Determine the type of memory to use for processing and transport
   bool is_for_rdma = (_app_params.provider == "RC" || _app_params.provider == "UC" || _app_params.provider == "UD");
   Common::MemoryType memory_type = Common::memoryTypeToUseForTransport(is_for_rdma, _app_params.is_for_gpu);
 
-  // Allocate transport memory
+  // Allocate transport memory (enough for just 1 message each way)
   uint64_t message_bytes = _app_params.nbytes;
   uint64_t total_send_bytes = message_bytes;
-  uint64_t extra_recv_bytes = (_app_params.provider == "UD") ? 40 : 0; // RDMA UD receiver needs to allocate 40 extra bytes for RDMA's global routing header
-  uint64_t total_recv_bytes = message_bytes + extra_recv_bytes;
+  uint64_t total_recv_bytes = message_bytes;
   void *send_memory = Common::allocateTransportMemory(total_send_bytes, memory_type);
   void *recv_memory = Common::allocateTransportMemory(total_recv_bytes, memory_type);
 
@@ -159,7 +100,7 @@ void LatencyTest::runLatencyTest(bool _is_sender, const Common::AppParams &_app_
   {
     // Sub buffer
     recv_sub_buffer.buffer_index = 1; // Second transport buffer
-    recv_sub_buffer.bytes = message_bytes + extra_recv_bytes;
+    recv_sub_buffer.bytes = message_bytes;
     recv_sub_buffer.offset = 0;
     // Request
     recv_request.sub_buffer_count = 1;
@@ -220,8 +161,8 @@ void LatencyTest::runLatencyTest(bool _is_sender, const Common::AppParams &_app_
   double accumulated_jitter_usecs = -1.0;
   uint32_t *int_send_buffer = (uint32_t *)send_memory;
   uint32_t *int_send_buffer_gpu = (uint32_t *)send_memory_gpu;
-  uint32_t *int_recv_buffer = (uint32_t *)((uint64_t)recv_memory + extra_recv_bytes);
-  uint32_t *int_recv_buffer_gpu = (uint32_t *)((uint64_t)recv_memory_gpu + extra_recv_bytes);
+  uint32_t *int_recv_buffer = (uint32_t *)recv_memory;
+  uint32_t *int_recv_buffer_gpu = (uint32_t *)recv_memory_gpu;
   uint64_t counter = 0;
   uint64_t validation_count = message_bytes/sizeof(uint32_t);
   uint32_t send_piggyback_message = 0; // Used for validation
@@ -231,18 +172,22 @@ void LatencyTest::runLatencyTest(bool _is_sender, const Common::AppParams &_app_
       UK_RECORD_EVENT(_app_params.unikorn_session, LATENCY_ITERATION_START_ID, 0);
 
       if (_is_sender) {
-        // Send
+        // Prepare data to be sent
         if (_app_params.validate) {
-          fillInValidationData(int_send_buffer, int_send_buffer_gpu, validation_count, counter, memory_type);
+          Validation::fillInData(int_send_buffer, int_send_buffer_gpu, validation_count, counter, memory_type);
         }
+
+        // Send
         send_piggyback_message++;
         (void)takyonSend(path, &send_request, send_piggyback_message, TAKYON_WAIT_FOREVER, NULL);
+
         // Recv
         recv_piggyback_message++;
-        waitForMessage(path, &recv_request, message_bytes, recv_piggyback_message);
+        waitForMessageThenRepost(path, &recv_request, message_bytes, recv_piggyback_message);
         if (_app_params.validate) {
-          validateData(int_recv_buffer, int_recv_buffer_gpu, validation_count, counter, memory_type);
+          Validation::validateData(int_recv_buffer, int_recv_buffer_gpu, validation_count, counter, memory_type);
         }
+
         // Make sure send completion has occurred
         if (path->capabilities.IsSent_function_supported) {
           (void)takyonIsSent(path, &send_request, TAKYON_WAIT_FOREVER, NULL);
@@ -251,16 +196,19 @@ void LatencyTest::runLatencyTest(bool _is_sender, const Common::AppParams &_app_
       } else {
         // Recv
         send_piggyback_message++;
-        waitForMessage(path, &recv_request, message_bytes, send_piggyback_message);
+        waitForMessageThenRepost(path, &recv_request, message_bytes, send_piggyback_message);
+
+        // Validate
         if (_app_params.validate) {
-          validateData(int_recv_buffer, int_recv_buffer_gpu, validation_count, counter, memory_type);
+          Validation::validateData(int_recv_buffer, int_recv_buffer_gpu, validation_count, counter, memory_type);
+          // Copy the data from the recv buffer to the send buffer, and send it back to the remote endpoint to be further validated
+          Validation::copyData(int_recv_buffer, int_send_buffer, validation_count, memory_type);
         }
+
         // Send
-        if (_app_params.validate) {
-          copyValidationData(int_recv_buffer, int_send_buffer, validation_count, memory_type);
-        }
         recv_piggyback_message++;
         (void)takyonSend(path, &send_request, recv_piggyback_message, TAKYON_WAIT_FOREVER, NULL);
+
         // Make sure send completion has occurred
         if (path->capabilities.IsSent_function_supported) {
           (void)takyonIsSent(path, &send_request, TAKYON_WAIT_FOREVER, NULL);
@@ -313,7 +261,6 @@ void LatencyTest::runLatencyTest(bool _is_sender, const Common::AppParams &_app_
   Common::freeTransportMemory(send_memory, memory_type);
   Common::freeTransportMemory(recv_memory, memory_type);
 #ifdef ENABLE_CUDA
-  ValidationKernels::finalize();
   if (send_memory_gpu != NULL) Common::freeGpuMem(send_memory_gpu);
   if (recv_memory_gpu != NULL) Common::freeGpuMem(recv_memory_gpu);
 #endif

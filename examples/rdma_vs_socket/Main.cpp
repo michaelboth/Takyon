@@ -11,6 +11,7 @@
 
 #include "LatencyTest.hpp"
 #include "ThroughputTest.hpp"
+#include "ValidationKernels.hpp"
 #include <cstring>
 
 // For Unikorn instrumentation
@@ -21,7 +22,7 @@ static void printUsageAndExit(const char *_program) {
   printf("usage: %s <lat|tp> <params_file> <provider> <A|B> [-once] [-iters=<uint32>] [-bytes=<uint64>] [-nbufs=<uint32>] [-poll] [-gpu] [-validate] [-verbose]\n", _program);
   printf("   lat or tp        : If 'lat', then run latency test. If 'tp' then run throughput test.\n");
   printf("   params_file      : Text file containing the Takyon parameters for each provider\n");
-  printf("   provider         : One of TCP, UDP, RC, US, UD\n");
+  printf("   provider         : One of TCP, RC, or UC\n");
   printf("   A or B           : A is the sender, B is the receiver. Only provide one of them.\n");
   printf("   -once            : Run the number of iteration once. Default is to run forever repeating the number of iterations.\n");
   printf("   -iters=<uint32>  : Number of times to transfer using all message buffers. Default is %d.\n", Common::DEFAULT_NITERS);
@@ -53,11 +54,8 @@ int main(int argc, char **argv) {
   }
   std::map<std::string, std::string> connection_params = Common::loadProviderParamsFile(argv[2]);
   app_params.provider = argv[3];
-  if (app_params.provider != "TCP" && app_params.provider != "UDP" && app_params.provider != "RC" && app_params.provider != "UC" && app_params.provider != "UD") {
-    EXIT_WITH_MESSAGE(std::string("provider (arg2) must be one of TCP, UDP, RC, UC, or UD"));
-  }
-  if (app_params.provider == "UDP" || app_params.provider == "UD") {
-    /*+ remove after it's implemented */EXIT_WITH_MESSAGE(std::string("UDP and UD not yet implemented"));
+  if (app_params.provider != "TCP" && app_params.provider != "RC" && app_params.provider != "UC") {
+    EXIT_WITH_MESSAGE(std::string("provider (arg2) must be one of TCP, RC, or UC"));
   }
   std::string side = argv[4];
   if (side != "A" && side != "B") {
@@ -146,12 +144,21 @@ int main(int argc, char **argv) {
   app_params.unikorn_session = ukCreate(&unikorn_attrs, ukGetTime, &flush_info, ukPrepareFileFlush, ukFileFlush, ukFinishFileFlush);
 #endif
 
+  // Prepare the kernels for running
+#ifdef ENABLE_CUDA
+  ValidationKernels::init();
+#endif
+
   // Run test
   if (test_mode == "lat") {
     LatencyTest::runLatencyTest(is_sender, app_params);
   } else if (test_mode == "tp") {
     ThroughputTest::runThroughputTest(is_sender, app_params);
   }
+
+#ifdef ENABLE_CUDA
+  ValidationKernels::finalize();
+#endif
 
   // Finalize
   printf("Done.\n");

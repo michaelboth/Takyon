@@ -1,9 +1,9 @@
 TARGET  := rdma_vs_socket
 
-CPP_OBJS     := Main.o Common.o LatencyTest.o ThroughputTest.o
+CPP_OBJS     := Main.o Common.o LatencyTest.o ThroughputTest.o Validation.o
 C_OBJS       :=
 CU_OBJS      :=
-HEADER_FILES := Common.hpp LatencyTest.hpp ThroughputTest.hpp unikorn_instrumentation.h ValidationKernels.hpp
+HEADER_FILES := Common.hpp LatencyTest.hpp ThroughputTest.hpp unikorn_instrumentation.h Validation.hpp ValidationKernels.hpp
 
 COMMON_FLAGS :=
 ifeq ($(DEBUG),Yes)
