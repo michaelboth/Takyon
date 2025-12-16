@@ -13,7 +13,7 @@ This shows the Takyon features and reasoning behind creating a new point-to-poin
 # Key Features
 - Point-to-point message passing communication API
 - Heterogeneous: unifies RDMA, sockets, and many other communication interconnects
-- Supports reliable and unreliable (unicast and multicast)
+- Supports reliable and unreliable (including multicast)
 - Supports blocking and non-blocking (DMA based) transfers
 - Supports one-sided (read or write) and two-sided transfers (send -> recv)
 - Designed for zero-copy AND (not 'or') one-way (can't get any faster than that)
